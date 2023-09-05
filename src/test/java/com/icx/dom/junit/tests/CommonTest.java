@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
@@ -49,7 +50,7 @@ import com.icx.dom.jdbc.SqlDb.DbType;
 import com.icx.dom.junit.TestHelpers;
 
 @TestMethodOrder(OrderAnnotation.class)
-public class CommonTest extends TestHelpers {
+class CommonTest extends TestHelpers {
 
 	static final Logger log = LoggerFactory.getLogger(CommonTest.class);
 
@@ -62,10 +63,10 @@ public class CommonTest extends TestHelpers {
 
 		assertTrue(CBase.logicallyEqual("", null), "logically equals empty string and null");
 		assertTrue(CBase.logicallyEqual(null, ""), "logically equals null and empty string");
-		assertTrue(CBase.logicallyEqual(new ArrayList<String>(), null), "logically equals empty list and null");
-		assertTrue(CBase.logicallyEqual(null, new ArrayList<String>()), "logically equals null and empty list");
-		assertTrue(CBase.logicallyEqual(new HashMap<String, String>(), null), "logically equals empty map and null");
-		assertTrue(CBase.logicallyEqual(null, new HashMap<String, String>()), "logically equals null and empty map");
+		assertTrue(CBase.logicallyEqual(new ArrayList<>(), null), "logically equals empty list and null");
+		assertTrue(CBase.logicallyEqual(null, new ArrayList<>()), "logically equals null and empty list");
+		assertTrue(CBase.logicallyEqual(new HashMap<>(), null), "logically equals empty map and null");
+		assertTrue(CBase.logicallyEqual(null, new HashMap<>()), "logically equals null and empty map");
 
 		assertEquals("a", CBase.untilFirst("a.b.s", "."), "until first");
 		assertEquals("", CBase.untilFirst("a.b.s", "a"), "until first");
@@ -155,11 +156,11 @@ public class CommonTest extends TestHelpers {
 		new File("test/text.txt").delete();
 		new File("test").delete();
 		File testTxt = new File("test/text.txt");
-		assertTrue(CFile.checkOrCreateFile(testTxt) != null, "Create file");
-		assertTrue(CFile.checkOrCreateFile(testTxt) != null, "Create file");
+		assertNotNull(CFile.checkOrCreateFile(testTxt), "Create file");
+		assertNotNull(CFile.checkOrCreateFile(testTxt), "Create file");
 		assertEquals("text.txt", CFile.getRelativeFilePath(testTxt, new File("test")).getPath(), "relative file path");
 
-		assertFalse(CFile.getCurrentDir() == null, "get current dir");
+		assertNotNull(CFile.getCurrentDir(), "get current dir");
 
 		CFile.writeText(testTxt, "abcÄÖÜß", false, StandardCharsets.UTF_8.name());
 		CFile.writeText(testTxt, "abcÄÖÜß", true, StandardCharsets.UTF_8.name());
@@ -211,7 +212,7 @@ public class CommonTest extends TestHelpers {
 		Reflection.retrieveLoadedPackageNames();
 		assertTrue(Reflection.getLoadedPackageNames().size() > 100, "loaded packages");
 
-		assertTrue(Reflection.getClassesDir(BikeStoreApp.class).getPath() != null, "classes dir");
+		assertNotNull(Reflection.getClassesDir(BikeStoreApp.class).getPath(), "classes dir");
 	}
 
 	@SuppressWarnings("static-method")
@@ -248,9 +249,9 @@ public class CommonTest extends TestHelpers {
 		assertEquals(CMap.newMap("a", "A", "b", "", "c", null), Prop.getProperty(props, Map.class, "map", null), "map property");
 		assertEquals(null, Prop.getProperty(props, Map.class, "map1", null), "default map property");
 
-		assertFalse(Prop.findPropertiesFile("equal.properties") == null, "equal properties files");
-		assertTrue(Prop.findPropertiesFile("unequal.properties") == null, "unequal properties files");
-		assertTrue(Prop.findPropertiesFile("nonexistent.properties") == null, "non-existent properties file");
+		assertNotNull(Prop.findPropertiesFile("equal.properties"), "equal properties files");
+		assertNull(Prop.findPropertiesFile("unequal.properties"), "unequal properties files");
+		assertNull(Prop.findPropertiesFile("nonexistent.properties"), "non-existent properties file");
 	}
 
 	@SuppressWarnings("static-method")

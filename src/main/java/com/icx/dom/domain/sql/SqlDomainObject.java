@@ -107,7 +107,7 @@ public abstract class SqlDomainObject extends DomainObject {
 	 * @return true if domain object was saved without critical errors or is still not saved to database, false otherwise
 	 */
 	public boolean isValid() {
-		return (currentException == null && !fieldErrorMap.values().stream().anyMatch(fe -> fe.isCritical));
+		return (currentException == null && fieldErrorMap.values().stream().noneMatch(fe -> fe.isCritical));
 	}
 
 	/**
@@ -219,7 +219,7 @@ public abstract class SqlDomainObject extends DomainObject {
 	// Check if any of objects to check has a reference to this object - which indicates a circular reference in calling context
 	private void checkForAndResetCircularReferences(Connection cn, List<SqlDomainObject> objectsToCheck, int stackSize) throws SQLException, SqlDbException {
 
-		// Check for (circular) references to this object and reset these references to allow deletion
+		// Check for - circular - references to this object and reset these references to allow deletion
 		for (DomainObject objectToCheck : objectsToCheck) {
 
 			SortedMap<String, Object> columnValueMap = new TreeMap<>();
@@ -244,7 +244,7 @@ public abstract class SqlDomainObject extends DomainObject {
 	// DELETE object records locally and from database
 	private synchronized void deleteFromDatabase(Connection cn) throws SQLException, SqlDbException {
 
-		// Delete records belonging to this object: object records for (derived) domain class(es) and potentially existing element or key/value records
+		// Delete records belonging to this object: object records for domain class(es) and potentially existing element or key/value records
 		for (Class<? extends DomainObject> domainClass : CList.reverse(Registry.getInheritanceStack(getClass()))) {
 
 			// Delete possibly existing element or key/value records from entry tables before deleting object record for domain class itself
@@ -252,7 +252,7 @@ public abstract class SqlDomainObject extends DomainObject {
 				SqlDb.deleteFrom(cn, SqlRegistry.getEntryTableFor(complexField).name, SqlRegistry.getMainTableRefIdColumnFor(complexField).name + "=" + id);
 			}
 
-			// Delete object record for (inherited) domain class
+			// Delete object record for inherited domain class
 			SqlDb.deleteFrom(cn, SqlRegistry.getTableFor(domainClass).name, ID_COL + "=" + id);
 		}
 	}
@@ -358,28 +358,16 @@ public abstract class SqlDomainObject extends DomainObject {
 			return false;
 		}
 
-		List<SqlDomainObject> objectsToCheck = new ArrayList<>();
-
 		try (SqlConnection sqlcn = SqlConnection.open(SqlDomainController.sqlDb.pool, false)) { // Use one transaction for all DELETE operations to allow ROLLBACK of whole transaction on error
 
-			try {
-				// Recursively delete all object and child object records from database - transaction will automatically be committed on closing connection
-				deleteRecursiveFromDatabase(sqlcn.cn, objectsToCheck, 0);
+			// Recursively delete all object and child object records from database - transaction will automatically be committed later on closing connection
+			delete(sqlcn.cn);
 
-				if (log.isDebugEnabled()) {
-					log.debug("SDO: Deletion of {} and all children took: {}", name(), ChronoUnit.MILLIS.between(now, LocalDateTime.now()) + "ms");
-				}
+			if (log.isDebugEnabled()) {
+				log.debug("SDO: Deletion of {} and all children took: {}", name(), ChronoUnit.MILLIS.between(now, LocalDateTime.now()) + "ms");
+			}
 
-				return true;
-			}
-			catch (SQLException sqlex) {
-				handleDeleteException(sqlcn.cn, sqlex, objectsToCheck);
-				throw sqlex;
-			}
-			catch (SqlDbException sqlex) {
-				handleDeleteException(sqlcn.cn, sqlex, objectsToCheck);
-				throw sqlex;
-			}
+			return true;
 		}
 		catch (SQLException sqlex) {
 			log.error("SDO: Delete: Object {} cannot be deleted", name());
@@ -594,18 +582,6 @@ public abstract class SqlDomainObject extends DomainObject {
 		return columnValueMap;
 	}
 
-	// Get or create field changes map for domain class
-	private static Map<Field, Object> getOrCreateFieldChangesMap(Map<Class<? extends DomainObject>, Map<Field, Object>> fieldChangesMapByDomainClassMap, Class<? extends DomainObject> domainClass) {
-
-		Map<Field, Object> fieldChangesMap = fieldChangesMapByDomainClassMap.get(domainClass);
-		if (fieldChangesMap == null) {
-			fieldChangesMap = new HashMap<>();
-			fieldChangesMapByDomainClassMap.put(domainClass, fieldChangesMap);
-		}
-
-		return fieldChangesMap;
-	}
-
 	// Collect changed field values (in respect to object record) or all field values if object is still unsaved
 	@SuppressWarnings("unchecked")
 	private Map<Class<? extends DomainObject>, Map<Field, Object>> collectFieldChanges() throws SqlDbException {
@@ -619,7 +595,7 @@ public abstract class SqlDomainObject extends DomainObject {
 			// New object: add { field , field value } entry to changes map for all registered fields
 			for (Class<? extends DomainObject> domainClass : Registry.getInheritanceStack(getClass())) {
 				for (Field dataField : Registry.getRegisteredFields(domainClass)) {
-					getOrCreateFieldChangesMap(fieldChangesMapByDomainClassMap, domainClass).put(dataField, getFieldValue(dataField));
+					fieldChangesMapByDomainClassMap.computeIfAbsent(domainClass, dc -> new HashMap<>()).put(dataField, getFieldValue(dataField));
 				}
 			}
 		}
@@ -635,7 +611,7 @@ public abstract class SqlDomainObject extends DomainObject {
 					Object columnValue = objectRecord.get(column.name);
 
 					if (!CBase.logicallyEqual(Helpers.fieldToColumnValue(fieldValue), columnValue)) {
-						getOrCreateFieldChangesMap(fieldChangesMapByDomainClassMap, domainClass).put(dataField, fieldValue);
+						fieldChangesMapByDomainClassMap.computeIfAbsent(domainClass, dc -> new HashMap<>()).put(dataField, fieldValue);
 					}
 				}
 
@@ -648,7 +624,7 @@ public abstract class SqlDomainObject extends DomainObject {
 					Long refObjFromColumn = (Long) objectRecord.get(fkColumn.name);
 
 					if (!CBase.objectsEqual(refObjIdFromField, refObjFromColumn)) {
-						getOrCreateFieldChangesMap(fieldChangesMapByDomainClassMap, domainClass).put(refField, refObj);
+						fieldChangesMapByDomainClassMap.computeIfAbsent(domainClass, dc -> new HashMap<>()).put(refField, refObj);
 					}
 				}
 
@@ -665,7 +641,7 @@ public abstract class SqlDomainObject extends DomainObject {
 						Collection<Object> columnCollection = Helpers.entryRecordsToCollection(genericFieldType, entries);
 
 						if (!CBase.objectsEqual(fieldCollection, columnCollection)) {
-							getOrCreateFieldChangesMap(fieldChangesMapByDomainClassMap, domainClass).put(complexField, fieldCollection);
+							fieldChangesMapByDomainClassMap.computeIfAbsent(domainClass, dc -> new HashMap<>()).put(complexField, fieldCollection);
 						}
 					}
 					else {
@@ -673,7 +649,7 @@ public abstract class SqlDomainObject extends DomainObject {
 						Map<Object, Object> columnMap = Helpers.entryRecordsToMap(genericFieldType, entries);
 
 						if (!CBase.objectsEqual(fieldMap, columnMap)) {
-							getOrCreateFieldChangesMap(fieldChangesMapByDomainClassMap, domainClass).put(complexField, fieldMap);
+							fieldChangesMapByDomainClassMap.computeIfAbsent(domainClass, dc -> new HashMap<>()).put(complexField, fieldMap);
 						}
 					}
 				}
@@ -753,10 +729,6 @@ public abstract class SqlDomainObject extends DomainObject {
 
 		return sb.toString();
 	}
-
-	// public static void main(String[] args) {
-	// System.out.println(buildElementList(CList.newList(1, "2", "three")));
-	// }
 
 	// DELETE, UPDATE or/and INSERT entry records (reflecting element collection or key/value map fields) and update object record
 	@SuppressWarnings("unchecked")

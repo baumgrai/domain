@@ -242,12 +242,7 @@ public abstract class DomainObject implements Comparable<DomainObject> {
 			Class<? extends DomainObject> referencingClass = Registry.getDeclaringDomainClass(refField);
 
 			for (DomainObject child : DomainController.findAll(referencingClass, ch -> CBase.objectsEqual(ch.getFieldValue(refField), this))) {
-
-				if (!childrenByRefFieldMap.containsKey(refField)) {
-					childrenByRefFieldMap.put(refField, new HashSet<>());
-				}
-
-				childrenByRefFieldMap.get(refField).add(child);
+				childrenByRefFieldMap.computeIfAbsent(refField, f -> new HashSet<>()).add(child);
 			}
 		}
 

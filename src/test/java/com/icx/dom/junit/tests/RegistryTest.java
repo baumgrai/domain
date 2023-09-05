@@ -44,7 +44,7 @@ import com.icx.dom.junit.domain.sub.Y;
 import com.icx.dom.junit.domain.sub.Z;
 
 @TestMethodOrder(OrderAnnotation.class)
-public class RegistryTest extends TestHelpers {
+class RegistryTest extends TestHelpers {
 
 	static final Logger log = LoggerFactory.getLogger(RegistryTest.class);
 

@@ -1,6 +1,7 @@
 package com.icx.dom.domain.sql;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Member;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -123,7 +124,7 @@ public class FieldError {
 
 			if (multipleUniqueColumnsPredicate != null && DomainController.count(obj.getClass(), multipleUniqueColumnsPredicate) > 1) {
 
-				List<String> fieldNames = combinedUniqueFields.stream().map(f -> f.getName()).collect(Collectors.toList());
+				List<String> fieldNames = combinedUniqueFields.stream().map(Member::getName).collect(Collectors.toList());
 
 				if (uc.columns.size() == 1) {
 					log.error("SDO: \tColumn '{}' is UNIQUE by constraint '{}' but '{}' object '{}' already exists with same value '{}' of field '{}'!",

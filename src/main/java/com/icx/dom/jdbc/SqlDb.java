@@ -10,7 +10,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Types;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -79,7 +79,7 @@ public class SqlDb {
 		}
 	}
 
-	static final Map<DbType, String> DB_DATE_FUNCT = new HashMap<DbType, String>() {
+	static final Map<DbType, String> DB_DATE_FUNCT = new EnumMap<DbType, String>(DbType.class) {
 		static final long serialVersionUID = 1L;
 		{
 			put(DbType.ORACLE, "SYSDATE");
@@ -1249,7 +1249,7 @@ public class SqlDb {
 					column.datatype = rs.getString("TYPE_NAME").toUpperCase();
 					column.maxlen = rs.getInt("COLUMN_SIZE");
 					int nullableInt = rs.getInt("NULLABLE");
-					column.isNullable = (nullableInt == ResultSetMetaData.columnNullable ? true : false);
+					column.isNullable = (nullableInt == ResultSetMetaData.columnNullable);
 					if (CBase.objectsEqual(column.name, primaryKeyColumnName))
 						column.isPrimaryKey = true;
 

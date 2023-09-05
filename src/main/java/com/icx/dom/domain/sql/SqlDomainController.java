@@ -9,6 +9,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -217,12 +218,7 @@ public abstract class SqlDomainController extends DomainController {
 
 					log.info("SDC: Object domain class for referenced domain class '{}' is: '{}'", domainClass.getSimpleName(), objectDomainClassName);
 
-					try {
-						return getDomainClassByName(objectDomainClassName);
-					}
-					catch (ClassNotFoundException e) {
-						log.error("Class '{}' of missing object is not registered as domain class", objectDomainClassName);
-					}
+					return getDomainClassByName(objectDomainClassName);
 				}
 			}
 			catch (SQLException | SqlDbException e) {
@@ -259,7 +255,7 @@ public abstract class SqlDomainController extends DomainController {
 
 		sd.joinedTableExpression = objectTable.name;
 		sd.allColumnNames.addAll(objectTable.columns.stream().map(c -> objectTable.name + "." + c.name).collect(Collectors.toList()));
-		sd.allFieldTypes.addAll(objectTable.columns.stream().map(c -> SqlRegistry.getRequiredJdbcTypeFor(c)).collect(Collectors.toList()));
+		sd.allFieldTypes.addAll(objectTable.columns.stream().map(SqlRegistry::getRequiredJdbcTypeFor).collect(Collectors.toList()));
 
 		// Extend table and column expression for inherited domain classes
 
@@ -272,7 +268,7 @@ public abstract class SqlDomainController extends DomainController {
 
 			sd.joinedTableExpression += " JOIN " + inheritedTable.name + " ON " + inheritedTable.name + ".ID=" + objectTable.name + ".ID";
 			sd.allColumnNames.addAll(inheritedTable.columns.stream().filter(isNonStandardColumn).map(c -> inheritedTable.name + "." + c.name).collect(Collectors.toList()));
-			sd.allFieldTypes.addAll(inheritedTable.columns.stream().filter(isNonStandardColumn).map(c -> SqlRegistry.getRequiredJdbcTypeFor(c)).collect(Collectors.toList()));
+			sd.allFieldTypes.addAll(inheritedTable.columns.stream().filter(isNonStandardColumn).map(SqlRegistry::getRequiredJdbcTypeFor).collect(Collectors.toList()));
 
 			derivedDomainClass = Registry.getSuperclass(derivedDomainClass);
 		}
@@ -364,17 +360,17 @@ public abstract class SqlDomainController extends DomainController {
 			}
 
 			// Build up loaded records by id map
-			for (SortedMap<String, Object> record : loadedRecords) {
+			for (SortedMap<String, Object> rec : loadedRecords) {
 
 				// Check if record is a 'real' (not derived) object record
-				String actualObjectDomainClassName = (String) record.get(SqlDomainObject.DOMAIN_CLASS_COL);
+				String actualObjectDomainClassName = (String) rec.get(SqlDomainObject.DOMAIN_CLASS_COL);
 				if (CBase.objectsEqual(actualObjectDomainClassName, objectDomainClass.getSimpleName())) {
 
-					long objectId = (long) record.get(SqlDomainObject.ID_COL);
-					loadedRecordMap.put(objectId, record);
+					long objectId = (long) rec.get(SqlDomainObject.ID_COL);
+					loadedRecordMap.put(objectId, rec);
 				}
 				else {
-					log.info("SDC: Loaded record {} for object domain class '{}' is not a 'real' object record - actual object domain class is '{}'", CLog.forAnalyticLogging(record),
+					log.info("SDC: Loaded record {} for object domain class '{}' is not a 'real' object record - actual object domain class is '{}'", CLog.forAnalyticLogging(rec),
 							objectDomainClass.getSimpleName(), actualObjectDomainClassName);
 				}
 			}
@@ -420,7 +416,7 @@ public abstract class SqlDomainController extends DomainController {
 
 						// Add entry record to record list
 						if (!loadedRecordMap.get(objectId).containsKey(entryTable.name)) {
-							loadedRecordMap.get(objectId).put(entryTable.name, new ArrayList<SortedMap<String, Object>>());
+							loadedRecordMap.get(objectId).put(entryTable.name, new ArrayList<>());
 						}
 						((List<SortedMap<String, Object>>) loadedRecordMap.get(objectId).get(entryTable.name)).add(entryRecord);
 					}
@@ -479,7 +475,7 @@ public abstract class SqlDomainController extends DomainController {
 		for (Class<? extends DomainObject> objectDomainClass : Registry.getRegisteredObjectDomainClasses()) {
 
 			// Ignore objects of excluded domain classes
-			if (domainClassesToExclude != null && Stream.of(domainClassesToExclude).anyMatch(dc -> objectDomainClass.isAssignableFrom(dc))) {
+			if (domainClassesToExclude != null && Stream.of(domainClassesToExclude).anyMatch(objectDomainClass::isAssignableFrom)) {
 				continue;
 			}
 
@@ -509,7 +505,7 @@ public abstract class SqlDomainController extends DomainController {
 		if (field == null) {
 			log.error("SDC: Given status field '{}' is not a field of object domain class '{}' or any of the domain classes where this class is derrived from!", statusFieldName,
 					objectDomainClass.getSimpleName());
-			return null;
+			return Collections.emptyMap();
 		}
 
 		// Get domain class where status field is defined
@@ -519,7 +515,7 @@ public abstract class SqlDomainController extends DomainController {
 		if (field.getType() != String.class && field.getType() != Enum.class) {
 			log.error("SDC: Given status field '{}' of domain class '{}' is neither a string nor an enum field! (but must be one of these both to use it as status field for synchronization)",
 					statusFieldName, domainClass.getSimpleName());
-			return null;
+			return Collections.emptyMap();
 		}
 
 		// Build WHERE clause for status field
@@ -993,9 +989,7 @@ public abstract class SqlDomainController extends DomainController {
 				Class<? extends DomainObject> objectDomainClass = entry.getKey();
 				Map<Long, SortedMap<String, Object>> objectRecordMap = entry.getValue();
 
-				if (!loadedRecordsMap.containsKey(objectDomainClass)) {
-					loadedRecordsMap.put(objectDomainClass, new HashMap<>());
-				}
+				loadedRecordsMap.computeIfAbsent(objectDomainClass, odc -> new HashMap<>());
 				loadedRecordsMap.get(objectDomainClass).putAll(objectRecordMap);
 			}
 
@@ -1037,8 +1031,7 @@ public abstract class SqlDomainController extends DomainController {
 		try (SqlConnection sqlcn = SqlConnection.open(sqlDb.pool, true)) {
 
 			log.info("SDC: Synchronize with database... {}",
-					(domainClassesToExclude != null
-							? " - domain classes to exclude from loading objects: " + Stream.of(domainClassesToExclude).map(dc -> dc.getSimpleName()).collect(Collectors.toList())
+					(domainClassesToExclude != null ? " - domain classes to exclude from loading objects: " + Stream.of(domainClassesToExclude).map(Class::getSimpleName).collect(Collectors.toList())
 							: ""));
 
 			// Save all unsaved new objects to database (but do not save unsaved changes of already saved objects to avoid overriding database changes)
@@ -1088,7 +1081,7 @@ public abstract class SqlDomainController extends DomainController {
 
 		if (availableStatus == null || inUseStatus == null) {
 			log.error("SDC: 'available' status or 'in-use' status is null - cannot select objects exclusively");
-			return null;
+			return Collections.emptySet();
 		}
 
 		log.info("SDC: SELECT {}'{}' objects with status '{}' of status field '{}'  FOR UPDATE and UPDATE status to '{}' for these objects", (maxCount > 0 ? maxCount : ""),
@@ -1245,7 +1238,7 @@ public abstract class SqlDomainController extends DomainController {
 	 * @return set of all objects of given domain class
 	 */
 	@SuppressWarnings("unchecked")
-	public final static <T extends DomainObject> Set<T> allValid(Class<T> domainClass) {
+	public static final <T extends DomainObject> Set<T> allValid(Class<T> domainClass) {
 		return (Set<T>) objectMap.get(domainClass).values().stream().filter(o -> ((SqlDomainObject) o).isValid()).collect(Collectors.toSet());
 	}
 

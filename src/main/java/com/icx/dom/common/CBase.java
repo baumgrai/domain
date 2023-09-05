@@ -176,10 +176,10 @@ public abstract class CBase {
 		}
 
 		if (intValueString.contains(".") && symbols.getGroupingSeparator() == '.') {
-			intValueString = intValueString.replaceAll("\\.", "");
+			intValueString = intValueString.replace(".", "");
 		}
 		else if (intValueString.contains(",") && symbols.getGroupingSeparator() == ',') {
-			intValueString = intValueString.replaceAll("\\,", "");
+			intValueString = intValueString.replace(",", "");
 		}
 
 		return Integer.parseInt(intValueString);
@@ -205,10 +205,10 @@ public abstract class CBase {
 		}
 
 		if (longValueString.contains(".") && symbols.getGroupingSeparator() == '.') {
-			longValueString = longValueString.replaceAll("\\.", "");
+			longValueString = longValueString.replace(".", "");
 		}
 		else if (longValueString.contains(",") && symbols.getGroupingSeparator() == ',') {
-			longValueString = longValueString.replaceAll("\\,", "");
+			longValueString = longValueString.replace(",", "");
 		}
 
 		return Long.parseLong(longValueString);
@@ -706,11 +706,6 @@ public abstract class CBase {
 
 		return s.getBytes(StandardCharsets.UTF_8);
 	}
-
-	// public static void main(String[] args) {
-	// byte[] bytes = { (byte) 0xc3, (byte) 0xa4 };
-	// System.out.println(byteArrayToHexString(bytes));
-	// }
 
 	/**
 	 * Build string from byte array using UTF-8 encoding

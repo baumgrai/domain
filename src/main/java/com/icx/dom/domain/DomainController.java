@@ -83,16 +83,17 @@ public abstract class DomainController {
 		Registry.getRegisteredDomainClasses().forEach(c -> objectMap.put(c, new ConcurrentSkipListMap<>()));
 	}
 
-	public static final Class<? extends DomainObject> getDomainClassByName(String className) throws ClassNotFoundException {
+	public static final Class<? extends DomainObject> getDomainClassByName(String className) {
 
 		Optional<Class<? extends DomainObject>> o = Registry.getRegisteredDomainClasses().stream().filter(c -> c.getSimpleName().equals(className)).findFirst();
-
 		if (o.isPresent()) {
 			return o.get();
 		}
 		else {
-			throw new ClassNotFoundException(className);
+			log.error("Class '{}' of missing object is not registered as domain class", className);
 		}
+
+		return null;
 	}
 
 	// -------------------------------------------------------------------------

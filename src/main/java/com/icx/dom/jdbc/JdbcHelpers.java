@@ -181,7 +181,7 @@ public abstract class JdbcHelpers {
 		String sqlForLogging = sqlForLoggingBuilder.toString().trim();
 
 		// Mask '?' characters which are place holders to avoid confusion with '?' characters in texts
-		sqlForLogging = sqlForLogging.replaceAll("\\?", QUESTION_MARKS);
+		sqlForLogging = sqlForLogging.replace("?", QUESTION_MARKS);
 
 		// Select statement
 		if (columnValueMap == null || columns == null) {
@@ -218,7 +218,7 @@ public abstract class JdbcHelpers {
 		String sqlForLogging = sqlForLoggingBuilder.toString().trim();
 
 		// Mask '?' characters which are place holders to avoid confusion with '?' characters in texts
-		sqlForLogging = sqlForLogging.replaceAll("\\?", QUESTION_MARKS);
+		sqlForLogging = sqlForLogging.replace("?", QUESTION_MARKS);
 
 		// Select statement
 		if (values == null) {

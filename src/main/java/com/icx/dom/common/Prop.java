@@ -48,9 +48,9 @@ public abstract class Prop {
 		}
 
 		Properties properties = new Properties();
-		InputStream is = new FileInputStream(propertiesFile);
-		properties.load(is);
-		is.close();
+		try (InputStream is = new FileInputStream(propertiesFile)) {
+			properties.load(is);
+		}
 
 		return properties;
 	}

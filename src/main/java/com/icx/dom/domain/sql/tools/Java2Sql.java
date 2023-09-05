@@ -282,7 +282,7 @@ public abstract class Java2Sql extends JdbcHelpers {
 					if (changeInfoMap.containsKey(DomainAnnotations.UNIQUE)) {
 
 						// Add or drop UNIQUE constraint if unique value specified in changed info differs from value specified in @SqlColumn annotation
-						boolean isUnique = Boolean.valueOf(changeInfoMap.get(DomainAnnotations.UNIQUE));
+						boolean isUnique = Boolean.parseBoolean(changeInfoMap.get(DomainAnnotations.UNIQUE));
 						if (isUnique && !column.isUnique) {
 							script.append(new UniqueConstraint(table, column).alterTableAddConstraintStatement());
 						}

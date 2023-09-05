@@ -40,7 +40,7 @@ public class Column {
 
 	// Constructors
 
-	// Only for (Sql)DomainClass standard columns
+	// Only for domain class standard columns
 	public Column(
 			Table table,
 			String name,

@@ -53,7 +53,7 @@ import com.icx.dom.junit.domain.sub.Y;
 import com.icx.dom.junit.domain.sub.Z;
 
 @TestMethodOrder(OrderAnnotation.class)
-public class LoadAndSaveTest extends TestHelpers {
+class LoadAndSaveTest extends TestHelpers {
 
 	static final Logger log = LoggerFactory.getLogger(LoadAndSaveTest.class);
 
@@ -652,8 +652,8 @@ public class LoadAndSaveTest extends TestHelpers {
 			Iterator<X> it = xs.iterator();
 			x1a = it.next();
 			x1b = it.next();
-			assertTrue("in_use".equals(x1a.s));
-			assertTrue("in_use".equals(x1a.s));
+			assertEquals("in_use", x1a.s);
+			assertEquals("in_use", x1a.s);
 			assertEquals(2, DomainController.count(X.class, x -> true));
 			assertTrue(DomainController.hasAny(AA.class));
 			assertTrue(DomainController.hasAny(O.class));
@@ -674,7 +674,7 @@ public class LoadAndSaveTest extends TestHelpers {
 			final Set<X> xs2 = SqlDomainController.allocateForExclusivUsage(X.class, "s", "available", "in_use", 1);
 
 			assertDoesNotThrow(() -> xs2.iterator().next());
-			assertTrue("in_use".equals(xs2.iterator().next().s));
+			assertEquals("in_use", xs2.iterator().next().s);
 
 			x1a.s = "available";
 			x1a.save();
@@ -688,8 +688,8 @@ public class LoadAndSaveTest extends TestHelpers {
 			it = xs.iterator();
 			x1a = it.next();
 			x1b = it.next();
-			assertTrue("in_use".equals(x1a.s));
-			assertTrue("in_use".equals(x1a.s));
+			assertEquals("in_use", x1a.s);
+			assertEquals("in_use", x1a.s);
 
 			x1a.s = "available";
 			x1a.save();
@@ -701,7 +701,7 @@ public class LoadAndSaveTest extends TestHelpers {
 			it = xs.iterator();
 			x1a = it.next();
 			assertFalse(it.hasNext());
-			assertTrue("in_use".equals(x1a.s));
+			assertEquals("in_use", x1a.s);
 		}
 		catch (AssertionFailedError failed) {
 			throw failed;

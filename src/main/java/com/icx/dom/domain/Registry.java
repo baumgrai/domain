@@ -631,7 +631,7 @@ public abstract class Registry extends Reflection {
 		init(baseClass);
 
 		// Select object domain classes from given domain classes
-		objectDomainClassesToRegister.addAll(Stream.of(domainClasses).filter(dc -> isObjectDomainClass(dc)).collect(Collectors.toList()));
+		objectDomainClassesToRegister.addAll(Stream.of(domainClasses).filter(Registry::isObjectDomainClass).collect(Collectors.toList()));
 
 		log.info("REG: Object domain classes to register: {}", objectDomainClassesToRegister.stream().map(Class::getSimpleName).collect(Collectors.toList()));
 
@@ -653,7 +653,7 @@ public abstract class Registry extends Reflection {
 
 		if (stack.contains(domainClass)) {
 
-			List<String> circularReference = stack.subList(stack.indexOf(domainClass), stack.size()).stream().map(dc -> dc.getSimpleName()).collect(Collectors.toList());
+			List<String> circularReference = stack.subList(stack.indexOf(domainClass), stack.size()).stream().map(Class::getSimpleName).collect(Collectors.toList());
 			circularReferences.add(circularReference);
 
 			return true;

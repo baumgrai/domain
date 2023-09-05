@@ -209,17 +209,8 @@ public abstract class CFile {
 			return;
 		}
 
-		OutputStream fout = new FileOutputStream(file, append);
-		OutputStream bout = new BufferedOutputStream(fout);
-		OutputStreamWriter out = new OutputStreamWriter(bout, encoding);
-
-		try {
+		try (OutputStream fout = new FileOutputStream(file, append); OutputStream bout = new BufferedOutputStream(fout); OutputStreamWriter out = new OutputStreamWriter(bout, encoding);) {
 			out.write(text);
-		}
-		finally {
-			out.close();
-			bout.close();
-			fout.close();
 		}
 	}
 

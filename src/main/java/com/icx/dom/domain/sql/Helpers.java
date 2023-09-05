@@ -74,7 +74,7 @@ public abstract class Helpers {
 
 	// Count new and changed objects grouped by object domain classes (for logging only)
 	static Set<Entry<String, Integer>> groupCountsByDomainClassName(Set<SqlDomainObject> objects) {
-		return objects.stream().collect(Collectors.groupingBy(o -> o.getClass())).entrySet().stream().map(e -> new SimpleEntry<>(e.getKey().getSimpleName(), e.getValue().size()))
+		return objects.stream().collect(Collectors.groupingBy(Object::getClass)).entrySet().stream().map(e -> new SimpleEntry<>(e.getKey().getSimpleName(), e.getValue().size()))
 				.collect(Collectors.toSet());
 	}
 
