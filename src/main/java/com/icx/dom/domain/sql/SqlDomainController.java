@@ -959,7 +959,7 @@ public abstract class SqlDomainController extends DomainController {
 	 * @param select
 	 *            SELECT supplier
 	 * 
-	 * @return
+	 * @return loaded objects
 	 * 
 	 * @throws SqlDbException
 	 */
