@@ -1,7 +1,7 @@
 # domain
-**SQL Persistence Layer for Java Objects**
+**Lightweight SQL Persistence Layer for Java Objects**
 
-Lightweight SQL persistence layer for Java objects. Currently supports Oracle, MS-SQL-Server, MySQL and MariaDB databases.
+Currently supports Oracle, MS-SQL-Server, MySQL and MariaDB databases.
 
 Keypoints:
 - objects to persist extend `DomainObject` class
