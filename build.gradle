@@ -1,0 +1,76 @@
+plugins {
+	id 'java-library'
+	id 'eclipse'
+	id 'maven-publish'
+	id 'org.sonarqube' version '3.4.0.2513'
+	id 'jacoco'
+}
+
+repositories {
+		jcenter()
+        mavenCentral()
+}
+
+dependencies {
+	implementation 'org.apache.logging.log4j:log4j-slf4j-impl:2.17.1'	
+	implementation 'org.apache.logging.log4j:log4j-core:2.17.1'
+	implementation 'mysql:mysql-connector-java:5.1.48'
+	implementation 'org.mariadb.jdbc:mariadb-java-client:2.7.2'
+	implementation 'com.oracle.database.jdbc:ojdbc8:19.11.0.0'
+	implementation 'com.microsoft.sqlserver:mssql-jdbc:9.4.0.jre8'
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.9.1'
+}
+
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
+compileJava {
+	options.encoding = 'UTF-8'
+	options.compilerArgs.addAll(['-Xlint:all'])
+}
+compileTestJava {
+	options.encoding = 'UTF-8'
+	options.compilerArgs.addAll(['-Xlint:all'])
+}
+
+group = 'com.icx.domain'
+version = '1.0.0'
+
+final BUILD_DATE = new Date().format('yyyyMMdd.HHmmss');
+jar {
+	manifest {
+        attributes(
+        	'Implementation-Title': project.name,
+            'Implementation-Version': version + '.' + BUILD_DATE,
+            'Implementation-Vendor': 'infinIT.cx GmbH',
+            'Built-By': System.properties['user.name']
+            )
+    }
+}
+
+task copyManifest { //	For Eclipse direct launching in wtpwebapps
+	copy {
+		from 'build/tmp/jar/MANIFEST.MF'
+		into 'src/main/webapp/META-INF'
+	}
+} 
+  
+test {
+    useJUnitPlatform()
+	jacoco {
+    	excludes += ['**/app/**']
+  	}
+}
+
+jacocoTestReport {
+    reports {
+        xml.required = true
+    }
+}
+
+publishing {
+    publications {
+        common(MavenPublication) {
+            from components.java
+        }
+    }
+}
