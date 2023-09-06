@@ -10,11 +10,12 @@ How it works:
 
 Supports:
 - Oracle, MS-SQL-Server, MySQL and MariaDB databases
-- class inheritance (`TwoWheeler extends DomainObject`, `Bicycle extends TwoWheeler`, `Racebike extends Bicycle`)
-- data horizon - only objects newer than a configured time in the past (data horizon) will be loaded and objects which fell out of data horizon will be removed from heap on synchronization if 'data horizon' is defined
+- class inheritance - object classes may be derived from base classes (`TwoWheeler extends DomainObject`, `Bicycle extends TwoWheeler`, `Racebike extends Bicycle`)
+- data horizon - only objects newer than a specific time in the past will be loaded and old objects will be removed from heap on synchronization (if 'data horizon' is configured)
 - selective object loading - not all persisted objects must be loaded; amount of objects to load can be shrinked by SQL WHERE clause
 - referential integrity - referential integrity of loaded objects is ensured for both 'data horizon' controlled loading and 'selective object loading'
 - circular references on class and object level
+- version control - incremental database update scripts can be generated for changed fields and classes
 
 Advantages:
 - small footprint - < 10k LoC, needs few external libraries (slf4j, log4j and database drivers) 
