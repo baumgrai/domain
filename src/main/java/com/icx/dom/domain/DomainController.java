@@ -1,5 +1,6 @@
 package com.icx.dom.domain;
 
+import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -23,6 +24,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.icx.dom.common.CRandom;
+import com.icx.dom.common.Common;
 
 /**
  * Singleton that manages domain object store.
@@ -31,7 +33,7 @@ import com.icx.dom.common.CRandom;
  * 
  * @author RainerBaumgärtel
  */
-public abstract class DomainController {
+public abstract class DomainController extends Common {
 
 	static final Logger log = LoggerFactory.getLogger(DomainController.class);
 
@@ -57,6 +59,7 @@ public abstract class DomainController {
 	 *            name of package where domain classes reside
 	 * 
 	 * @throws DomainException
+	 *             on registration error
 	 */
 	protected static void registerDomainClasses(Class<? extends DomainObject> baseClass, String domainPackageName) throws DomainException {
 
@@ -75,6 +78,7 @@ public abstract class DomainController {
 	 *            list of object domain classes to register
 	 * 
 	 * @throws DomainException
+	 *             on registration error
 	 */
 	@SafeVarargs
 	protected static void registerDomainClasses(Class<? extends DomainObject> baseClass, Class<? extends DomainObject>... domainClasses) throws DomainException {
@@ -115,12 +119,16 @@ public abstract class DomainController {
 	}
 
 	// Instantiate domain object - called on loading new object from database and if objects are created using create() methods of domain controller
-	// Uses default constructor which therefore must be defined explicitly if other constructors are defined!
-	protected static final <T extends DomainObject> T instantiate(Class<T> objectDomainClass) throws Exception {
+	protected static final <T extends DomainObject> T instantiate(Class<T> objectDomainClass) {
 
-		T obj = Registry.getConstructor(objectDomainClass).newInstance();
-
-		obj.initializeFields();
+		T obj = null;
+		try {
+			obj = Registry.getConstructor(objectDomainClass).newInstance();
+			obj.initializeFields();
+		}
+		catch (InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
+			log.error("SDC: Object of class {} could not be instantiated", objectDomainClass.getClass().getName());
+		}
 
 		return obj;
 	}
@@ -129,6 +137,8 @@ public abstract class DomainController {
 	 * Create, initialize and register object of domain class.
 	 * <p>
 	 * Calls initialization function before object registration to ensure that registered object is initialized.
+	 * <p>
+	 * Uses default constructor which therefore must be defined explicitly if other constructors are defined!
 	 * 
 	 * @param <T>
 	 *            specific domain object class type
@@ -138,21 +148,21 @@ public abstract class DomainController {
 	 *            object initialization function
 	 * 
 	 * @return newly created domain object
-	 * 
-	 * @throws Exception
 	 */
-	public static final synchronized <T extends DomainObject> T create(final Class<T> domainObjectClass, Consumer<T> init) throws Exception {
+	public static final synchronized <T extends DomainObject> T create(final Class<T> domainObjectClass, Consumer<T> init) {
 
 		T obj = instantiate(domainObjectClass);
+		if (obj != null) {
 
-		if (init != null) {
-			init.accept(obj);
-		}
+			if (init != null) {
+				init.accept(obj);
+			}
 
-		obj.registerById(generateUniqueId(obj.getClass()));
+			obj.registerById(generateUniqueId(obj.getClass()));
 
-		if (log.isDebugEnabled()) {
-			log.debug("DC: Created {}.", obj.name());
+			if (log.isDebugEnabled()) {
+				log.debug("DC: Created {}.", obj.name());
+			}
 		}
 
 		return obj;
@@ -343,9 +353,9 @@ public abstract class DomainController {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Group accumulation by given classifier
+	 * Group accumulation by given classifier.
 	 * <p>
-	 * Example: {@code Map<Manufacturer, List<Car>> carByManufacturerMap = dc.groupBy(cars, c -> c.manufacturer)}
+	 * Example: {@code Map<Manufacturer, List<Car>> carByManufacturerMap = DomainController.groupBy(cars, c -> c.manufacturer)}
 	 * 
 	 * @param <T1>
 	 *            type to group by
@@ -385,7 +395,7 @@ public abstract class DomainController {
 	 * @param <T1>
 	 *            type to group by
 	 * @param <T2>
-	 *            type of objects to group
+	 *            type of objects to count
 	 * @param accumulation
 	 *            accumulation
 	 * @param classifier
