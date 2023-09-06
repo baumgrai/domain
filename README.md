@@ -9,7 +9,7 @@ How it works:
 
 Supports:
 - different databases - Oracle, MS-SQL-Server, MySQL and MariaDB
-- version control - incremental database update scripts will be generated automatically for new and changed fields and classes
+- version control - incremental database update scripts will be generated automatically for new and changed classes
 - class inheritance - object classes may be derived (`Vehicle extends SqlDomainObject`, `Car extends Vehicle`, `Sportscar extends Car`)
 - data horizon - only new objects will be loaded and old objects will be removed from heap on synchronization
 - selective object loading - amount of persisted objects to load can be shrinked (TODO)
