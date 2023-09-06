@@ -7,7 +7,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import com.icx.dom.common.CBase;
+import com.icx.dom.common.Common;
 
 public abstract class GuavaReplacements {
 
@@ -18,7 +18,7 @@ public abstract class GuavaReplacements {
 
 		public String to(CaseFormat caseFormat, String string) {
 
-			if (CBase.isEmpty(string)) {
+			if (Common.isEmpty(string)) {
 				return string;
 			}
 			else if (this == UPPER_CAMEL && caseFormat == UPPER_UNDERSCORE) {

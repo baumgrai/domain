@@ -9,7 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.icx.dom.app.bikestore.domain.bike.Bike;
-import com.icx.dom.common.CBase;
+import com.icx.dom.common.Common;
 import com.icx.dom.common.CDateTime;
 import com.icx.dom.common.CMap;
 import com.icx.dom.domain.DomainAnnotations.Accumulation;
@@ -74,7 +74,7 @@ public class Order extends SqlDomainObject {
 	// Override compareTo() to sort objects using DomanController#sort(). If not overridden compareTo() works on internal object id which follows date of object creation
 	@Override
 	public int compareTo(DomainObject o) {
-		return CBase.compare(client.firstName + bike.manufacturer, ((Order) o).client.firstName + ((Order) o).bike.manufacturer);
+		return Common.compare(client.firstName + bike.manufacturer, ((Order) o).client.firstName + ((Order) o).bike.manufacturer);
 	}
 
 	public static final Map<Integer, Integer> orderProcessingDurationMap = CMap.newMap(0, 0, 1, 0, 2, 0, 3, 0, 4, 0, 5, 0, 6, 0, 7, 0);

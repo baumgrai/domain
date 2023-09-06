@@ -10,7 +10,7 @@ import org.slf4j.LoggerFactory;
 
 import com.icx.dom.app.bikestore.domain.Manufacturer;
 import com.icx.dom.app.bikestore.domain.client.Order;
-import com.icx.dom.common.CBase;
+import com.icx.dom.common.Common;
 import com.icx.dom.common.CList;
 import com.icx.dom.domain.DomainAnnotations.Accumulation;
 import com.icx.dom.domain.DomainAnnotations.SqlColumn;
@@ -126,7 +126,7 @@ public abstract class Bike extends SqlDomainObject {
 
 	@Override
 	public int compareTo(DomainObject o) {
-		return CBase.compare(manufacturer + model, ((Bike) o).manufacturer + ((Bike) o).model);
+		return Common.compare(manufacturer + model, ((Bike) o).manufacturer + ((Bike) o).model);
 	}
 
 	@Override
@@ -161,7 +161,7 @@ public abstract class Bike extends SqlDomainObject {
 			synchronized (this) {
 
 				// Load bike from database (SELECT FOR UPDATE) to get current availability status (may be changed by other instances)
-				load(sqlcn.cn, true);
+				reload(sqlcn.cn, true);
 
 				// Change availability map
 				availabilityMap.put(bikeSize, availabilityMap.get(bikeSize) + 1);

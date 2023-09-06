@@ -11,7 +11,7 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.dom.common.CBase;
+import com.icx.dom.common.Common;
 import com.icx.dom.domain.DomainController;
 import com.icx.dom.domain.DomainObject;
 import com.icx.dom.domain.Registry;
@@ -108,15 +108,15 @@ public class FieldError {
 
 			for (Column col : uc.columns) {
 				for (Field fld : Registry.getDataAndReferenceFields(domainClass)) {
-					if (CBase.objectsEqual(col, SqlRegistry.getColumnFor(fld))) {
+					if (Common.objectsEqual(col, SqlRegistry.getColumnFor(fld))) {
 						combinedUniqueFields.add(fld);
 						Object fldValue = obj.getFieldValue(fld);
 						fieldValues.add(fldValue);
 						if (multipleUniqueColumnsPredicate == null) {
-							multipleUniqueColumnsPredicate = o -> CBase.objectsEqual(o.getFieldValue(fld), fldValue);
+							multipleUniqueColumnsPredicate = o -> Common.objectsEqual(o.getFieldValue(fld), fldValue);
 						}
 						else {
-							multipleUniqueColumnsPredicate = multipleUniqueColumnsPredicate.and(o -> CBase.objectsEqual(o.getFieldValue(fld), fldValue));
+							multipleUniqueColumnsPredicate = multipleUniqueColumnsPredicate.and(o -> Common.objectsEqual(o.getFieldValue(fld), fldValue));
 						}
 					}
 				}

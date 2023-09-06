@@ -193,7 +193,7 @@ public class SurveyApp extends SqlDomainController {
 		// Load audio data from database and write new audio file
 		VoiceMessage voiceMessage = findAny(VoiceMessage.class, vm -> vm.audioData != null && vm.audioData.length > 0);
 		if (voiceMessage != null) {
-			voiceMessage.load();
+			voiceMessage.reload();
 			CFile.writeBinary(AUDIOFILE_FROM_DATABASE, voiceMessage.audioData);
 		}
 	}

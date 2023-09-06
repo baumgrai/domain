@@ -32,7 +32,7 @@ import org.slf4j.LoggerFactory;
 import com.icx.dom.app.bikestore.BikeStoreApp;
 import com.icx.dom.app.bikestore.domain.client.Client;
 import com.icx.dom.app.bikestore.domain.client.Client.RegionInUse;
-import com.icx.dom.common.CBase;
+import com.icx.dom.common.Common;
 import com.icx.dom.common.CCollection;
 import com.icx.dom.common.CFile;
 import com.icx.dom.common.CList;
@@ -61,58 +61,58 @@ class CommonTest extends TestHelpers {
 
 		log.info("\n\ncbase()\n\n");
 
-		assertTrue(CBase.logicallyEqual("", null), "logically equals empty string and null");
-		assertTrue(CBase.logicallyEqual(null, ""), "logically equals null and empty string");
-		assertTrue(CBase.logicallyEqual(new ArrayList<>(), null), "logically equals empty list and null");
-		assertTrue(CBase.logicallyEqual(null, new ArrayList<>()), "logically equals null and empty list");
-		assertTrue(CBase.logicallyEqual(new HashMap<>(), null), "logically equals empty map and null");
-		assertTrue(CBase.logicallyEqual(null, new HashMap<>()), "logically equals null and empty map");
+		assertTrue(Common.logicallyEqual("", null), "logically equals empty string and null");
+		assertTrue(Common.logicallyEqual(null, ""), "logically equals null and empty string");
+		assertTrue(Common.logicallyEqual(new ArrayList<>(), null), "logically equals empty list and null");
+		assertTrue(Common.logicallyEqual(null, new ArrayList<>()), "logically equals null and empty list");
+		assertTrue(Common.logicallyEqual(new HashMap<>(), null), "logically equals empty map and null");
+		assertTrue(Common.logicallyEqual(null, new HashMap<>()), "logically equals null and empty map");
 
-		assertEquals("a", CBase.untilFirst("a.b.s", "."), "until first");
-		assertEquals("", CBase.untilFirst("a.b.s", "a"), "until first");
-		assertEquals("", CBase.untilFirst(null, "a"), "until first");
-		assertEquals(".b.s", CBase.fromFirst("a.b.s", "."), "from first");
-		assertEquals("a", CBase.fromFirst("a", "."), "from first");
-		assertEquals("b.s", CBase.behindFirst("a.b.s", "."), "behind first");
-		assertEquals("", CBase.behindFirst("a.b.s", "s"), "behind first");
-		assertEquals("", CBase.behindFirst(null, "s"), "behind first");
+		assertEquals("a", Common.untilFirst("a.b.s", "."), "until first");
+		assertEquals("", Common.untilFirst("a.b.s", "a"), "until first");
+		assertEquals("", Common.untilFirst(null, "a"), "until first");
+		assertEquals(".b.s", Common.fromFirst("a.b.s", "."), "from first");
+		assertEquals("a", Common.fromFirst("a", "."), "from first");
+		assertEquals("b.s", Common.behindFirst("a.b.s", "."), "behind first");
+		assertEquals("", Common.behindFirst("a.b.s", "s"), "behind first");
+		assertEquals("", Common.behindFirst(null, "s"), "behind first");
 
-		assertEquals("a.b", CBase.untilLast("a.b.s", "."), "until last");
-		assertEquals("", CBase.untilLast("a.b.s", "a"), "until last");
-		assertEquals("", CBase.untilLast(null, "a"), "until last");
-		assertEquals(".s", CBase.fromLast("a.b.s", "."), "from last");
-		assertEquals("", CBase.fromLast(null, "."), "from last");
-		assertEquals("a", CBase.fromLast("a", "."), "from first");
-		assertEquals("s", CBase.behindLast("a.b.s", "."), "behind last");
-		assertEquals("", CBase.behindLast("a.b.s", "s"), "behind last");
-		assertEquals("", CBase.behindLast(null, "s"), "behind last");
-		assertEquals("a", CBase.behindLast("a", "s"), "behind last");
+		assertEquals("a.b", Common.untilLast("a.b.s", "."), "until last");
+		assertEquals("", Common.untilLast("a.b.s", "a"), "until last");
+		assertEquals("", Common.untilLast(null, "a"), "until last");
+		assertEquals(".s", Common.fromLast("a.b.s", "."), "from last");
+		assertEquals("", Common.fromLast(null, "."), "from last");
+		assertEquals("a", Common.fromLast("a", "."), "from first");
+		assertEquals("s", Common.behindLast("a.b.s", "."), "behind last");
+		assertEquals("", Common.behindLast("a.b.s", "s"), "behind last");
+		assertEquals("", Common.behindLast(null, "s"), "behind last");
+		assertEquals("a", Common.behindLast("a", "s"), "behind last");
 
-		assertEquals(true, CBase.parseBoolean("true", false), "parse boolean");
-		assertEquals(false, CBase.parseBoolean(null, false), "parse boolean");
-		assertEquals(42000, CBase.parseInt("42,000", 43), "parse int");
-		assertEquals(43, CBase.parseInt("", 43), "parse int");
-		assertEquals(100000, CBase.parseLong("100,000", 1L), "parse long");
-		assertEquals(1L, CBase.parseLong(null, 1L), "parse long");
-		assertEquals(123.45, CBase.parseDouble("123.45", 123.46), "parse double");
-		assertEquals(123.46, CBase.parseDouble("", 123.46), "parse double");
+		assertEquals(true, Common.parseBoolean("true", false), "parse boolean");
+		assertEquals(false, Common.parseBoolean(null, false), "parse boolean");
+		assertEquals(42000, Common.parseInt("42,000", 43), "parse int");
+		assertEquals(43, Common.parseInt("", 43), "parse int");
+		assertEquals(100000, Common.parseLong("100,000", 1L), "parse long");
+		assertEquals(1L, Common.parseLong(null, 1L), "parse long");
+		assertEquals(123.45, Common.parseDouble("123.45", 123.46), "parse double");
+		assertEquals(123.46, Common.parseDouble("", 123.46), "parse double");
 
-		assertEquals("a,null,", CBase.listToString(CList.newList("a", null, "")), "list to string");
-		assertEquals(CList.newList("a", null, ""), CBase.stringToList("[a,null,]"), "string to list");
+		assertEquals("a,null,", Common.listToString(CList.newList("a", null, "")), "list to string");
+		assertEquals(CList.newList("a", null, ""), Common.stringToList("[a,null,]"), "string to list");
 
-		assertEquals("a=A,b=null,c=", CBase.mapToString(CMap.newMap("a", "A", "b", null, "c", "")), "map to string");
-		assertEquals(CMap.newMap("a", "A", "b", null, "c", ""), CBase.stringToMap("{a=A,b=null,c=}"), "string to map");
+		assertEquals("a=A,b=null,c=", Common.mapToString(CMap.newMap("a", "A", "b", null, "c", "")), "map to string");
+		assertEquals(CMap.newMap("a", "A", "b", null, "c", ""), Common.stringToMap("{a=A,b=null,c=}"), "string to map");
 
 		byte[] bytes = { (byte) 0xc3, (byte) 0xa4 };
-		assertEquals((byte) 0xc3, CBase.getBytesUTF8("ä")[0], "UTF8 string to byte array");
-		assertEquals((byte) 0xa4, CBase.getBytesUTF8("ä")[1], "UTF8 string to byte array");
-		assertEquals("ä", CBase.getStringUTF8(bytes), "UTF8 byte array to string");
-		assertEquals("a", CBase.getStringANSI(CBase.getBytesUTF8("a")), "UTF8 byte array to string");
+		assertEquals((byte) 0xc3, Common.getBytesUTF8("ä")[0], "UTF8 string to byte array");
+		assertEquals((byte) 0xa4, Common.getBytesUTF8("ä")[1], "UTF8 string to byte array");
+		assertEquals("ä", Common.getStringUTF8(bytes), "UTF8 byte array to string");
+		assertEquals("a", Common.getStringANSI(Common.getBytesUTF8("a")), "UTF8 byte array to string");
 
-		assertEquals("c3a4", CBase.byteArrayToHexString(bytes), "byte array to hex string");
-		assertEquals(null, CBase.byteArrayToHexString(null), "byte array to hex string");
-		assertEquals((byte) 0xc3, CBase.hexStringToByteArray("c3")[0], "hex string to byte array");
-		assertArrayEquals(new byte[0], CBase.hexStringToByteArray(null), "hex string to byte array");
+		assertEquals("c3a4", Common.byteArrayToHexString(bytes), "byte array to hex string");
+		assertEquals(null, Common.byteArrayToHexString(null), "byte array to hex string");
+		assertEquals((byte) 0xc3, Common.hexStringToByteArray("c3")[0], "hex string to byte array");
+		assertArrayEquals(new byte[0], Common.hexStringToByteArray(null), "hex string to byte array");
 
 		assertEquals(2, CRandom.randomSelect(CList.newList('a', 'b', 'c'), 2).size(), "random select");
 		assertEquals(5, CRandom.randomString(5).length(), "random string");
@@ -137,7 +137,7 @@ class CommonTest extends TestHelpers {
 		CMap.upperCaseKeysInMap(map);
 		assertTrue(map.get("A") == 1 && map.get("B") == 2 && map.firstKey().equals("A") && map.lastKey().equals("B"));
 
-		assertFalse(CBase.exceptionStackToString(new Exception()).isEmpty());
+		assertFalse(Common.exceptionStackToString(new Exception()).isEmpty());
 
 		ResourceBundle bundle = ResourceBundle.getBundle("messages", new Locale("en"));
 		assertEquals("", CResource.i18n(bundle, null));
@@ -166,8 +166,8 @@ class CommonTest extends TestHelpers {
 		CFile.writeText(testTxt, "abcÄÖÜß", true, StandardCharsets.UTF_8.name());
 		assertEquals("abcÄÖÜßabcÄÖÜß", CFile.readText(testTxt, StandardCharsets.UTF_8.name()).trim(), "write/read text");
 
-		CFile.writeBinary(testTxt, CBase.getBytesUTF8("abcÄÖÜß"));
-		assertEquals("abcÄÖÜß", CBase.getStringUTF8(CFile.readBinary(testTxt)), "write/read binary");
+		CFile.writeBinary(testTxt, Common.getBytesUTF8("abcÄÖÜß"));
+		assertEquals("abcÄÖÜß", Common.getStringUTF8(CFile.readBinary(testTxt)), "write/read binary");
 
 		new File("test/text.txt").delete();
 		new File("test").delete();
@@ -185,12 +185,12 @@ class CommonTest extends TestHelpers {
 		assertEquals("java.sql.Date@1970-01-01", CLog.forAnalyticLogging(new java.sql.Date(0L)), "analytic log sql date");
 		assertEquals("java.sql.Time@01:00:00.000", CLog.forAnalyticLogging(new java.sql.Time(0L)), "analytic log sql time");
 		assertEquals("java.sql.Timestamp@1970-01-01 01:00:00.000", CLog.forAnalyticLogging(new java.sql.Timestamp(0L)), "analytic log Java timestamp");
-		assertEquals("oracle.sql.TIMESTAMP", CBase.untilFirst(CLog.forAnalyticLogging(new oracle.sql.TIMESTAMP()), "@"), "analytic log Oracle timestamp");
+		assertEquals("oracle.sql.TIMESTAMP", Common.untilFirst(CLog.forAnalyticLogging(new oracle.sql.TIMESTAMP()), "@"), "analytic log Oracle timestamp");
 		assertEquals("java.util.Date@1970-01-01 01:00:00.000", CLog.forAnalyticLogging(new java.util.Date(0L)), "analytic log util date");
-		assertEquals("java.time.LocalDateTime", CBase.untilFirst(CLog.forAnalyticLogging(LocalDateTime.now()), "@"), "analytic log local datetime");
-		assertEquals("java.time.LocalDate", CBase.untilFirst(CLog.forAnalyticLogging(LocalDate.now()), "@"), "analytic log local date");
-		assertEquals("java.time.LocalTime", CBase.untilFirst(CLog.forAnalyticLogging(LocalTime.now()), "@"), "analytic log local time");
-		assertEquals("java.util.GregorianCalendar", CBase.untilFirst(CLog.forAnalyticLogging(new GregorianCalendar()), "@"), "analytic log local time");
+		assertEquals("java.time.LocalDateTime", Common.untilFirst(CLog.forAnalyticLogging(LocalDateTime.now()), "@"), "analytic log local datetime");
+		assertEquals("java.time.LocalDate", Common.untilFirst(CLog.forAnalyticLogging(LocalDate.now()), "@"), "analytic log local date");
+		assertEquals("java.time.LocalTime", Common.untilFirst(CLog.forAnalyticLogging(LocalTime.now()), "@"), "analytic log local time");
+		assertEquals("java.util.GregorianCalendar", Common.untilFirst(CLog.forAnalyticLogging(new GregorianCalendar()), "@"), "analytic log local time");
 
 		assertEquals("[ \"a\", \"b\", \"c\" ]", CLog.forAnalyticLogging(CList.newList("a", "b", "c")), "analytic log list");
 

@@ -9,7 +9,7 @@ import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.dom.common.CBase;
+import com.icx.dom.common.Common;
 import com.icx.dom.domain.sql.SqlRegistry;
 import com.icx.dom.jdbc.JdbcHelpers;
 import com.icx.dom.jdbc.SqlDb.DbType;
@@ -54,14 +54,14 @@ public class UniqueConstraint {
 
 		String constraintName = "UNIQUE_" + table.name.substring(SqlRegistry.TABLE_PREFIX.length());
 		for (String columnName : columnNames) {
-			constraintName += (table.dbType == DbType.MYSQL ? "$" : "#") + CBase.untilLast(columnName, "_");
+			constraintName += (table.dbType == DbType.MYSQL ? "$" : "#") + Common.untilLast(columnName, "_");
 		}
 
 		return JdbcHelpers.identifier(constraintName, table.dbType);
 	}
 
 	public String definitionClause() {
-		return "CONSTRAINT " + name() + " UNIQUE (" + CBase.listToString(columnNames) + ")";
+		return "CONSTRAINT " + name() + " UNIQUE (" + Common.listToString(columnNames) + ")";
 	}
 
 	public String alterTableAddConstraintStatement() {

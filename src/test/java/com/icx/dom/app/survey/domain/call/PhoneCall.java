@@ -7,7 +7,7 @@ import com.icx.dom.app.survey.domain.config.Question;
 import com.icx.dom.app.survey.domain.config.Scale;
 import com.icx.dom.app.survey.domain.config.Survey;
 import com.icx.dom.app.survey.domain.message.VoiceMessage;
-import com.icx.dom.common.CBase;
+import com.icx.dom.common.Common;
 import com.icx.dom.common.CFile;
 import com.icx.dom.common.CRandom;
 import com.icx.dom.domain.DomainAnnotations.UseDataHorizon;
@@ -96,7 +96,7 @@ public class PhoneCall extends Call {
 				phoneCall.save();
 			}
 			catch (Exception ex) {
-				log.error(CBase.exceptionStackToString(ex));
+				log.error(Common.exceptionStackToString(ex));
 			}
 
 			log.info("Call ended");

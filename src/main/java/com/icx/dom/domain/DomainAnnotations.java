@@ -11,7 +11,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import com.icx.dom.common.CBase;
+import com.icx.dom.common.Common;
 
 /**
  * Annotations for domain classes and fields for Domain object persistence mechanism.
@@ -74,7 +74,7 @@ public abstract class DomainAnnotations {
 			return false;
 		}
 		else {
-			return CBase.untilFirst(created.version(), ":").equals(version);
+			return Common.untilFirst(created.version(), ":").equals(version);
 		}
 	}
 
@@ -84,7 +84,7 @@ public abstract class DomainAnnotations {
 			return "1.0";
 		}
 		else {
-			return CBase.untilFirst(created.version(), ":");
+			return Common.untilFirst(created.version(), ":");
 		}
 	}
 
@@ -96,7 +96,7 @@ public abstract class DomainAnnotations {
 		else {
 			Map<String, String> changeInfoMap = new HashMap<>();
 
-			String changeInfoString = CBase.behindFirst(created.version(), ":");
+			String changeInfoString = Common.behindFirst(created.version(), ":");
 			String[] changeEntryStrings = changeInfoString.split("\\;");
 			for (String changeEntryString : changeEntryStrings) {
 
@@ -134,7 +134,7 @@ public abstract class DomainAnnotations {
 			return false;
 		}
 		else {
-			return Stream.of(changed.versions()).map(vi -> CBase.untilFirst(vi, ":")).anyMatch(v -> v.equals(version));
+			return Stream.of(changed.versions()).map(vi -> Common.untilFirst(vi, ":")).anyMatch(v -> v.equals(version));
 		}
 	}
 
@@ -144,7 +144,7 @@ public abstract class DomainAnnotations {
 			return new ArrayList<>();
 		}
 		else {
-			return Stream.of(changed.versions()).map(vi -> CBase.untilFirst(vi, ":")).collect(Collectors.toList());
+			return Stream.of(changed.versions()).map(vi -> Common.untilFirst(vi, ":")).collect(Collectors.toList());
 		}
 	}
 
@@ -156,7 +156,7 @@ public abstract class DomainAnnotations {
 		else {
 			Map<String, String> changeInfoMap = new HashMap<>();
 
-			String changeInfoString = CBase.behindFirst(Stream.of(changed.versions()).filter(vi -> CBase.untilFirst(vi, ":").equals(version)).findAny().orElse(""), ":");
+			String changeInfoString = Common.behindFirst(Stream.of(changed.versions()).filter(vi -> Common.untilFirst(vi, ":").equals(version)).findAny().orElse(""), ":");
 			String[] changeEntryStrings = changeInfoString.split("\\;");
 			for (String changeEntryString : changeEntryStrings) {
 

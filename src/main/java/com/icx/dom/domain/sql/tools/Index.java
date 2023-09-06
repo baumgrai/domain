@@ -9,7 +9,7 @@ import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.dom.common.CBase;
+import com.icx.dom.common.Common;
 import com.icx.dom.domain.sql.SqlRegistry;
 import com.icx.dom.jdbc.JdbcHelpers;
 import com.icx.dom.jdbc.SqlDb.DbType;
@@ -61,7 +61,7 @@ public class Index {
 	}
 
 	public String createStatement() {
-		return "CREATE INDEX " + name() + " ON " + table.name + " (" + CBase.listToString(columnNames) + ");\n";
+		return "CREATE INDEX " + name() + " ON " + table.name + " (" + Common.listToString(columnNames) + ");\n";
 	}
 
 	public String dropStatement() {

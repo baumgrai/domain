@@ -22,7 +22,7 @@ import com.icx.dom.app.bikestore.domain.bike.CityBike;
 import com.icx.dom.app.bikestore.domain.bike.MTB;
 import com.icx.dom.app.bikestore.domain.bike.RaceBike;
 import com.icx.dom.app.bikestore.domain.client.Order.Operation;
-import com.icx.dom.common.CBase;
+import com.icx.dom.common.Common;
 import com.icx.dom.common.CCollection;
 import com.icx.dom.common.CList;
 import com.icx.dom.common.CMap;
@@ -252,11 +252,11 @@ public class Client extends SqlDomainObject {
 	}
 
 	public boolean isAddressValid() {
-		return (!CBase.isEmpty(firstName) && country != null);
+		return (!Common.isEmpty(firstName) && country != null);
 	}
 
 	public boolean alreadyOrdered(String bikeClassName) {
-		return (DomainController.hasAny(Order.class, o -> o.client == this && CBase.objectsEqual(bikeClassName, o.bike.getClass().getSimpleName())));
+		return (DomainController.hasAny(Order.class, o -> o.client == this && Common.objectsEqual(bikeClassName, o.bike.getClass().getSimpleName())));
 	}
 
 	// Client thread

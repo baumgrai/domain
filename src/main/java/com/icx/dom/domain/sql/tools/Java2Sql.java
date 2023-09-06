@@ -13,8 +13,8 @@ import java.util.SortedSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.dom.common.CBase;
-import com.icx.dom.common.CBase.StringSep;
+import com.icx.dom.common.Common;
+import com.icx.dom.common.Common.StringSep;
 import com.icx.dom.common.CFile;
 import com.icx.dom.domain.DomainAnnotations;
 import com.icx.dom.domain.DomainAnnotations.SqlColumn;
@@ -157,11 +157,11 @@ public abstract class Java2Sql extends JdbcHelpers {
 		if (tableAnnotation != null) {
 
 			for (String fieldNamesString : tableAnnotation.uniqueConstraints()) {
-				mainTable.addUniqueConstraintFor(CBase.stringToList(fieldNamesString, StringSep.COMMA));
+				mainTable.addUniqueConstraintFor(Common.stringToList(fieldNamesString, StringSep.COMMA));
 			}
 
 			for (String fieldNamesString : tableAnnotation.indexes()) {
-				mainTable.addIndexFor(CBase.stringToList(fieldNamesString, StringSep.COMMA));
+				mainTable.addIndexFor(Common.stringToList(fieldNamesString, StringSep.COMMA));
 			}
 		}
 
@@ -323,7 +323,7 @@ public abstract class Java2Sql extends JdbcHelpers {
 
 		String[] listStrings = versionInfoString.split("\\,");
 		for (String listString : listStrings) {
-			nameLists.add(CBase.stringToList(listString, StringSep.AND));
+			nameLists.add(Common.stringToList(listString, StringSep.AND));
 		}
 
 		return nameLists;
@@ -363,7 +363,7 @@ public abstract class Java2Sql extends JdbcHelpers {
 
 				// Assume UNIQUE constraints defined in @SqlTable annotation are created in this version and create these UNIQUE constraints
 				for (String fieldNamesString : tableAnnotation.uniqueConstraints()) {
-					script.append(new UniqueConstraint(table, CBase.stringToList(fieldNamesString)).alterTableAddConstraintStatement());
+					script.append(new UniqueConstraint(table, Common.stringToList(fieldNamesString)).alterTableAddConstraintStatement());
 				}
 			}
 
@@ -386,7 +386,7 @@ public abstract class Java2Sql extends JdbcHelpers {
 
 				// Assume INDEXes defined in @SqlTable annotation are created in this version and create these INDEXes
 				for (String fieldNamesString : tableAnnotation.indexes()) {
-					script.append(new Index(table, CBase.stringToList(fieldNamesString)).createStatement());
+					script.append(new Index(table, Common.stringToList(fieldNamesString)).createStatement());
 				}
 			}
 		}
@@ -482,7 +482,7 @@ public abstract class Java2Sql extends JdbcHelpers {
 
 		// Determine domain class package and supposed app name (second last part of package name)
 		Package pack = (args.length > 0 ? Package.getPackage(args[0]) : Java2Sql.class.getPackage());
-		String supposedAppName = CBase.behindLast(CBase.untilLast(pack.getName(), "."), ".");
+		String supposedAppName = Common.behindLast(Common.untilLast(pack.getName(), "."), ".");
 
 		// Register domain classes
 		// Registry.register(SqlDomainObject.class, Xxx.class, Y.class, Z.class); // Only for test!

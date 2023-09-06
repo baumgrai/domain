@@ -140,7 +140,7 @@ class RegistryTest extends TestHelpers {
 		assertTrue(Registry.isComplexField(A.class.getDeclaredField("mapOfMaps")));
 		assertEquals(A.class.getDeclaredField("xs"), Registry.getAccumulationFieldForReferenceField(X.class.getDeclaredField("a")));
 
-		assertEquals(A.class, Registry.getDeclaringDomainClass(Registry.getFieldByName(A.class, "i")));
+		assertEquals(A.class, Registry.getFieldByName(A.class, "i").getDeclaringClass());
 		assertListsEqualButOrder(relevantFieldsOfA, Registry.getRelevantFields(A.class), "relevant fields");
 
 		log.info("\tCircular references...");

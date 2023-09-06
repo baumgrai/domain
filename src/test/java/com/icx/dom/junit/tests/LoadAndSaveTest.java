@@ -29,7 +29,7 @@ import org.opentest4j.AssertionFailedError;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.dom.common.CBase;
+import com.icx.dom.common.Common;
 import com.icx.dom.common.CList;
 import com.icx.dom.common.CMap;
 import com.icx.dom.common.CResource;
@@ -126,7 +126,7 @@ class LoadAndSaveTest extends TestHelpers {
 			throw failed;
 		}
 		catch (Throwable ex) {
-			log.error(CBase.exceptionStackToString(ex));
+			log.error(Common.exceptionStackToString(ex));
 			throw ex;
 		}
 	}
@@ -160,7 +160,7 @@ class LoadAndSaveTest extends TestHelpers {
 				aa.bigIntegerValue = BigInteger.valueOf(Long.MAX_VALUE);
 				aa.bigDecimalValue = BigDecimal.valueOf(Double.MAX_VALUE);
 				aa.s = "S";
-				aa.bytes = CBase.getBytesUTF8("ÄÖÜäöüß");
+				aa.bytes = Common.getBytesUTF8("ÄÖÜäöüß");
 
 				aa.strings = CList.newList("A", "B", "C", "D", "", null);
 				aa.doubleSet = CSet.newSet(0.0, 0.1, 0.2, null);
@@ -216,7 +216,7 @@ class LoadAndSaveTest extends TestHelpers {
 			assertEquals(BigInteger.valueOf(Long.MAX_VALUE), aa1.bigIntegerValue);
 			assertEquals(BigDecimal.valueOf(Double.MAX_VALUE), aa1.bigDecimalValue);
 			assertEquals("S", aa1.s);
-			assertArrayEquals(CBase.getBytesUTF8("ÄÖÜäöüß"), aa1.bytes);
+			assertArrayEquals(Common.getBytesUTF8("ÄÖÜäöüß"), aa1.bytes);
 			assertEquals(CResource.findFirstJavaResourceFile("x.txt"), aa1.file);
 			assertEquals(Type.A, aa1.type);
 
@@ -235,7 +235,7 @@ class LoadAndSaveTest extends TestHelpers {
 			throw failed;
 		}
 		catch (Throwable ex) {
-			log.error(CBase.exceptionStackToString(ex));
+			log.error(Common.exceptionStackToString(ex));
 			throw ex;
 		}
 	}
@@ -281,7 +281,7 @@ class LoadAndSaveTest extends TestHelpers {
 
 				assertEquals(1, DomainController.count(O.class, o -> true));
 
-				SqlDomainController.sqlDb.update(sqlcn.cn, "DOM_A", CMap.newMap("I", 2, "BYTES", CBase.getBytesUTF8("äöüßÄÖÜ"), "FILE", "y.txt", "DOM_TYPE", "B", "O_ID", null), "S='S'");
+				SqlDomainController.sqlDb.update(sqlcn.cn, "DOM_A", CMap.newMap("I", 2, "BYTES", Common.getBytesUTF8("äöüßÄÖÜ"), "FILE", "y.txt", "DOM_TYPE", "B", "O_ID", null), "S='S'");
 
 				SqlDomainController.sqlDb.update(sqlcn.cn, "DOM_A_STRINGS", CMap.newMap("ELEMENT_ORDER", 1), "ELEMENT='B'");
 				SqlDomainController.sqlDb.update(sqlcn.cn, "DOM_A_STRINGS", CMap.newMap("ELEMENT_ORDER", 0), "ELEMENT='C'");
@@ -313,13 +313,13 @@ class LoadAndSaveTest extends TestHelpers {
 
 			log.info("\tLoad changed object again from database...");
 
-			aa1.load();
+			aa1.reload();
 
 			log.info("\tCheck if database changes are reflected by objects...");
 
 			assertEquals(2, aa1.i);
 			assertEquals(Type.B, aa1.type);
-			assertArrayEquals(CBase.getBytesUTF8("äöüßÄÖÜ"), aa1.bytes);
+			assertArrayEquals(Common.getBytesUTF8("äöüßÄÖÜ"), aa1.bytes);
 			assertEquals(new File("y.txt"), aa1.file);
 			assertEquals(null, aa1.o);
 
@@ -336,7 +336,7 @@ class LoadAndSaveTest extends TestHelpers {
 			throw failed;
 		}
 		catch (Throwable ex) {
-			log.error(CBase.exceptionStackToString(ex));
+			log.error(Common.exceptionStackToString(ex));
 			throw ex;
 		}
 	}
@@ -363,7 +363,7 @@ class LoadAndSaveTest extends TestHelpers {
 			aa1.bigIntegerValue = BigInteger.valueOf(-1L);
 			aa1.bigDecimalValue = BigDecimal.valueOf(-0.1);
 			aa1.s = "T";
-			aa1.bytes = CBase.getBytesUTF8("éèê");
+			aa1.bytes = Common.getBytesUTF8("éèê");
 			aa1.file = CResource.findFirstJavaResourceFile("z.txt");
 			aa1.type = Type.B;
 
@@ -403,7 +403,7 @@ class LoadAndSaveTest extends TestHelpers {
 			assertEquals(BigInteger.valueOf(-1L), aa1.bigIntegerValue);
 			assertEquals(BigDecimal.valueOf(-0.1), aa1.bigDecimalValue);
 			assertEquals("T", aa1.s);
-			assertArrayEquals(CBase.getBytesUTF8("éèê"), aa1.bytes);
+			assertArrayEquals(Common.getBytesUTF8("éèê"), aa1.bytes);
 			assertEquals(CResource.findFirstJavaResourceFile("z.txt"), aa1.file);
 			assertEquals(Type.B, aa1.type);
 
@@ -422,7 +422,7 @@ class LoadAndSaveTest extends TestHelpers {
 			throw failed;
 		}
 		catch (Throwable ex) {
-			log.error(CBase.exceptionStackToString(ex));
+			log.error(Common.exceptionStackToString(ex));
 			throw ex;
 		}
 	}
@@ -522,7 +522,7 @@ class LoadAndSaveTest extends TestHelpers {
 			throw failed;
 		}
 		catch (Throwable ex) {
-			log.error(CBase.exceptionStackToString(ex));
+			log.error(Common.exceptionStackToString(ex));
 			throw ex;
 		}
 	}
@@ -553,10 +553,10 @@ class LoadAndSaveTest extends TestHelpers {
 
 			log.info("\tAssert saving...");
 
-			assertTrue(aa1.isSaved());
-			assertTrue(y1.isSaved());
-			assertTrue(z1.isSaved());
-			assertTrue(x1.isSaved());
+			assertTrue(aa1.isStored());
+			assertTrue(y1.isStored());
+			assertTrue(z1.isStored());
+			assertTrue(x1.isStored());
 
 			AA aa2 = SqlDomainController.createAndSave(AA.class, aa -> aa.s = "aa2");
 			X x2 = SqlDomainController.createAndSave(X.class, null);
@@ -606,7 +606,7 @@ class LoadAndSaveTest extends TestHelpers {
 			throw failed;
 		}
 		catch (Throwable ex) {
-			log.error(CBase.exceptionStackToString(ex));
+			log.error(Common.exceptionStackToString(ex));
 			throw ex;
 		}
 	}
@@ -707,7 +707,7 @@ class LoadAndSaveTest extends TestHelpers {
 			throw failed;
 		}
 		catch (Throwable ex) {
-			log.error(CBase.exceptionStackToString(ex));
+			log.error(Common.exceptionStackToString(ex));
 			throw ex;
 		}
 	}
@@ -785,7 +785,7 @@ class LoadAndSaveTest extends TestHelpers {
 			throw failed;
 		}
 		catch (Throwable ex) {
-			log.error(CBase.exceptionStackToString(ex));
+			log.error(Common.exceptionStackToString(ex));
 			throw ex;
 		}
 	}
@@ -836,7 +836,7 @@ class LoadAndSaveTest extends TestHelpers {
 			throw failed;
 		}
 		catch (Throwable ex) {
-			log.error(CBase.exceptionStackToString(ex));
+			log.error(Common.exceptionStackToString(ex));
 			throw ex;
 		}
 	}
@@ -857,7 +857,7 @@ class LoadAndSaveTest extends TestHelpers {
 
 			assertNull(aa1.getFieldValue(X.class.getDeclaredField("s")), "get field value error");
 			assertThrows(SqlDbException.class, () -> aa1.setFieldValue(X.class.getDeclaredField("s"), "a"), "get field value exception");
-			assertDoesNotThrow(() -> aa1.setKnownFieldValue(X.class.getDeclaredField("s"), "a"), "get known field value error");
+			assertDoesNotThrow(() -> aa1.setFieldValue(X.class.getDeclaredField("s"), "a"), "get known field value error");
 
 			log.info("\tNOT NULL constraint violation, warnings and errors...");
 
@@ -922,7 +922,7 @@ class LoadAndSaveTest extends TestHelpers {
 			throw failed;
 		}
 		catch (Throwable ex) {
-			log.error(CBase.exceptionStackToString(ex));
+			log.error(Common.exceptionStackToString(ex));
 			throw ex;
 		}
 	}
