@@ -88,7 +88,7 @@ public abstract class CLog {
 			logString = value.getClass().getSimpleName() + "@" + value.toString();
 		}
 
-		return logString.substring(0, CBase.min(1024, logString.length()));
+		return logString.substring(0, Common.min(1024, logString.length()));
 	}
 
 	/**
@@ -129,11 +129,11 @@ public abstract class CLog {
 	 */
 	public static String greyOut(String secretInfo) {
 
-		if (CBase.isEmpty(secretInfo)) {
+		if (Common.isEmpty(secretInfo)) {
 			return "******";
 		}
 		else {
-			return "********************************".substring(0, CBase.min(32, secretInfo.length()));
+			return "********************************".substring(0, Common.min(32, secretInfo.length()));
 		}
 	}
 

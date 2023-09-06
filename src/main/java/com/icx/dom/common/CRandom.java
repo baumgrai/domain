@@ -67,7 +67,7 @@ public abstract class CRandom {
 		}
 
 		List<T> selectedElements = new ArrayList<>();
-		for (int i = 0; i < CBase.min(elements.size(), count); i++) {
+		for (int i = 0; i < Common.min(elements.size(), count); i++) {
 			int random = randomInt(orderedNumbers.size());
 			random = orderedNumbers.remove(random);
 			selectedElements.add(elementList.get(random));
@@ -90,7 +90,7 @@ public abstract class CRandom {
 	public static String randomString(int length) {
 
 		StringBuilder sb = new StringBuilder();
-		for (int i = 0; i < CBase.min(CHARSIZE, length); i++) {
+		for (int i = 0; i < Common.min(CHARSIZE, length); i++) {
 			sb.append(CHARS.charAt(randomInt(CHARSIZE)));
 		}
 

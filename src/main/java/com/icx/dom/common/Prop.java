@@ -12,8 +12,8 @@ import java.util.Properties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.dom.common.CBase.KeyValueSep;
-import com.icx.dom.common.CBase.StringSep;
+import com.icx.dom.common.Common.KeyValueSep;
+import com.icx.dom.common.Common.StringSep;
 
 /**
  * Enhanced property management supporting properties for different runtime environments.
@@ -86,12 +86,12 @@ public abstract class Prop {
 		for (Object key : properties.keySet()) {
 			String qualifiedPropertyName = (String) key;
 
-			List<String> environmentSelectors = CBase.stringToList(qualifiedPropertyName, StringSep.SLASH);
+			List<String> environmentSelectors = Common.stringToList(qualifiedPropertyName, StringSep.SLASH);
 			String propertyName = environmentSelectors.remove(environmentSelectors.size() - 1); // Ignore property name itself
 
-			List<String> environmentInfos = CBase.stringToList(environmentPath, StringSep.SLASH);
+			List<String> environmentInfos = Common.stringToList(environmentPath, StringSep.SLASH);
 			int i;
-			for (i = 0; i < CBase.min(environmentInfos.size(), environmentSelectors.size()); i++) {
+			for (i = 0; i < Common.min(environmentInfos.size(), environmentSelectors.size()); i++) {
 				if (!environmentSelectors.get(i).equalsIgnoreCase(environmentInfos.get(i))) {
 					break;
 				}
@@ -125,7 +125,7 @@ public abstract class Prop {
 		}
 
 		// Log properties, suppress passwords and keys
-		if (!CBase.isEmpty(environmentPath)) {
+		if (!Common.isEmpty(environmentPath)) {
 			log.info("PRP: Best matching properties for environment '{}' in '{}:", environmentPath, propertiesFile.getName());
 		}
 		else {
@@ -171,7 +171,7 @@ public abstract class Prop {
 			String text = CFile.readText(propertyFiles.get(0), StandardCharsets.UTF_8.name());
 			boolean filesEqual = true;
 			for (int i = 1; i < propertyFiles.size() && filesEqual; i++) {
-				if (!CBase.objectsEqual(text.trim(), CFile.readText(propertyFiles.get(i), StandardCharsets.UTF_8.name()).trim())) {
+				if (!Common.objectsEqual(text.trim(), CFile.readText(propertyFiles.get(i), StandardCharsets.UTF_8.name()).trim())) {
 					filesEqual = false;
 				}
 			}
@@ -213,22 +213,22 @@ public abstract class Prop {
 			return valueString;
 		}
 		else if (type == Boolean.class || type == boolean.class) {
-			return CBase.parseBoolean(valueString, null);
+			return Common.parseBoolean(valueString, null);
 		}
 		else if (type == Integer.class || type == int.class) {
-			return CBase.parseInt(valueString, null);
+			return Common.parseInt(valueString, null);
 		}
 		else if (type == Long.class || type == long.class) {
-			return CBase.parseLong(valueString, null);
+			return Common.parseLong(valueString, null);
 		}
 		else if (type == Double.class || type == double.class) {
-			return CBase.parseDouble(valueString, null);
+			return Common.parseDouble(valueString, null);
 		}
 		else if (List.class.isAssignableFrom(type)) {
-			return CBase.stringToList(valueString, StringSep.COMMA);
+			return Common.stringToList(valueString, StringSep.COMMA);
 		}
 		else if (Map.class.isAssignableFrom(type)) {
-			return CBase.stringToMap(valueString, StringSep.COMMA, KeyValueSep.EQUAL_SIGN);
+			return Common.stringToMap(valueString, StringSep.COMMA, KeyValueSep.EQUAL_SIGN);
 		}
 		else if (Enum.class.isAssignableFrom(type)) {
 			Class<? extends Enum> enumType = (Class<? extends Enum>) type;
@@ -261,7 +261,7 @@ public abstract class Prop {
 		// Assume property name to be of form <base-property-name>[.context-info]* and recursively try to find property with all or some of the context infos
 		String valueString = properties.getProperty(propertyName);
 		while (valueString == null && propertyName.contains(".")) {
-			propertyName = CBase.untilLast(propertyName, ".");
+			propertyName = Common.untilLast(propertyName, ".");
 			valueString = properties.getProperty(propertyName);
 		}
 

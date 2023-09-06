@@ -34,7 +34,7 @@ public abstract class CDateTime {
 
 		LocalDateTime changedDateTime = (datetime != null ? LocalDateTime.parse(datetime.toString()) : LocalDateTime.now());
 
-		if (CBase.isEmpty(intervalString)) {
+		if (Common.isEmpty(intervalString)) {
 			return changedDateTime;
 		}
 
@@ -49,11 +49,11 @@ public abstract class CDateTime {
 		List<ChronoUnit> calUnits = CList.newList(ChronoUnit.YEARS, ChronoUnit.MONTHS, ChronoUnit.DAYS, ChronoUnit.HOURS, ChronoUnit.MINUTES, ChronoUnit.SECONDS, ChronoUnit.MILLIS);
 		List<String> calUnitNames = CList.newList("y", "M", "d", "h", "m", "s", "f");
 
-		for (int i = 0; i < calUnits.size() && !CBase.isEmpty(intervalString); i++) {
+		for (int i = 0; i < calUnits.size() && !Common.isEmpty(intervalString); i++) {
 
 			String[] array = intervalString.split(calUnitNames.get(i), 2);
 			if (array.length > 1) {
-				changedDateTime = changedDateTime.plus((long) sign * CBase.parseInt(array[0], 0), calUnits.get(i));
+				changedDateTime = changedDateTime.plus((long) sign * Common.parseInt(array[0], 0), calUnits.get(i));
 				intervalString = array[1];
 			}
 		}

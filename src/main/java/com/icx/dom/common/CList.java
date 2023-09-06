@@ -158,7 +158,7 @@ public abstract class CList {
 			return objectStream.collect(Collectors.toList());
 		}
 
-		return objectStream.sorted((x, y) -> CBase.compare(getter.apply(isAscending ? x : y), getter.apply(isAscending ? y : x))).collect(Collectors.toList());
+		return objectStream.sorted((x, y) -> Common.compare(getter.apply(isAscending ? x : y), getter.apply(isAscending ? y : x))).collect(Collectors.toList());
 	}
 
 	/**

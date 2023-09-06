@@ -19,7 +19,7 @@ import java.util.Map.Entry;
  * 
  * @author baumgrai
  */
-public abstract class CBase {
+public abstract class Common {
 
 	// -------------------------------------------------------------------------
 	// Equal

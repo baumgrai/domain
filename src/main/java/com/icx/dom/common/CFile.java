@@ -205,7 +205,7 @@ public abstract class CFile {
 	 */
 	public static void writeText(File file, String text, boolean append, String encoding) throws IOException {
 
-		if (CBase.isEmpty(text)) {
+		if (Common.isEmpty(text)) {
 			return;
 		}
 

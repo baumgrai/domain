@@ -264,7 +264,7 @@ public abstract class Reflection {
 
 		List<String> loadedPackageNamesTmp = new ArrayList<>();
 		for (Package p : Package.getPackages()) {
-			if (!CBase.isEmpty(p.getName()))
+			if (!Common.isEmpty(p.getName()))
 				loadedPackageNamesTmp.add(p.getName());
 		}
 
