@@ -217,7 +217,6 @@ public abstract class DomainObject extends Common implements Comparable<DomainOb
 	// -------------------------------------------------------------------------
 
 	// Get objects which references this object ordered by reference field
-	@SuppressWarnings("unchecked")
 	protected Map<Field, Set<DomainObject>> getDirectChildrenByRefField() {
 
 		Map<Field, Set<DomainObject>> childrenByRefFieldMap = new HashMap<>();
