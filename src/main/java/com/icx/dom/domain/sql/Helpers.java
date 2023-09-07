@@ -2,32 +2,33 @@ package com.icx.dom.domain.sql;
 
 import java.io.File;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.Map.Entry;
-import java.util.stream.Collectors;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
-import java.util.AbstractMap.SimpleEntry;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.dom.common.CBase;
 import com.icx.dom.common.CCollection;
 import com.icx.dom.common.CList;
 import com.icx.dom.common.CLog;
 import com.icx.dom.common.CMap;
+import com.icx.dom.common.Common;
 import com.icx.dom.common.Reflection;
-import com.icx.dom.jdbc.SqlDbException;
 
 public abstract class Helpers {
 
@@ -68,7 +69,7 @@ public abstract class Helpers {
 			return entryRecordsEqual((List<SortedMap<String, Object>>) loadedValue, (List<SortedMap<String, Object>>) value);
 		}
 		else {
-			return CBase.logicallyEqual(loadedValue, value);
+			return Common.logicallyEqual(loadedValue, value);
 		}
 	}
 
@@ -167,33 +168,34 @@ public abstract class Helpers {
 					return (T) constructor.newInstance(s);
 				}
 			}
-			catch (Throwable t) {
-				log.error("String '{}' cannot be converted to type '{}'! ({})", s, objectClass.getName(), objectClass, t);
+			catch (IllegalArgumentException | NoSuchMethodException | SecurityException | InstantiationException | IllegalAccessException | InvocationTargetException ex) {
+				log.error("String '{}' cannot be converted to type '{}'! ({})", s, objectClass.getName(), objectClass, ex);
 				return null;
 			}
 		}
 	}
 
 	// Comma separated string -> collection
-	private static <T> Collection<T> collectionFromString(Class<? extends Collection<T>> collectionClass, Class<? extends T> elementClass, String collectionAsString) throws SqlDbException {
+	private static <T> Collection<T> collectionFromString(Class<? extends Collection<T>> collectionClass, Class<? extends T> elementClass, String collectionAsString) {
 
 		try {
 			Collection<T> collection = (collectionClass.isInterface() ? Reflection.newCollection(collectionClass) : collectionClass.getDeclaredConstructor().newInstance());
 			if (collectionAsString != null) {
 				for (String element : collectionAsString.split("\\,")) {
-					collection.add(CBase.objectsEqual(element, NULL) ? null : simpleObjectFromString(elementClass, element));
+					collection.add(Common.objectsEqual(element, NULL) ? null : simpleObjectFromString(elementClass, element));
 				}
 			}
 
 			return collection;
 		}
 		catch (Exception ex) {
-			throw new SqlDbException(ex.getClass().getSimpleName() + " occurred trying to create collection of type '" + collectionClass.getName() + "'", ex);
+			log.error("{} occurred trying to create collection of type '{}': {}", ex.getClass().getSimpleName(), collectionClass.getName(), ex);
+			return Collections.emptyList();
 		}
 	}
 
 	// Comma/equal-sign separated string -> map
-	private static <K, V> Map<K, V> mapFromString(Class<? extends Map<K, V>> mapClass, Class<? extends K> keyClass, Class<? extends V> valueClass, String mapAsString) throws SqlDbException {
+	private static <K, V> Map<K, V> mapFromString(Class<? extends Map<K, V>> mapClass, Class<? extends K> keyClass, Class<? extends V> valueClass, String mapAsString) {
 
 		try {
 			Map<K, V> map = (mapClass.isInterface() ? Reflection.newMap(mapClass) : mapClass.getDeclaredConstructor().newInstance());
@@ -202,8 +204,8 @@ public abstract class Helpers {
 				for (String entry : mapAsString.split("\\;")) {
 
 					String[] keyValue = entry.split("\\=", 2);
-					String key = (CBase.objectsEqual(keyValue[0], NULL) ? null : keyValue[0]);
-					String value = (keyValue.length > 1 ? CBase.objectsEqual(keyValue[1], NULL) ? null : keyValue[1] : "");
+					String key = (Common.objectsEqual(keyValue[0], NULL) ? null : keyValue[0]);
+					String value = (keyValue.length > 1 ? Common.objectsEqual(keyValue[1], NULL) ? null : keyValue[1] : "");
 
 					map.put(simpleObjectFromString(keyClass, key), simpleObjectFromString(valueClass, value));
 				}
@@ -212,13 +214,14 @@ public abstract class Helpers {
 			return map;
 		}
 		catch (Exception ex) {
-			throw new SqlDbException(ex.getClass().getSimpleName() + " occurred trying to create map of type '" + mapClass.getName() + "'", ex);
+			log.error("{} occurred trying to create map of type '{}': {}", ex.getClass().getSimpleName(), mapClass.getName(), ex);
+			return Collections.emptyMap();
 		}
 	}
 
 	// Method will only be used for elements of collections or keys or values of maps - so here lists of lists, lists of maps, maps with lists or maps as keys or values will be handled
 	@SuppressWarnings("unchecked")
-	private static Object elementFromColumnValue(Type elementType, Object columnValue) throws SqlDbException {
+	private static Object elementFromColumnValue(Type elementType, Object columnValue) {
 
 		if (elementType instanceof ParameterizedType) {
 
@@ -226,18 +229,15 @@ public abstract class Helpers {
 			ParameterizedType parameterizedType = (ParameterizedType) elementType;
 			Class<?> rawType = (Class<?>) parameterizedType.getRawType();
 
-			if (Collection.class.isAssignableFrom(rawType)) {
+			if (Collection.class.isAssignableFrom(rawType)) { // Collection
 
 				Class<? extends Collection<Object>> collectionClass = (Class<? extends Collection<Object>>) rawType;
-
 				Class<? extends Object> elementClass = (Class<?>) parameterizedType.getActualTypeArguments()[0];
 
 				return collectionFromString(collectionClass, elementClass, (String) columnValue);
 			}
-			else /* if (Map.class.isAssignableFrom(elementType)) */ {
-
+			else { // Map
 				Class<? extends Map<Object, Object>> mapClass = (Class<? extends Map<Object, Object>>) rawType;
-
 				Class<? extends Object> keyClass = (Class<? extends Object>) parameterizedType.getActualTypeArguments()[0];
 				Class<? extends Object> valueClass = (Class<? extends Object>) parameterizedType.getActualTypeArguments()[1];
 
@@ -376,7 +376,7 @@ public abstract class Helpers {
 
 	// Convert records of entry table to collection
 	@SuppressWarnings("unchecked")
-	static Collection<Object> entryRecordsToCollection(ParameterizedType genericFeldType, List<SortedMap<String, Object>> entryRecords) throws SqlDbException {
+	static Collection<Object> entryRecordsToCollection(ParameterizedType genericFeldType, List<SortedMap<String, Object>> entryRecords) {
 
 		Collection<Object> collection = Reflection.newCollection((Class<? extends Collection<Object>>) genericFeldType.getRawType());
 
@@ -422,7 +422,7 @@ public abstract class Helpers {
 
 	// Convert records of entry table to map
 	@SuppressWarnings("unchecked")
-	static Map<Object, Object> entryRecordsToMap(ParameterizedType genericFeldType, List<SortedMap<String, Object>> entryRecords) throws SqlDbException {
+	static Map<Object, Object> entryRecordsToMap(ParameterizedType genericFeldType, List<SortedMap<String, Object>> entryRecords) {
 
 		Map<Object, Object> map = Reflection.newMap((Class<? extends Map<Object, Object>>) genericFeldType.getRawType());
 
