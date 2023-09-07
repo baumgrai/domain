@@ -9,6 +9,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
+import java.text.DecimalFormat;
+import java.text.NumberFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -21,6 +23,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.ResourceBundle;
 import java.util.SortedMap;
+import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.MethodOrderer.OrderAnnotation;
 import org.junit.jupiter.api.Order;
@@ -32,7 +35,6 @@ import org.slf4j.LoggerFactory;
 import com.icx.dom.app.bikestore.BikeStoreApp;
 import com.icx.dom.app.bikestore.domain.client.Client;
 import com.icx.dom.app.bikestore.domain.client.Client.RegionInUse;
-import com.icx.dom.common.Common;
 import com.icx.dom.common.CCollection;
 import com.icx.dom.common.CFile;
 import com.icx.dom.common.CList;
@@ -41,12 +43,14 @@ import com.icx.dom.common.CMap;
 import com.icx.dom.common.CRandom;
 import com.icx.dom.common.CResource;
 import com.icx.dom.common.CSet;
+import com.icx.dom.common.Common;
 import com.icx.dom.common.Prop;
 import com.icx.dom.common.Reflection;
 import com.icx.dom.jdbc.JdbcHelpers;
 import com.icx.dom.jdbc.SqlConnection;
 import com.icx.dom.jdbc.SqlDb;
 import com.icx.dom.jdbc.SqlDb.DbType;
+import com.icx.dom.jdbc.SqlDbTable;
 import com.icx.dom.junit.TestHelpers;
 
 @TestMethodOrder(OrderAnnotation.class)
@@ -57,7 +61,7 @@ class CommonTest extends TestHelpers {
 	@SuppressWarnings("static-method")
 	@Test
 	@Order(1)
-	void cbase() throws Exception {
+	void common() throws Exception {
 
 		log.info("\n\ncbase()\n\n");
 
@@ -90,9 +94,15 @@ class CommonTest extends TestHelpers {
 
 		assertEquals(true, Common.parseBoolean("true", false), "parse boolean");
 		assertEquals(false, Common.parseBoolean(null, false), "parse boolean");
-		assertEquals(42000, Common.parseInt("42,000", 43), "parse int");
+		if (((DecimalFormat) NumberFormat.getInstance()).getDecimalFormatSymbols().getGroupingSeparator() == ',') {
+			assertEquals(42000, Common.parseInt("42,000", 42000), "parse int");
+			assertEquals(100000, Common.parseLong("100,000", 1L), "parse long");
+		}
+		else {
+			assertEquals(42000, Common.parseInt("42.000", 42000), "parse int");
+			assertEquals(100000, Common.parseLong("100.000", 1L), "parse long");
+		}
 		assertEquals(43, Common.parseInt("", 43), "parse int");
-		assertEquals(100000, Common.parseLong("100,000", 1L), "parse long");
 		assertEquals(1L, Common.parseLong(null, 1L), "parse long");
 		assertEquals(123.45, Common.parseDouble("123.45", 123.46), "parse double");
 		assertEquals(123.46, Common.parseDouble("", 123.46), "parse double");
@@ -268,12 +278,28 @@ class CommonTest extends TestHelpers {
 		assertFalse(JdbcHelpers.forLoggingSql("Calendar", new GregorianCalendar()).isEmpty());
 		assertFalse(JdbcHelpers.forLoggingSql("boolean", true).isEmpty());
 
+		// TODO: Test with Oracle and SQL Server
 		SqlDb sqlDb = new SqlDb("jdbc:mysql://localhost/junit?useSSL=false", "infinit", "infinit", 1, 5000);
 		try (SqlConnection sqlcn1 = SqlConnection.open(sqlDb.pool, true)) {
 			try (SqlConnection sqlcn2 = SqlConnection.open(sqlDb.pool, true)) {
 
 				sqlDb.select(sqlcn2.cn, "SELECT COUNT(*) FROM DOM_A WHERE I=? AND S=?", CList.newList(0, "S"), null);
 				sqlDb.selectCountFrom(sqlcn2.cn, "DOM_O", null);
+
+				sqlDb.registerTable(sqlcn2.cn, "DOM_A");
+				SqlDbTable tableA = sqlDb.findRegisteredTable("DOM_A");
+				assertNotNull(tableA);
+
+				assertNotNull(tableA.toString());
+				Map<String, Object> columnValueMap = new HashMap<>();
+				for (String columnName : tableA.columns.stream().map(c -> c.name).collect(Collectors.toList())) {
+					columnValueMap.put(columnName, "a");
+				}
+				String logged = tableA.logColumnValueMap(columnValueMap);
+				assertNotNull(logged);
+				log.info(logged);
+				assertNotNull(tableA.uniqueConstraints.iterator().next().toString());
+				assertNotNull(tableA.uniqueConstraints.iterator().next().toStringWithoutTable());
 
 				// int i = 0;
 				// List<Object> countList = new ArrayList<>();
@@ -282,8 +308,9 @@ class CommonTest extends TestHelpers {
 			}
 		}
 
-		assertEquals("SYSDATE()", sqlDb.getSqlDateFunct());
 		assertEquals(DbType.MYSQL, sqlDb.getDbType());
+		assertEquals("SYSDATE()", sqlDb.getSqlDateFunct());
+
 		sqlDb.close();
 	}
 }

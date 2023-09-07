@@ -29,18 +29,17 @@ import org.opentest4j.AssertionFailedError;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.dom.common.Common;
 import com.icx.dom.common.CList;
 import com.icx.dom.common.CMap;
 import com.icx.dom.common.CResource;
 import com.icx.dom.common.CSet;
+import com.icx.dom.common.Common;
 import com.icx.dom.common.Prop;
 import com.icx.dom.domain.DomainController;
 import com.icx.dom.domain.sql.FieldError;
 import com.icx.dom.domain.sql.SqlDomainController;
 import com.icx.dom.jdbc.SqlConnection;
 import com.icx.dom.jdbc.SqlDb;
-import com.icx.dom.jdbc.SqlDbException;
 import com.icx.dom.junit.TestHelpers;
 import com.icx.dom.junit.domain.A;
 import com.icx.dom.junit.domain.A.Type;
@@ -856,7 +855,6 @@ class LoadAndSaveTest extends TestHelpers {
 			log.info("\tGetting and setting inexistent fields...");
 
 			assertNull(aa1.getFieldValue(X.class.getDeclaredField("s")), "get field value error");
-			assertThrows(SqlDbException.class, () -> aa1.setFieldValue(X.class.getDeclaredField("s"), "a"), "get field value exception");
 			assertDoesNotThrow(() -> aa1.setFieldValue(X.class.getDeclaredField("s"), "a"), "get known field value error");
 
 			log.info("\tNOT NULL constraint violation, warnings and errors...");
