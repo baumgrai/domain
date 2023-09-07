@@ -9,7 +9,7 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
-import com.icx.dom.common.CBase;
+import com.icx.dom.common.Common;
 import com.icx.dom.common.CLog;
 
 /**
@@ -25,7 +25,7 @@ import com.icx.dom.common.CLog;
  * 
  * @author baumgrai
  */
-public class SqlDbTable implements Comparable<SqlDbTable> {
+public class SqlDbTable extends Common implements Comparable<SqlDbTable> {
 
 	// -------------------------------------------------------------------------
 	// Finals
@@ -120,7 +120,7 @@ public class SqlDbTable implements Comparable<SqlDbTable> {
 
 		public String toStringWithoutTable(Class<?> requiredType) {
 
-			if (CBase.objectsEqual(JdbcHelpers.getTypeString(jdbcType), requiredType.getName())) {
+			if (objectsEqual(JdbcHelpers.getTypeString(jdbcType), requiredType.getName())) {
 				return toStringWithoutTable();
 			}
 			else {
@@ -407,7 +407,7 @@ public class SqlDbTable implements Comparable<SqlDbTable> {
 	public Column findColumnByName(String columnName) {
 
 		for (Column column : columns) {
-			if (CBase.objectsEqual(column.name, columnName)) {
+			if (objectsEqual(column.name, columnName)) {
 				return column;
 			}
 		}
@@ -435,7 +435,7 @@ public class SqlDbTable implements Comparable<SqlDbTable> {
 	public UniqueConstraint findUniqueConstraintByName(String ucName) {
 
 		for (UniqueConstraint uniqueConstraint : uniqueConstraints) {
-			if (CBase.objectsEqual(uniqueConstraint.name, ucName)) {
+			if (objectsEqual(uniqueConstraint.name, ucName)) {
 				return uniqueConstraint;
 			}
 		}
@@ -457,7 +457,7 @@ public class SqlDbTable implements Comparable<SqlDbTable> {
 
 		for (UniqueConstraint uniqueConstraint : uniqueConstraints) {
 			for (Column column : uniqueConstraint.columns) {
-				if (CBase.objectsEqual(column.name, columnName)) {
+				if (objectsEqual(column.name, columnName)) {
 					uniqueConstraintsWithColumn.add(uniqueConstraint);
 				}
 			}

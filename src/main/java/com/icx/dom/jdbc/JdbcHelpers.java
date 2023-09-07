@@ -27,7 +27,7 @@ import java.util.regex.Matcher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.dom.common.CBase;
+import com.icx.dom.common.Common;
 import com.icx.dom.common.CDateTime;
 import com.icx.dom.common.CLog;
 import com.icx.dom.jdbc.SqlDb.DbType;
@@ -38,7 +38,7 @@ import com.icx.dom.jdbc.SqlDbTable.Column;
  * 
  * @author baumgrai
  */
-public abstract class JdbcHelpers {
+public abstract class JdbcHelpers extends Common {
 
 	private static final Logger log = LoggerFactory.getLogger(JdbcHelpers.class);
 
@@ -106,7 +106,7 @@ public abstract class JdbcHelpers {
 
 	// Cut identifier to maximum length for database type
 	public static String identifier(String name, DbType dbType) {
-		return name.substring(0, CBase.min(name.length(), (dbType == DbType.ORACLE ? MAX_ORA_IDENT_SIZE : MAX_MSSQL_IDENT_SIZE)));
+		return name.substring(0, min(name.length(), (dbType == DbType.ORACLE ? MAX_ORA_IDENT_SIZE : MAX_MSSQL_IDENT_SIZE)));
 	}
 
 	// -------------------------------------------------------------------------
@@ -158,7 +158,7 @@ public abstract class JdbcHelpers {
 			logString = value.toString();
 		}
 
-		return logString.substring(0, CBase.min(1024, logString.length()));
+		return logString.substring(0, min(1024, logString.length()));
 	}
 
 	private static final String QUESTION_MARKS = "?????";
@@ -301,7 +301,7 @@ public abstract class JdbcHelpers {
 		for (int i = 1; i <= rsmd.getColumnCount(); i++) {
 
 			String columnName = rsmd.getColumnName(i);
-			if (!CBase.isEmpty(columnName)) {
+			if (!isEmpty(columnName)) {
 				orderedColumns.add(columnName.toUpperCase());
 			}
 			else {
@@ -316,7 +316,7 @@ public abstract class JdbcHelpers {
 	private static boolean requiredTypeDiffers(ResultSetMetaData rsmd, List<Class<?>> requiredResultTypes, int c) throws SQLException {
 
 		return (requiredResultTypes != null && requiredResultTypes.size() > c && requiredResultTypes.get(c) != null
-				&& !CBase.objectsEqual(rsmd.getColumnClassName(c + 1), requiredResultTypes.get(c).getName()));
+				&& !objectsEqual(rsmd.getColumnClassName(c + 1), requiredResultTypes.get(c).getName()));
 	}
 
 	// Retrieve column values for one row from result set (of select statement or call of stored procedure)
@@ -432,14 +432,14 @@ public abstract class JdbcHelpers {
 			else {
 				for (int i = 1; i <= rsmd.getColumnCount(); i++) {
 					String tableName = rsmd.getTableName(i);
-					if (!CBase.isEmpty(tableName)) {
+					if (!isEmpty(tableName)) {
 						tableNames.add(tableName.toUpperCase());
 					}
 				}
 			}
 
 			// Log...
-			if (resultMaps.size() == 1 && rsmd != null && rsmd.getColumnCount() == 1 && CBase.isEmpty(rsmd.getColumnName(1))) { // count(*)
+			if (resultMaps.size() == 1 && rsmd != null && rsmd.getColumnCount() == 1 && isEmpty(rsmd.getColumnName(1))) { // count(*)
 
 				if (log.isDebugEnabled()) {
 					log.debug("SQL: Retrieved: {}", resultMaps.iterator().next().values().iterator().next());

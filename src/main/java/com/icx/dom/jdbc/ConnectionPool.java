@@ -11,7 +11,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.dom.common.CBase;
+import com.icx.dom.common.Common;
 import com.icx.dom.common.Prop;
 
 /**
@@ -31,7 +31,7 @@ import com.icx.dom.common.Prop;
  * 
  * @author baumgrai
  */
-public class ConnectionPool {
+public class ConnectionPool extends Common {
 
 	private static final Logger log = LoggerFactory.getLogger(ConnectionPool.class);
 
@@ -70,16 +70,16 @@ public class ConnectionPool {
 
 	private void initPool(String dbConnectionString, String dbUser, String dbPassword, int poolSize) throws ConfigException {
 
-		if (CBase.isEmpty(dbConnectionString)) {
+		if (isEmpty(dbConnectionString)) {
 			throw new ConfigException("Database connection string is null or empty!");
 		}
 
 		this.dbConnectionString = dbConnectionString;
 		this.user = dbUser;
 		this.password = dbPassword;
-		this.poolSize = CBase.max(UNLIMITED, poolSize);
+		this.poolSize = max(UNLIMITED, poolSize);
 
-		log.info("SQL: Connection pool for database '{}' {} with {} created", this.dbConnectionString, (!CBase.isEmpty(user) ? " and user '" + user + "'" : ""),
+		log.info("SQL: Connection pool for database '{}' {} with {} created", this.dbConnectionString, (!isEmpty(user) ? " and user '" + user + "'" : ""),
 				(this.poolSize == UNLIMITED ? "unlimited pool size" : "pool size " + this.poolSize));
 	}
 
@@ -158,14 +158,14 @@ public class ConnectionPool {
 
 		Connection cn = null;
 
-		if (CBase.isEmpty(user)) {
+		if (isEmpty(user)) {
 			cn = DriverManager.getConnection(dbConnectionString);
 		}
 		else {
 			cn = DriverManager.getConnection(dbConnectionString, user, password);
 		}
 
-		log.info("SQL: Established connection to database '{}' {}", dbConnectionString, (!CBase.isEmpty(user) ? "' for user '" + user + "'" : ""));
+		log.info("SQL: Established connection to database '{}' {}", dbConnectionString, (!isEmpty(user) ? "' for user '" + user + "'" : ""));
 
 		return cn;
 	}

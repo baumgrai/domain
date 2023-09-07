@@ -26,7 +26,7 @@ import java.util.TreeSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.dom.common.CBase;
+import com.icx.dom.common.Common;
 import com.icx.dom.common.CMap;
 import com.icx.dom.common.Prop;
 import com.icx.dom.jdbc.SqlDbTable.Column;
@@ -56,7 +56,7 @@ import com.icx.dom.jdbc.SqlDbTable.UniqueConstraint;
  * 
  * @author baumgrai
  */
-public class SqlDb {
+public class SqlDb extends Common {
 
 	private static final Logger log = LoggerFactory.getLogger(SqlDb.class);
 
@@ -313,7 +313,7 @@ public class SqlDb {
 				}
 				catch (SQLException sqlex) {
 					log.error("SQL: {} '{}' on retrieving results '{}' ({})", sqlex.getClass().getSimpleName(), sqlex.getMessage(), JdbcHelpers.forLoggingSql(sql, valuesOfPlaceholders),
-							CBase.exceptionStackToString(sqlex));
+							exceptionStackToString(sqlex));
 					throw sqlex;
 				}
 			}
@@ -382,7 +382,7 @@ public class SqlDb {
 			List<Class<?>> requiredResultTypes) throws SQLException, SqlDbException {
 
 		// Check preconditions
-		if (CBase.isEmpty(tableExpr)) {
+		if (isEmpty(tableExpr)) {
 			throw new SqlDbException("SELECT: No table(s) specified!");
 		}
 
@@ -752,7 +752,7 @@ public class SqlDb {
 	public int[] insertInto(Connection cn, String tableName, List<SortedMap<String, Object>> columnValueMaps) throws SQLException, SqlDbException {
 
 		// Check preconditions
-		if (CBase.isEmpty(tableName)) {
+		if (isEmpty(tableName)) {
 			throw new SqlDbException("INSERT: Table name is empty or null!");
 		}
 		else if (columnValueMaps == null) {
@@ -940,7 +940,7 @@ public class SqlDb {
 	public long update(Connection cn, String tableName, Map<String, Object> columnValueMap, String whereClause) throws SQLException, SqlDbException {
 
 		// Check preconditions
-		if (CBase.isEmpty(tableName)) {
+		if (isEmpty(tableName)) {
 			throw new SqlDbException("UPDATE: Table name is empty or null!");
 		}
 		else if (columnValueMap == null) {
@@ -1080,7 +1080,7 @@ public class SqlDb {
 	public static long deleteFrom(Connection cn, String tableName, String whereClause) throws SQLException, SqlDbException {
 
 		// Check preconditions
-		if (CBase.isEmpty(tableName)) {
+		if (isEmpty(tableName)) {
 			throw new SqlDbException("DELETE: Table name is null or empty!");
 		}
 
@@ -1174,7 +1174,7 @@ public class SqlDb {
 	// Recursive table registration
 	private SqlDbTable registerTable(Connection cn, String tableName, ForeignKeyColumn fkColumnReferencingTable) throws SQLException, SqlDbException {
 
-		if (CBase.isEmpty(tableName)) {
+		if (isEmpty(tableName)) {
 			throw new SqlDbException("Table name is empty or null!");
 		}
 
@@ -1250,7 +1250,7 @@ public class SqlDb {
 					column.maxlen = rs.getInt("COLUMN_SIZE");
 					int nullableInt = rs.getInt("NULLABLE");
 					column.isNullable = (nullableInt == ResultSetMetaData.columnNullable);
-					if (CBase.objectsEqual(column.name, primaryKeyColumnName))
+					if (objectsEqual(column.name, primaryKeyColumnName))
 						column.isPrimaryKey = true;
 
 					table.columns.add(column);
