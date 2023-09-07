@@ -15,7 +15,7 @@ import java.util.Map.Entry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.dom.common.CBase;
+import com.icx.dom.common.Common;
 import com.icx.dom.common.Reflection;
 import com.icx.dom.domain.DomainAnnotations.SqlColumn;
 import com.icx.dom.domain.DomainAnnotations.SqlTable;
@@ -75,7 +75,7 @@ public abstract class SqlRegistry extends Registry {
 	public static String buildTableName(Class<?> domainClass, DbType dbType) {
 
 		String tableName = null;
-		if (domainClass.isAnnotationPresent(SqlTable.class) && !CBase.isEmpty(domainClass.getAnnotation(SqlTable.class).name())) {
+		if (domainClass.isAnnotationPresent(SqlTable.class) && !Common.isEmpty(domainClass.getAnnotation(SqlTable.class).name())) {
 			tableName = domainClass.getAnnotation(SqlTable.class).name().toUpperCase();
 		}
 		else {
@@ -92,7 +92,7 @@ public abstract class SqlRegistry extends Registry {
 	// Builds SQL database column name from Java domain class field considering eventually existing column name annotations
 	public static String buildColumnName(Field field, DbType dbType) {
 
-		if (field.isAnnotationPresent(SqlColumn.class) && !CBase.isEmpty(field.getAnnotation(SqlColumn.class).name())) { // Name from annotation
+		if (field.isAnnotationPresent(SqlColumn.class) && !Common.isEmpty(field.getAnnotation(SqlColumn.class).name())) { // Name from annotation
 
 			return JdbcHelpers.identifier(field.getAnnotation(SqlColumn.class).name().toUpperCase(), dbType);
 		}
@@ -200,7 +200,7 @@ public abstract class SqlRegistry extends Registry {
 	public static Field getFieldFor(Column column) {
 
 		for (Entry<Field, Column> entry : sqlColumnByFieldMap.entrySet()) {
-			if (CBase.objectsEqual(column, entry.getValue())) {
+			if (Common.objectsEqual(column, entry.getValue())) {
 				return entry.getKey();
 			}
 		}
@@ -377,9 +377,9 @@ public abstract class SqlRegistry extends Registry {
 
 			// Check if field for data and reference column exists
 			for (Column column : registeredTable.columns) {
-				if (!CBase.objectsEqual(column.name, SqlDomainObject.ID_COL) && !CBase.objectsEqual(column.name, SqlDomainObject.LAST_MODIFIED_COL)
-						&& !CBase.objectsEqual(column.name, SqlDomainObject.DOMAIN_CLASS_COL)
-						&& getDataAndReferenceFields(domainClass).stream().map(f -> getColumnFor(f).name).noneMatch(n -> CBase.objectsEqual(column.name, n))) {
+				if (!Common.objectsEqual(column.name, SqlDomainObject.ID_COL) && !Common.objectsEqual(column.name, SqlDomainObject.LAST_MODIFIED_COL)
+						&& !Common.objectsEqual(column.name, SqlDomainObject.DOMAIN_CLASS_COL)
+						&& getDataAndReferenceFields(domainClass).stream().map(f -> getColumnFor(f).name).noneMatch(n -> Common.objectsEqual(column.name, n))) {
 
 					log.warn("SRG: Table '{}' associated to domain class '{}' has column '{}' where no field of this class is associated to!", registeredTable.name, domainClass.getSimpleName(),
 							column.name);
