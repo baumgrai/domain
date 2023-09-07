@@ -12,11 +12,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.dom.common.CBase;
 import com.icx.dom.common.CLog;
+import com.icx.dom.common.Common;
 import com.icx.dom.common.Reflection;
 import com.icx.dom.domain.sql.SqlDomainController;
-import com.icx.dom.jdbc.SqlDbException;
 
 /**
  * Base class for objects managed by any domain controller.
@@ -25,7 +24,7 @@ import com.icx.dom.jdbc.SqlDbException;
  * 
  * @author RainerBaumgärtel
  */
-public abstract class DomainObject implements Comparable<DomainObject> {
+public abstract class DomainObject extends Common implements Comparable<DomainObject> {
 
 	static final Logger log = LoggerFactory.getLogger(DomainObject.class);
 
@@ -67,7 +66,7 @@ public abstract class DomainObject implements Comparable<DomainObject> {
 	// Default comparison - may be overridden
 	@Override
 	public int compareTo(DomainObject o) {
-		return CBase.compare(id, o.id);
+		return compare(id, o.id);
 	}
 
 	@Override
@@ -84,7 +83,7 @@ public abstract class DomainObject implements Comparable<DomainObject> {
 	// Name
 	// -------------------------------------------------------------------------
 
-	// Identifier - domain object class name and object id plus - if different - toString() for object - used for logging
+	// Identifier - domain object class name and object id plus - if working and different - toString() for object - used for logging
 	public String name() {
 
 		String internalName = getClass().getSimpleName() + "@" + id;
@@ -98,7 +97,7 @@ public abstract class DomainObject implements Comparable<DomainObject> {
 		}
 
 		String name = internalName;
-		if (logicalName != null && !CBase.objectsEqual(logicalName, internalName)) {
+		if (logicalName != null && !objectsEqual(logicalName, internalName)) {
 			name += " ('" + logicalName + "')";
 		}
 
@@ -124,10 +123,10 @@ public abstract class DomainObject implements Comparable<DomainObject> {
 			Registry.getReferenceFields(domainClass).stream().filter(f -> Registry.getAccumulationFieldForReferenceField(f) != null).forEach(f -> refForAccuShadowMap.put(f, null));
 
 			// Initialize registered collection/map fields if not already done
-			Registry.getComplexFields(domainClass).stream().filter(f -> getFieldValue(f) == null).forEach(f -> setKnownFieldValue(f, Reflection.newComplex(f.getType())));
+			Registry.getComplexFields(domainClass).stream().filter(f -> getFieldValue(f) == null).forEach(f -> setFieldValue(f, Reflection.newComplex(f.getType())));
 
 			// Initialize own accumulation fields
-			Registry.getAccumulationFields(domainClass).stream().filter(f -> getFieldValue(f) == null).forEach(f -> setKnownFieldValue(f, new HashSet<>()));
+			Registry.getAccumulationFields(domainClass).stream().filter(f -> getFieldValue(f) == null).forEach(f -> setFieldValue(f, new HashSet<>()));
 		}
 	}
 
@@ -197,34 +196,18 @@ public abstract class DomainObject implements Comparable<DomainObject> {
 			return field.get(this);
 		}
 		catch (IllegalArgumentException | IllegalAccessException e) {
-
-			// Do not throw exception on getting field value because an exception is thrown here only on bug in code
 			log.error("DOB: {} '{}' occurred trying to get value of field '{}' for object {}", e.getClass().getSimpleName(), e.getMessage(), Reflection.qualifiedName(field), name());
 			return null;
 		}
 	}
 
 	// Set field value for object
-	public void setFieldValue(Field field, Object value) throws SqlDbException {
+	public void setFieldValue(Field field, Object value) {
 		try {
 			field.set(this, value);
 		}
 		catch (IllegalArgumentException | IllegalAccessException e) {
-			log.error("DC: {} '{}' oocurred", e.getClass().getSimpleName(), e.getMessage());
-			throw new SqlDbException(e.getClass().getSimpleName() + " '" + e.getMessage() + "' occurred trying to set field '" + Reflection.qualifiedName(field) + "' of object " + name() + " to "
-					+ CLog.forAnalyticLogging(value));
-		}
-	}
-
-	// Set field value for object without throwing exception (use for values fixed in code or well known)
-	public void setKnownFieldValue(Field field, Object value) {
-		try {
-			field.set(this, value);
-		}
-		catch (IllegalArgumentException | IllegalAccessException e) {
-
-			// Do not throw exception on setting field to a value fixed in code or well known because an exception is thrown here only on bug in code
-			log.error("DOB: {} '{}' occurred trying to set field '{}' for object {} to {}", e.getClass().getSimpleName(), e.getMessage(), Reflection.qualifiedName(field), name(),
+			log.error("DC: {} '{}' oocurred trying to set field '{}'  of object {} to {}", e.getClass().getSimpleName(), e.getMessage(), Reflection.qualifiedName(field), name(),
 					CLog.forAnalyticLogging(value));
 		}
 	}
@@ -234,6 +217,7 @@ public abstract class DomainObject implements Comparable<DomainObject> {
 	// -------------------------------------------------------------------------
 
 	// Get objects which references this object ordered by reference field
+	@SuppressWarnings("unchecked")
 	protected Map<Field, Set<DomainObject>> getDirectChildrenByRefField() {
 
 		Map<Field, Set<DomainObject>> childrenByRefFieldMap = new HashMap<>();
@@ -241,7 +225,7 @@ public abstract class DomainObject implements Comparable<DomainObject> {
 		for (Field refField : Registry.getAllReferencingFields(getClass())) { // For fields of all domain classes referencing any of object's domain classes (inheritance)
 			Class<? extends DomainObject> referencingClass = Registry.getDeclaringDomainClass(refField);
 
-			for (DomainObject child : DomainController.findAll(referencingClass, ch -> CBase.objectsEqual(ch.getFieldValue(refField), this))) {
+			for (DomainObject child : DomainController.findAll(referencingClass, ch -> objectsEqual(ch.getFieldValue(refField), this))) {
 				childrenByRefFieldMap.computeIfAbsent(refField, f -> new HashSet<>()).add(child);
 			}
 		}
@@ -309,7 +293,7 @@ public abstract class DomainObject implements Comparable<DomainObject> {
 		Set<DomainObject> accumulationSet = (Set<DomainObject>) getFieldValue(accuField);
 		if (accumulationSet == null) {
 			accumulationSet = ConcurrentHashMap.newKeySet();
-			setKnownFieldValue(accuField, accumulationSet);
+			setFieldValue(accuField, accumulationSet);
 		}
 
 		return accumulationSet;
@@ -330,7 +314,7 @@ public abstract class DomainObject implements Comparable<DomainObject> {
 			DomainObject newReferencedObj = (DomainObject) getFieldValue(refField);
 			DomainObject oldReferencedObj = entry.getValue();
 
-			if (!CBase.objectsEqual(newReferencedObj, oldReferencedObj)) {
+			if (!objectsEqual(newReferencedObj, oldReferencedObj)) {
 
 				refForAccuShadowMap.put(refField, newReferencedObj);
 
