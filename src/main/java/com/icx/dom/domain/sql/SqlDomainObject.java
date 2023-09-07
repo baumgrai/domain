@@ -902,7 +902,7 @@ public abstract class SqlDomainObject extends DomainObject {
 	}
 
 	// Try to UPDATE every field of domain object separately after 'normal' UPDATE containing all changed fields failed
-	private void tryAnalyticUpdate(Connection cn, SqlDbTable table, SortedMap<String, Object> columnValueMap) throws SqlDbException, SQLException {
+	private void tryAnalyticUpdate(Connection cn, SqlDbTable table, SortedMap<String, Object> columnValueMap) throws SqlDbException {
 
 		SortedMap<String, Object> oneCVMap = new TreeMap<>();
 		currentException = null;
@@ -917,23 +917,22 @@ public abstract class SqlDomainObject extends DomainObject {
 			oneCVMap.put(columnName, columnValue);
 
 			try {
+				// Update one column
 				SqlDomainController.sqlDb.update(cn, table.name, oneCVMap, ID_COL + "=" + id);
 			}
 			catch (SQLException sqlex) {
 				log.error("SDO: UPDATE failed by exception! Column '{}' cannot be updated to {} for object {}", columnName, CLog.forAnalyticLogging(oneCVMap.get(columnName)), name());
 				log.info("SDO: {}: {}", sqlex.getClass().getSimpleName(), sqlex.getMessage());
 
+				// Assign exception to object
 				currentException = sqlex;
 
+				// Set field error for object and field failed to UPDATE
 				Field field = SqlRegistry.getFieldFor(table.findColumnByName(columnName));
 				if (field != null) {
 					setFieldError(field, "CANNOT_UPDATE_COLUMN - " + sqlex.getMessage());
 				}
 			}
-		}
-
-		if (currentException != null) {
-			throw (SQLException) currentException;
 		}
 	}
 
