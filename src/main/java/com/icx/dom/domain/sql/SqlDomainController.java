@@ -350,8 +350,7 @@ public abstract class SqlDomainController extends DomainController {
 			// Build up loaded records by id map
 			for (SortedMap<String, Object> rec : loadedRecords) {
 
-				// Check if record is a 'real' (not derived) object record
-				// TODO: This should not be necessary
+				// Check if record is a 'real' (not derived) object record (this should not be necessary)
 				String actualObjectDomainClassName = (String) rec.get(SqlDomainObject.DOMAIN_CLASS_COL);
 				if (objectsEqual(actualObjectDomainClassName, objectDomainClass.getSimpleName())) {
 
@@ -1073,10 +1072,13 @@ public abstract class SqlDomainController extends DomainController {
 	 * 
 	 * @return matching and updated record(s)
 	 * 
-	 * @throws Exception
+	 * @throws SqlDbException
+	 *             on Java/SQL inconsistencies
+	 * @throws SQLException
+	 *             on error saving object to database
 	 */
 	public static final synchronized <T extends SqlDomainObject> Set<T> allocateAndUpdate(Class<T> objectDomainClass, Predicate<? super T> predicate, Consumer<? super T> update, int maxCount)
-			throws Exception {
+			throws SQLException, SqlDbException {
 
 		Set<T> loadedObjects = new HashSet<>();
 
