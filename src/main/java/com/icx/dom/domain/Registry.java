@@ -26,7 +26,7 @@ import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.dom.common.CBase;
+import com.icx.dom.common.Common;
 import com.icx.dom.common.Reflection;
 import com.icx.dom.domain.DomainAnnotations.Accumulation;
 import com.icx.dom.domain.DomainAnnotations.Removed;
@@ -119,7 +119,7 @@ public abstract class Registry extends Reflection {
 		return (T) field.getDeclaringClass();
 	}
 
-	// Get superclass of domain class
+	// Get referenced domain class of reference field
 	@SuppressWarnings("unchecked")
 	public static <T> T getReferencedDomainClass(Field refField) {
 		return (T) refField.getType();
@@ -434,15 +434,15 @@ public abstract class Registry extends Reflection {
 			// Find reference field for accumulation
 			boolean fromAnnotation = false;
 			String refFieldName = (accumulationField.isAnnotationPresent(Accumulation.class) ? accumulationField.getAnnotation(Accumulation.class).refField() : "");
-			if (!CBase.isEmpty(refFieldName)) {
+			if (!Common.isEmpty(refFieldName)) {
 
 				// Get reference field from accumulation field annotation
 				Class<? extends DomainObject> domainClassWhereReferenceFieldIsDefined = null;
 				if (refFieldName.contains(".")) {
 
 					// Domain class defining reference field is explicitly defined (typically cross reference class for many-to-many relation)
-					String domainClassName = CBase.untilFirst(refFieldName, ".");
-					refFieldName = CBase.behindFirst(refFieldName, ".");
+					String domainClassName = Common.untilFirst(refFieldName, ".");
+					refFieldName = Common.behindFirst(refFieldName, ".");
 
 					domainClassWhereReferenceFieldIsDefined = orderedDomainClasses.stream().filter(c -> c.getSimpleName().equals(domainClassName)).findFirst().orElse(null);
 					if (domainClassWhereReferenceFieldIsDefined == null) {
