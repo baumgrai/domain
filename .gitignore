@@ -31,3 +31,4 @@ hs_err_pid*
 replay_pid*
 >>>>>>> branch 'master' of https://github.com/baumgrai/domain.git
 /bin/
+/sql/
