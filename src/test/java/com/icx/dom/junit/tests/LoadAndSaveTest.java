@@ -40,6 +40,7 @@ import com.icx.dom.domain.sql.FieldError;
 import com.icx.dom.domain.sql.SqlDomainController;
 import com.icx.dom.jdbc.SqlConnection;
 import com.icx.dom.jdbc.SqlDb;
+import com.icx.dom.jdbc.SqlDb.DbType;
 import com.icx.dom.junit.TestHelpers;
 import com.icx.dom.junit.domain.A;
 import com.icx.dom.junit.domain.A.Type;
@@ -56,6 +57,8 @@ class LoadAndSaveTest extends TestHelpers {
 
 	static final Logger log = LoggerFactory.getLogger(LoadAndSaveTest.class);
 
+	static DbType dbType = null;
+
 	static void cleanup() throws Exception {
 
 		log.info("\tcleanup()");
@@ -70,6 +73,9 @@ class LoadAndSaveTest extends TestHelpers {
 		}
 		for (X x : DomainController.all(X.class)) {
 			x.delete();
+		}
+		for (X.InProgress xInProgress : DomainController.all(X.InProgress.class)) {
+			xInProgress.delete();
 		}
 		for (AA aa : DomainController.all(AA.class)) {
 			aa.delete();
@@ -114,7 +120,9 @@ class LoadAndSaveTest extends TestHelpers {
 
 			log.info("\tEstablish logical database connection...");
 
+			dbType = DbType.MYSQL;
 			Properties dbProps = Prop.readEnvironmentSpecificProperties(Prop.findPropertiesFile("db.properties"), "local/mysql/junit", CList.newList("dbConnectionString", "dbUser"));
+
 			Properties domainProps = Prop.readProperties(Prop.findPropertiesFile("domain.properties"));
 
 			log.info("\tInitialize Java <-> SQL association...");
@@ -154,10 +162,10 @@ class LoadAndSaveTest extends TestHelpers {
 				aa.integerValue = Integer.MAX_VALUE;
 				aa.l = Long.MIN_VALUE;
 				aa.longValue = Long.MAX_VALUE;
-				aa.d = Double.MIN_VALUE;
-				aa.doubleValue = Double.MAX_VALUE;
+				aa.d = 123456789.123456789; // Double.MIN_VALUE: underflow with Oracle
+				aa.doubleValue = -0.0000123456789; // Double.MAX_VALUE: underflow with Oracle
 				aa.bigIntegerValue = BigInteger.valueOf(Long.MAX_VALUE);
-				aa.bigDecimalValue = BigDecimal.valueOf(Double.MAX_VALUE);
+				aa.bigDecimalValue = BigDecimal.valueOf(123456789.123456789); // Double.MAX_VALUE: underflow with Oracle
 				aa.s = "S";
 				aa.bytes = Common.getBytesUTF8("ÄÖÜäöüß");
 
@@ -210,16 +218,21 @@ class LoadAndSaveTest extends TestHelpers {
 			assertEquals(Integer.MAX_VALUE, aa1.integerValue);
 			assertEquals(Long.MIN_VALUE, aa1.l);
 			assertEquals(Long.MAX_VALUE, aa1.longValue);
-			assertEquals(Double.MIN_VALUE, aa1.d);
-			assertEquals(Double.MAX_VALUE, aa1.doubleValue);
+			assertEquals(123456789.123456789, aa1.d);
+			assertEquals(-0.0000123456789, aa1.doubleValue);
 			assertEquals(BigInteger.valueOf(Long.MAX_VALUE), aa1.bigIntegerValue);
-			assertEquals(BigDecimal.valueOf(Double.MAX_VALUE), aa1.bigDecimalValue);
+			assertEquals(BigDecimal.valueOf(123456789.123456789), aa1.bigDecimalValue);
 			assertEquals("S", aa1.s);
 			assertArrayEquals(Common.getBytesUTF8("ÄÖÜäöüß"), aa1.bytes);
 			assertEquals(CResource.findFirstJavaResourceFile("x.txt"), aa1.file);
 			assertEquals(Type.A, aa1.type);
 
-			assertEquals(CList.newList("A", "B", "C", "D", "", null), aa1.strings);
+			if (dbType == DbType.ORACLE) {
+				assertEquals(CList.newList("A", "B", "C", "D", null, null), aa1.strings); // Oracle does not allow empty string values it provides null instead
+			}
+			else {
+				assertEquals(CList.newList("A", "B", "C", "D", "", null), aa1.strings);
+			}
 			assertEquals(CSet.newSet(0.0, 0.1, 0.2, null), aa1.doubleSet);
 			assertEquals(CMap.newMap("a", BigDecimal.valueOf(1L), "b", BigDecimal.valueOf(2L), "c", BigDecimal.valueOf(3L), "d", null, null, BigDecimal.valueOf(0L)), aa1.bigDecimalMap);
 
@@ -280,12 +293,18 @@ class LoadAndSaveTest extends TestHelpers {
 
 				assertEquals(1, DomainController.count(O.class, o -> true));
 
-				SqlDomainController.sqlDb.update(sqlcn.cn, "DOM_A", CMap.newMap("I", 2, "BYTES", Common.getBytesUTF8("äöüßÄÖÜ"), "FILE", "y.txt", "DOM_TYPE", "B", "O_ID", null), "S='S'");
+				SqlDomainController.sqlDb.update(sqlcn.cn, "DOM_A", CMap.newMap("I", 2, "BYTES", Common.getBytesUTF8("äöüßÄÖÜ"), "DOM_FILE", "y.txt", "DOM_TYPE", "B", "O_ID", null), "S='S'");
 
 				SqlDomainController.sqlDb.update(sqlcn.cn, "DOM_A_STRINGS", CMap.newMap("ELEMENT_ORDER", 1), "ELEMENT='B'");
 				SqlDomainController.sqlDb.update(sqlcn.cn, "DOM_A_STRINGS", CMap.newMap("ELEMENT_ORDER", 0), "ELEMENT='C'");
 				SqlDb.deleteFrom(sqlcn.cn, "DOM_A_STRINGS", "ELEMENT='D'");
-				SqlDomainController.sqlDb.update(sqlcn.cn, "DOM_A_STRINGS", CMap.newMap("ELEMENT", "E"), "ELEMENT=''");
+
+				if (dbType == DbType.ORACLE) {
+					SqlDomainController.sqlDb.update(sqlcn.cn, "DOM_A_STRINGS", CMap.newMap("ELEMENT", "E"), "ELEMENT IS NULL");
+				}
+				else {
+					SqlDomainController.sqlDb.update(sqlcn.cn, "DOM_A_STRINGS", CMap.newMap("ELEMENT", "E"), "ELEMENT=''");
+				}
 				SqlDomainController.sqlDb.insertInto(sqlcn.cn, "DOM_A_STRINGS", CMap.newSortedMap("A_ID", aa1.getId(), "ELEMENT", "G", "ELEMENT_ORDER", 6));
 
 				SqlDb.deleteFrom(sqlcn.cn, "DOM_A_DOUBLE_SET", "ELEMENT IS NULL");
@@ -322,7 +341,12 @@ class LoadAndSaveTest extends TestHelpers {
 			assertEquals(new File("y.txt"), aa1.file);
 			assertEquals(null, aa1.o);
 
-			assertEquals(CList.newList("C", "B", "E", null, "E", "G"), aa1.strings);
+			if (dbType == DbType.ORACLE) {
+				assertEquals(CList.newList("C", "B", "E", "E", "E", "G"), aa1.strings);
+			}
+			else {
+				assertEquals(CList.newList("C", "B", "E", null, "E", "G"), aa1.strings);
+			}
 			assertEquals(CSet.newSet(0.1, 0.2, 0.3, 0.4), aa1.doubleSet);
 			assertEquals(CMap.newMap("b", BigDecimal.valueOf(2L), "c", BigDecimal.valueOf(3L), "e", BigDecimal.valueOf(5L), "f", BigDecimal.valueOf(6L)), aa1.bigDecimalMap);
 
@@ -557,7 +581,10 @@ class LoadAndSaveTest extends TestHelpers {
 			assertTrue(z1.isStored());
 			assertTrue(x1.isStored());
 
-			AA aa2 = SqlDomainController.createAndSave(AA.class, aa -> aa.s = "aa2");
+			AA aa2 = SqlDomainController.createAndSave(AA.class, aa -> {
+				aa.s = "aa2";
+				aa.integerValue = 2;
+			});
 			X x2 = SqlDomainController.createAndSave(X.class, null);
 			Z z2 = SqlDomainController.createAndSave(Z.class, null);
 			Y y2 = SqlDomainController.create(Y.class, null);
@@ -574,7 +601,10 @@ class LoadAndSaveTest extends TestHelpers {
 
 			log.info("\tChange values in database externally...");
 
-			AA aa3 = SqlDomainController.createAndSave(AA.class, aa -> aa.s = "aa3");
+			AA aa3 = SqlDomainController.createAndSave(AA.class, aa -> {
+				aa.s = "aa3";
+				aa.integerValue = 3;
+			});
 			X x3 = SqlDomainController.createAndSave(X.class, null);
 			Z z3 = SqlDomainController.createAndSave(Z.class, null);
 			Y y3 = SqlDomainController.create(Y.class, null);
@@ -613,25 +643,19 @@ class LoadAndSaveTest extends TestHelpers {
 	@SuppressWarnings("static-method")
 	@Test
 	@Order(7)
-	void loadReferencedObjects() throws Throwable {
+	void loadReferencedObjectsAndAllocateObjectsExclusively() throws Throwable {
 
 		try {
 			cleanup();
 
-			log.info("\tTEST 7: loadReferencedObjects()");
+			log.info("\tTEST 7: loadReferencedObjectsAndAllocateObjectsExclusively()");
 
 			log.info("\tCreate and save objects with parent child relation...");
 
 			O o1 = SqlDomainController.createAndSave(O.class, null);
 			AA aa1 = SqlDomainController.createAndSave(AA.class, aa -> aa.o = o1);
-			X x1a = SqlDomainController.createAndSave(X.class, x -> {
-				x.a = aa1;
-				x.s = "available";
-			});
-			X x1b = SqlDomainController.createAndSave(X.class, x -> {
-				x.a = aa1;
-				x.s = "available";
-			});
+			X x1a = SqlDomainController.createAndSave(X.class, x -> { x.a = aa1; });
+			X x1b = SqlDomainController.createAndSave(X.class, x -> { x.a = aa1; });
 
 			log.info("\tUnregister all objects to force reload of these objects...");
 
@@ -644,45 +668,49 @@ class LoadAndSaveTest extends TestHelpers {
 			assertFalse(DomainController.hasAny(AA.class));
 			assertFalse(DomainController.hasAny(O.class));
 
-			log.info("\tLoad objects with status 'available' excusively -> force loading referenced parent objects in separate load cycles...");
+			log.info("\tLoad objects of one domain class for excusive use and force loading referenced parent objects in separate load cycles...");
 
-			Set<X> xs = SqlDomainController.allocateForExclusivUsage(X.class, "s", "available", "in_use", 0);
+			Set<X> xs = SqlDomainController.allocateForExclusiveUse(X.class, X.InProgress.class, -1);
 
 			Iterator<X> it = xs.iterator();
 			x1a = it.next();
 			x1b = it.next();
-			assertEquals("in_use", x1a.s);
-			assertEquals("in_use", x1a.s);
+			assertEquals(2, xs.size());
 			assertEquals(2, DomainController.count(X.class, x -> true));
+			assertEquals(2, SqlDomainController.count(X.InProgress.class, s -> true));
 			assertTrue(DomainController.hasAny(AA.class));
 			assertTrue(DomainController.hasAny(O.class));
 
-			log.info("\tTry to load another object excusively with status 'available' (but no object exists)...");
+			log.info("\tTry to load another object excusively (but no object exists)...");
 
-			xs = SqlDomainController.allocateForExclusivUsage(X.class, "s", "available", "in_use", 0);
+			xs = SqlDomainController.allocateForExclusiveUse(X.class, X.InProgress.class, -1);
 
 			assertTrue(xs.isEmpty());
 
-			log.info("\tReset status to 'available'...");
+			log.info("\tRelease one exclusively used object...");
 
-			x1b.s = "available";
-			x1b.save();
+			x1b.releaseFromExclusiveUse(X.InProgress.class);
 
-			log.info("\tTry to load another object excusively with status 'available' (now one object exists)...");
+			assertEquals(1, SqlDomainController.count(X.InProgress.class, s -> true));
 
-			final Set<X> xs2 = SqlDomainController.allocateForExclusivUsage(X.class, "s", "available", "in_use", 1);
+			log.info("\tTry to allocate another object excusively (now one object exists)...");
+
+			final Set<X> xs2 = SqlDomainController.allocateForExclusiveUse(X.class, X.InProgress.class, 1);
 
 			assertDoesNotThrow(() -> xs2.iterator().next());
-			assertEquals("in_use", xs2.iterator().next().s);
+			assertEquals(2, SqlDomainController.count(X.InProgress.class, s -> true));
 
-			x1a.s = "available";
-			x1a.save();
-			x1b.s = "available";
-			x1b.save();
+			x1a.releaseFromExclusiveUse(X.InProgress.class);
+			x1b.releaseFromExclusiveUse(X.InProgress.class);
+
+			assertEquals(0, SqlDomainController.count(X.InProgress.class, s -> true));
 
 			log.info("\tAllocate and update objects...");
 
-			xs = SqlDomainController.allocateAndUpdate(X.class, x -> "available".equals(x.s), x -> x.s = "in_use", 0);
+			x1a.s = "available";
+			x1b.s = "available";
+
+			xs = SqlDomainController.allocateAndUpdate(X.class, x -> "available".equals(x.s), x -> x.s = "in_use", -1);
 
 			it = xs.iterator();
 			x1a = it.next();
@@ -690,10 +718,10 @@ class LoadAndSaveTest extends TestHelpers {
 			assertEquals("in_use", x1a.s);
 			assertEquals("in_use", x1a.s);
 
+			log.info("\tAllocate and update one object...");
+
 			x1a.s = "available";
-			x1a.save();
 			x1b.s = "available";
-			x1b.save();
 
 			xs = SqlDomainController.allocateAndUpdate(X.class, x -> "available".equals(x.s), x -> x.s = "in_use", 1);
 
@@ -716,7 +744,7 @@ class LoadAndSaveTest extends TestHelpers {
 	@Order(9)
 	void delete() throws Throwable {
 
-		log.info("\tTEST 8: delete()");
+		log.info("\tTEST 9: delete()");
 
 		log.info("\tDelete objects with circular references...");
 
@@ -791,13 +819,13 @@ class LoadAndSaveTest extends TestHelpers {
 
 	@SuppressWarnings("static-method")
 	@Test
-	@Order(9)
+	@Order(10)
 	void sortAndGroup() throws Throwable {
 
 		try {
 			cleanup();
 
-			log.info("\tTEST 9: sortAndGroup()");
+			log.info("\tTEST 10: sortAndGroup()");
 
 			log.info("\tCheck default object order (id containes creation time)...");
 
@@ -830,6 +858,11 @@ class LoadAndSaveTest extends TestHelpers {
 			assertEquals(CMap.newMap("A", CSet.newSet(aaa), "B", CSet.newSet(aab), "C", CSet.newSet(aac), "D", CSet.newSet(aad)), DomainController.groupBy(o1.as, a -> a.s));
 			assertEquals(CMap.newMap(false, CSet.newSet(aaa, aac), true, CSet.newSet(aab, aad)), DomainController.groupBy(o1.as, a -> a.bool));
 			assertEquals(2, DomainController.countBy(o1.as, a -> a.bool).get(true));
+
+			aaa.delete();
+			aab.delete();
+			aac.delete();
+			aad.delete();
 		}
 		catch (AssertionFailedError failed) {
 			throw failed;
@@ -842,13 +875,13 @@ class LoadAndSaveTest extends TestHelpers {
 
 	@SuppressWarnings("static-method")
 	@Test
-	@Order(10)
+	@Order(11)
 	void errorCases() throws Throwable {
 
 		try {
 			cleanup();
 
-			log.info("\tTEST 10: errorCases()");
+			log.info("\tTEST 11: errorCases()");
 
 			AA aa1 = DomainController.create(AA.class, a -> a.s = "aa1");
 

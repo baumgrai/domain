@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
+import java.sql.SQLException;
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
 import java.time.LocalDate;
@@ -46,10 +47,12 @@ import com.icx.dom.common.CSet;
 import com.icx.dom.common.Common;
 import com.icx.dom.common.Prop;
 import com.icx.dom.common.Reflection;
+import com.icx.dom.jdbc.ConfigException;
 import com.icx.dom.jdbc.JdbcHelpers;
 import com.icx.dom.jdbc.SqlConnection;
 import com.icx.dom.jdbc.SqlDb;
 import com.icx.dom.jdbc.SqlDb.DbType;
+import com.icx.dom.jdbc.SqlDbException;
 import com.icx.dom.jdbc.SqlDbTable;
 import com.icx.dom.junit.TestHelpers;
 
@@ -264,22 +267,9 @@ class CommonTest extends TestHelpers {
 		assertNull(Prop.findPropertiesFile("nonexistent.properties"), "non-existent properties file");
 	}
 
-	@SuppressWarnings("static-method")
-	@Test
-	@Order(6)
-	void jdbc() throws Exception {
+	private static void checkDatabase(String sqlConnectionString, String user, String pwd, DbType dbType) throws ConfigException, SQLException, SqlDbException {
 
-		assertEquals("***", JdbcHelpers.forLoggingSql("pwd", "123"));
-		assertFalse(JdbcHelpers.forLoggingSql("oracleTimestamp", new oracle.sql.TIMESTAMP()).isEmpty());
-		assertFalse(JdbcHelpers.forLoggingSql("timestamp", new java.sql.Timestamp(0L)).isEmpty());
-		assertFalse(JdbcHelpers.forLoggingSql("LocalDateTime", LocalDateTime.now()).isEmpty());
-		assertFalse(JdbcHelpers.forLoggingSql("LocalDate", LocalDate.now()).isEmpty());
-		assertFalse(JdbcHelpers.forLoggingSql("LocalTime", LocalTime.now()).isEmpty());
-		assertFalse(JdbcHelpers.forLoggingSql("Calendar", new GregorianCalendar()).isEmpty());
-		assertFalse(JdbcHelpers.forLoggingSql("boolean", true).isEmpty());
-
-		// TODO: Test with Oracle and SQL Server
-		SqlDb sqlDb = new SqlDb("jdbc:mysql://localhost/junit?useSSL=false", "infinit", "infinit", 1, 5000);
+		SqlDb sqlDb = new SqlDb(sqlConnectionString, user, pwd, 1, 5000);
 		try (SqlConnection sqlcn1 = SqlConnection.open(sqlDb.pool, true)) {
 			try (SqlConnection sqlcn2 = SqlConnection.open(sqlDb.pool, true)) {
 
@@ -308,9 +298,29 @@ class CommonTest extends TestHelpers {
 			}
 		}
 
-		assertEquals(DbType.MYSQL, sqlDb.getDbType());
-		assertEquals("SYSDATE()", sqlDb.getSqlDateFunct());
+		assertEquals(dbType, sqlDb.getDbType());
+		assertEquals(SqlDb.DB_DATE_FUNCT.get(dbType), sqlDb.getSqlDateFunct());
 
 		sqlDb.close();
+	}
+
+	@SuppressWarnings("static-method")
+	@Test
+	@Order(6)
+	void jdbc() throws Exception {
+
+		assertEquals("***", JdbcHelpers.forLoggingSql("pwd", "123"));
+		assertFalse(JdbcHelpers.forLoggingSql("oracleTimestamp", new oracle.sql.TIMESTAMP()).isEmpty());
+		assertFalse(JdbcHelpers.forLoggingSql("timestamp", new java.sql.Timestamp(0L)).isEmpty());
+		assertFalse(JdbcHelpers.forLoggingSql("LocalDateTime", LocalDateTime.now()).isEmpty());
+		assertFalse(JdbcHelpers.forLoggingSql("LocalDate", LocalDate.now()).isEmpty());
+		assertFalse(JdbcHelpers.forLoggingSql("LocalTime", LocalTime.now()).isEmpty());
+		assertFalse(JdbcHelpers.forLoggingSql("Calendar", new GregorianCalendar()).isEmpty());
+		assertFalse(JdbcHelpers.forLoggingSql("boolean", true).isEmpty());
+
+		// TODO: Test with Oracle and SQL Server
+		checkDatabase("jdbc:mysql://localhost/junit?useSSL=false", "infinit", "infinit", DbType.MYSQL);
+		checkDatabase("jdbc:sqlserver://localhost;Database=junit", "infinit", "infinit", DbType.MS_SQL);
+		// checkDatabase("jdbc:oracle:thin:@//localhost:1521/xe/junit", "infinit", "infinit");
 	}
 }

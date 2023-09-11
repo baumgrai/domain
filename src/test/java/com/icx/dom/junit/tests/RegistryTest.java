@@ -57,8 +57,8 @@ class RegistryTest extends TestHelpers {
 
 		// Expected values
 
-		List<Class<? extends SqlDomainObject>> registeredDomainClasses = CList.newList(O.class, AA.class, A.class, A.Inner.class, B.class, C.class, X.class, Y.class, Z.class);
-		List<Class<? extends SqlDomainObject>> registeredObjectDomainClasses = CList.newList(O.class, AA.class, A.Inner.class, B.class, C.class, X.class, Y.class, Z.class);
+		List<Class<? extends SqlDomainObject>> registeredDomainClasses = CList.newList(O.class, AA.class, A.class, A.Inner.class, B.class, C.class, X.class, X.InProgress.class, Y.class, Z.class);
+		List<Class<? extends SqlDomainObject>> registeredObjectDomainClasses = CList.newList(O.class, AA.class, A.Inner.class, B.class, C.class, X.class, X.InProgress.class, Y.class, Z.class);
 		List<Class<? extends SqlDomainObject>> relevantDomainClasses = new ArrayList<>(registeredDomainClasses);
 		relevantDomainClasses.add(RemovedClass.class);
 

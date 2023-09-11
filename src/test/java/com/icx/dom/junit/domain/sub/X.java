@@ -11,6 +11,9 @@ import com.icx.dom.junit.domain.A;
 @UseDataHorizon
 public class X extends SqlDomainObject {
 
+	public static class InProgress extends SqlDomainObject {
+	}
+
 	public String s;
 
 	public List<Integer> is;

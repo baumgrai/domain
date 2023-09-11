@@ -158,10 +158,10 @@ public abstract class Bike extends SqlDomainObject {
 
 		try (SqlConnection sqlcn = SqlConnection.open(SqlDomainController.sqlDb.pool, false)) {
 
-			synchronized (this) {
+			synchronized (this) { // TODO: Ensure synchronization for multiple instances (formerly used SELECT FOR UPDATE)
 
-				// Load bike from database (SELECT FOR UPDATE) to get current availability status (may be changed by other instances)
-				reload(sqlcn.cn, true);
+				// Load bike from database to get current availability status (may be changed by other instances)
+				reload(sqlcn.cn);
 
 				// Change availability map
 				availabilityMap.put(bikeSize, availabilityMap.get(bikeSize) + 1);

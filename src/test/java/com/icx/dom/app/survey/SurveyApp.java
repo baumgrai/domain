@@ -211,7 +211,7 @@ public class SurveyApp extends SqlDomainController {
 				try (SqlConnection sqlcn = SqlConnection.open(SqlDomainController.sqlDb.pool, false)) {
 
 					try {
-						Set<Survey> surveys = SqlDomainController.allocateForExclusivUsage(Survey.class, "semaphore", Semaphore.GREEN, Semaphore.RED, 1);
+						Set<Survey> surveys = SqlDomainController.allocateAndUpdate(Survey.class, s -> s.semaphore == Semaphore.GREEN, s -> s.semaphore = Semaphore.RED, 1);
 						if (!surveys.isEmpty()) {
 
 							Survey survey = surveys.iterator().next();
