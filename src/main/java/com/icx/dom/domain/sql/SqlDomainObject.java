@@ -26,6 +26,7 @@ import com.icx.dom.common.CList;
 import com.icx.dom.common.CLog;
 import com.icx.dom.common.CMap;
 import com.icx.dom.common.Reflection;
+import com.icx.dom.domain.DomainController;
 import com.icx.dom.domain.DomainObject;
 import com.icx.dom.domain.Registry;
 import com.icx.dom.jdbc.SqlConnection;
@@ -385,11 +386,11 @@ public abstract class SqlDomainObject extends DomainObject {
 	// -------------------------------------------------------------------------
 
 	// SELECT records and build domain object record for this object - returns empty map if object could not be loaded
-	private Map<Class<? extends DomainObject>, Map<Long, SortedMap<String, Object>>> selectObjectRecord(Connection cn, boolean forUpdate) {
+	private Map<Class<? extends DomainObject>, Map<Long, SortedMap<String, Object>>> selectObjectRecord(Connection cn) {
 
 		SqlDbTable table = SqlRegistry.getTableFor(getClass());
 
-		Map<Long, SortedMap<String, Object>> loadedRecordsMap = SqlDomainController.retrieveRecordsForObjectDomainClass(cn, forUpdate, 0, getClass(), table.name + "." + ID_COL + "=" + id);
+		Map<Long, SortedMap<String, Object>> loadedRecordsMap = SqlDomainController.retrieveRecordsForObjectDomainClass(cn, 0, getClass(), table.name + "." + ID_COL + "=" + id);
 
 		Map<Class<? extends DomainObject>, Map<Long, SortedMap<String, Object>>> loadedRecordsMapByDomainClassMap = new HashMap<>();
 		if (!loadedRecordsMap.isEmpty()) {
@@ -400,7 +401,7 @@ public abstract class SqlDomainObject extends DomainObject {
 	}
 
 	// Load with given connection and FOR UPDATE option
-	public void reload(Connection cn, boolean forUpdate) {
+	public void reload(Connection cn) {
 
 		if (!isStored) {
 			log.warn("SDO: {} is not yet stored in database and therefore cannot be loaded!", name());
@@ -416,7 +417,7 @@ public abstract class SqlDomainObject extends DomainObject {
 		}
 
 		// Load object record and assign changed values to object - ensure referential integrity by loading directly and indirectly referenced objects if they are currently not registered
-		SqlDomainController.load(cn, c -> selectObjectRecord(c, forUpdate));
+		SqlDomainController.load(cn, this::selectObjectRecord);
 	}
 
 	/**
@@ -434,7 +435,36 @@ public abstract class SqlDomainObject extends DomainObject {
 	public void reload() throws SQLException {
 
 		try (SqlConnection sqlcn = SqlConnection.open(SqlDomainController.sqlDb.pool, true)) {
-			reload(sqlcn.cn, false);
+			reload(sqlcn.cn);
+		}
+	}
+
+	/**
+	 * Release object from exclusive usage (allocated before by {@link SqlDomainController#allocateForExclusiveUse(Class, Class, int)})
+	 * <p>
+	 * DELETEs in-progress object for this object.
+	 * 
+	 * @param inProgressClass
+	 *            class domain class of in-progress objects associated to domain class of this object
+	 * 
+	 * @return true if in-progress object was found and could be deleted, false if object is not allocated for exclusive usage
+	 * 
+	 * @throws SQLException
+	 *             exceptions thrown on executing SQL DELETE statement
+	 * @throws SqlDbException
+	 *             on internal errors on executing SQL DELETE statement
+	 */
+	public boolean releaseFromExclusiveUse(Class<? extends SqlDomainObject> inProgressClass) throws SQLException, SqlDbException {
+
+		SqlDomainObject inProgressObject = DomainController.find(inProgressClass, id);
+		if (inProgressObject == null) {
+			log.info("SDO: {} is currently not allocated for exclusive usage", this);
+			return false;
+		}
+		else {
+			log.info("SDO: Release {} from exclusive usage...", this);
+			inProgressObject.delete();
+			return true;
 		}
 	}
 
