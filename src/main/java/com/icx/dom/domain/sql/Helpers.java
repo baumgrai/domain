@@ -169,7 +169,7 @@ public abstract class Helpers {
 				}
 			}
 			catch (IllegalArgumentException | NoSuchMethodException | SecurityException | InstantiationException | IllegalAccessException | InvocationTargetException ex) {
-				log.error("String '{}' cannot be converted to type '{}'! ({})", s, objectClass.getName(), objectClass, ex);
+				log.error("SQL: String '{}' cannot be converted to type '{}'! ({})", s, objectClass.getName(), objectClass, ex);
 				return null;
 			}
 		}
@@ -189,7 +189,7 @@ public abstract class Helpers {
 			return collection;
 		}
 		catch (Exception ex) {
-			log.error("{} occurred trying to create collection of type '{}': {}", ex.getClass().getSimpleName(), collectionClass.getName(), ex);
+			log.error("SQL: {} occurred trying to create collection of type '{}': {}", ex.getClass().getSimpleName(), collectionClass.getName(), ex);
 			return Collections.emptyList();
 		}
 	}
@@ -214,7 +214,7 @@ public abstract class Helpers {
 			return map;
 		}
 		catch (Exception ex) {
-			log.error("{} occurred trying to create map of type '{}': {}", ex.getClass().getSimpleName(), mapClass.getName(), ex);
+			log.error("SQL: {} occurred trying to create map of type '{}': {}", ex.getClass().getSimpleName(), mapClass.getName(), ex);
 			return Collections.emptyMap();
 		}
 	}
@@ -256,10 +256,7 @@ public abstract class Helpers {
 
 	static Class<?> requiredJdbcTypeFor(Class<?> fieldClass) {
 
-		if (fieldClass == Boolean.class || fieldClass == boolean.class) {
-			return String.class;
-		}
-		else if (fieldClass == BigInteger.class) {
+		if (fieldClass == BigInteger.class) {
 			return Long.class;
 		}
 		else if (fieldClass == BigDecimal.class) {
@@ -272,7 +269,7 @@ public abstract class Helpers {
 			return String.class;
 		}
 		else {
-			return fieldClass;
+			return Reflection.getBoxingWrapperType(fieldClass);
 		}
 	}
 
@@ -306,42 +303,51 @@ public abstract class Helpers {
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	static <T> T columnToFieldValue(Class<? extends T> fieldType, Object columnValue) {
 
-		if (columnValue == null) {
-			return null;
-		}
-		else if (fieldType == Boolean.class || fieldType == boolean.class) {
-			return (T) Boolean.valueOf((String) columnValue);
-		}
-		else if (fieldType == BigInteger.class) {
-			return (T) BigInteger.valueOf((long) columnValue);
-		}
-		else if (fieldType == BigDecimal.class) {
-
-			Double d = (double) columnValue;
-			if (d % 1.0 == 0 && d < Long.MAX_VALUE) { // Avoid artifacts BigDecimal@4 -> BigDecimal@4.0
-				return (T) BigDecimal.valueOf(d.longValue());
-			}
-			else {
-				return (T) BigDecimal.valueOf(d);
-			}
-		}
-		else if (Enum.class.isAssignableFrom(fieldType)) {
-
-			Class<? extends Enum> enumType = (Class<? extends Enum>) fieldType;
-			try {
-				return (T) Enum.valueOf(enumType, (String) columnValue);
-			}
-			catch (IllegalArgumentException iaex) {
-				log.error("Column value {} cannot be converted to enum type '{}'! ({})", CLog.forAnalyticLogging(columnValue), enumType.getName(), iaex.getMessage());
-				return null;
-			}
-		}
-		else if (File.class.isAssignableFrom(fieldType)) {
-			return (T) new File((String) columnValue);
-		}
-		else {
+		if (fieldType == null) {
 			return (T) columnValue;
 		}
+
+		try {
+			if (columnValue == null) {
+				return null;
+			}
+			else if (fieldType.isAssignableFrom(columnValue.getClass()) || Reflection.getBoxingWrapperType(fieldType).isAssignableFrom(columnValue.getClass())) {
+				return (T) columnValue;
+			}
+			else if (fieldType == Boolean.class || fieldType == boolean.class) {
+				return (T) Boolean.valueOf((String) columnValue);
+			}
+			else if (fieldType == BigInteger.class) {
+				return (T) BigInteger.valueOf((long) columnValue);
+			}
+			else if (fieldType == BigDecimal.class) {
+
+				Double d = (double) columnValue;
+				if (d % 1.0 == 0 && d < Long.MAX_VALUE) { // Avoid artifacts BigDecimal@4 -> BigDecimal@4.0
+					return (T) BigDecimal.valueOf(d.longValue());
+				}
+				else {
+					return (T) BigDecimal.valueOf(d);
+				}
+			}
+			else if (Enum.class.isAssignableFrom(fieldType)) {
+				return (T) Enum.valueOf((Class<? extends Enum>) fieldType, (String) columnValue);
+			}
+			else if (File.class.isAssignableFrom(fieldType)) {
+				return (T) new File((String) columnValue);
+			}
+			else {
+				return (T) columnValue;
+			}
+		}
+		catch (IllegalArgumentException iaex) {
+			log.error("SQL: Column value {} cannot be converted to enum type '{}'! ({})", CLog.forAnalyticLogging(columnValue), ((Class<? extends Enum>) fieldType).getName(), iaex.getMessage());
+		}
+		catch (Exception ex) {
+			log.error("SQL: Column value {} cannot be converted to  '{}'! ({})", CLog.forAnalyticLogging(columnValue), fieldType.getName(), ex);
+		}
+
+		return null;
 	}
 
 	// -------------------------------------------------------------------------
