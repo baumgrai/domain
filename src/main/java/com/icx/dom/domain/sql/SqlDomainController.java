@@ -201,7 +201,7 @@ public abstract class SqlDomainController extends DomainController {
 		// Determine object domain class by retrieving domain class name from selected referenced object record
 		try {
 			String refTableName = SqlRegistry.getTableFor(domainClass).name;
-			List<SortedMap<String, Object>> records = sqlDb.selectFrom(cn, false, refTableName, SqlDomainObject.DOMAIN_CLASS_COL, "ID=" + id, null, CList.newList(String.class));
+			List<SortedMap<String, Object>> records = sqlDb.selectFrom(cn, refTableName, SqlDomainObject.DOMAIN_CLASS_COL, "ID=" + id, null, CList.newList(String.class));
 			if (records.isEmpty()) {
 				log.error("No record found for object {}@{} which is referenced by child object and therefore should exist", domainClass.getSimpleName(), id);
 			}
@@ -331,7 +331,7 @@ public abstract class SqlDomainController extends DomainController {
 	// Load object records for one object domain class - means one record per object, containing data of all tables associated with object domain class according inheritance
 	// e.g. class Racebike extends Bike -> tables [ DOM_BIKE, DOM_RACEBIKE ])
 	@SuppressWarnings("unchecked")
-	static Map<Long, SortedMap<String, Object>> retrieveRecordsForObjectDomainClass(Connection cn, boolean forUpdate, int limit, Class<? extends DomainObject> objectDomainClass, String whereClause) {
+	static Map<Long, SortedMap<String, Object>> retrieveRecordsForObjectDomainClass(Connection cn, int limit, Class<? extends DomainObject> objectDomainClass, String whereClause) {
 
 		Map<Long, SortedMap<String, Object>> loadedRecordMap = new HashMap<>();
 
@@ -342,7 +342,7 @@ public abstract class SqlDomainController extends DomainController {
 			SelectDescription sd = buildSelectDescriptionFor(objectDomainClass);
 
 			// SELECT object records and return empty map if no (matching) object found in database
-			List<SortedMap<String, Object>> loadedRecords = sqlDb.selectFrom(cn, forUpdate, sd.joinedTableExpression, sd.allColumnNames, whereClause, null, limit, null, sd.allFieldTypes);
+			List<SortedMap<String, Object>> loadedRecords = sqlDb.selectFrom(cn, sd.joinedTableExpression, sd.allColumnNames, whereClause, null, limit, null, sd.allFieldTypes);
 			if (CList.isEmpty(loadedRecords)) {
 				return loadedRecordMap;
 			}
@@ -380,12 +380,12 @@ public abstract class SqlDomainController extends DomainController {
 						List<String> idsLists = buildMax1000IdsLists(loadedRecordMap.keySet());
 						for (String idsList : idsLists) {
 							String localWhereClause = (!isEmpty(whereClause) ? whereClause + " AND " : "") + objectTable.name + ".ID IN (" + idsList + ")";
-							entryRecords.addAll(sqlDb.selectFrom(cn, forUpdate, sde.joinedTableExpression, sde.allColumnNames, localWhereClause, sde.orderByClause, sde.allFieldTypes));
+							entryRecords.addAll(sqlDb.selectFrom(cn, sde.joinedTableExpression, sde.allColumnNames, localWhereClause, sde.orderByClause, sde.allFieldTypes));
 						}
 					}
 					else {
 						// SELECT all entry records
-						entryRecords.addAll(sqlDb.selectFrom(cn, forUpdate, sde.joinedTableExpression, sde.allColumnNames, whereClause, sde.orderByClause, sde.allFieldTypes));
+						entryRecords.addAll(sqlDb.selectFrom(cn, sde.joinedTableExpression, sde.allColumnNames, whereClause, sde.orderByClause, sde.allFieldTypes));
 					}
 
 					// Get entry table and column referencing id of main object record for complex (collection or map) field
@@ -413,15 +413,6 @@ public abstract class SqlDomainController extends DomainController {
 			// Method is indirectly used in Java functional interface (as part of select supplier) and therefore may not throw exceptions
 
 			log.error("SDC: {} loading objects of domain class '{}' from database: {}", e.getClass().getSimpleName(), objectDomainClass.getName(), e.getMessage());
-
-			if (forUpdate) {
-				try {
-					cn.rollback();
-				}
-				catch (SQLException e1) {
-					log.error("SDC: Exception ROLLing BACK after failed SELECT FOR UPDATE: ", e);
-				}
-			}
 		}
 
 		return loadedRecordMap;
@@ -453,7 +444,7 @@ public abstract class SqlDomainController extends DomainController {
 			String whereClause = (Registry.isDataHorizonControlled(objectDomainClass) ? SqlDomainObject.LAST_MODIFIED_COL + ">=" + dataHorizon : null);
 
 			// SELECT objects
-			Map<Long, SortedMap<String, Object>> loadedObjectsMap = retrieveRecordsForObjectDomainClass(cn, false, 0, objectDomainClass, whereClause);
+			Map<Long, SortedMap<String, Object>> loadedObjectsMap = retrieveRecordsForObjectDomainClass(cn, 0, objectDomainClass, whereClause);
 
 			// Fill loaded records map
 			if (!CMap.isEmpty(loadedObjectsMap)) {
@@ -464,75 +455,42 @@ public abstract class SqlDomainController extends DomainController {
 		return loadedRecordsMapByDomainClassMap;
 	}
 
-	// SELECT FOR UPDATE and load objects of given object domain class WHERE a specific status field has a specific value, UPDATE status with another given value and COMMIT operation
 	// This is for synchronization if multiple instances access one database and have to process distinct objects (like orders)
-	@SuppressWarnings({ "unchecked" })
-	private static synchronized Map<Class<? extends DomainObject>, Map<Long, SortedMap<String, Object>>> selectAndUpdateStatus(Connection cn, Class<? extends DomainObject> objectDomainClass,
-			String statusFieldName, String availableStatus, String inUseStatus, int maxCount) {
+	private static synchronized Map<Class<? extends DomainObject>, Map<Long, SortedMap<String, Object>>> selectForExclusiveUse(Connection cn, Class<? extends DomainObject> objectDomainClass,
+			Class<? extends SqlDomainObject> inProgressClass, int maxCount) {
 
-		// Find specified status field and containing domain class
-		Field field = Registry.getFieldByName(objectDomainClass, statusFieldName);
-		if (field == null) {
-			log.error("SDC: Given status field '{}' is not a field of object domain class '{}' or any of the domain classes where this class is derrived from!", statusFieldName,
-					objectDomainClass.getSimpleName());
-			return Collections.emptyMap();
-		}
-
-		// Get domain class where status field is defined
-		Class<? extends DomainObject> domainClass = (Class<? extends DomainObject>) field.getDeclaringClass();
-
-		// Check status field type
-		if (field.getType() != String.class && field.getType() != Enum.class) {
-			log.error("SDC: Given status field '{}' of domain class '{}' is neither a string nor an enum field! (but must be one of these both to use it as status field for synchronization)",
-					statusFieldName, domainClass.getSimpleName());
-			return Collections.emptyMap();
-		}
-
-		// Build WHERE clause for status field
-		SqlDbTable table = SqlRegistry.getTableFor(domainClass);
-		Column column = SqlRegistry.getColumnFor(field);
-		String whereClause = column.name + "='" + availableStatus + "'";
+		// Build WHERE clause
+		String inProgressTableName = SqlRegistry.getTableFor(inProgressClass).name;
+		String whereClause = "ID NOT IN (SELECT ID FROM " + inProgressTableName + ")";
 
 		// Try to SELECT object records FOR UPDATE
-		Map<Long, SortedMap<String, Object>> loadedRecordsMap = retrieveRecordsForObjectDomainClass(cn, true, maxCount, objectDomainClass, whereClause);
-		if (CMap.isEmpty(loadedRecordsMap)) {
+		Map<Long, SortedMap<String, Object>> rawRecordsMap = retrieveRecordsForObjectDomainClass(cn, maxCount, objectDomainClass, whereClause);
+		if (CMap.isEmpty(rawRecordsMap)) {
 			return Collections.emptyMap();
 		}
 
-		// Insert loaded records for object domain class
+		// Try to INSERT in-progress record with same id as records found (works only for one in-progress record per record found because of UNIQUE constraint for ID field) - provide only records
+		// where in-progress record could be inserted
+		Map<Long, SortedMap<String, Object>> loadedRecordsMap = new HashMap<>();
+		for (Entry<Long, SortedMap<String, Object>> entry : rawRecordsMap.entrySet()) {
+
+			long id = entry.getKey();
+			try {
+				SqlDomainObject inProgressObject = createWithId(inProgressClass, id);
+				inProgressObject.save();
+				loadedRecordsMap.put(id, entry.getValue());
+			}
+			catch (SQLException sqlex) {
+				log.info("SDC: {} record with id {} is already in progress (by another instance)", objectDomainClass.getSimpleName(), id);
+			}
+			catch (SqlDbException sqldbex) {
+				log.error("SDC: {} occurred trying to INSERT {} record", sqldbex, inProgressClass.getSimpleName());
+			}
+		}
+
+		// Build map to return from supplier method
 		Map<Class<? extends DomainObject>, Map<Long, SortedMap<String, Object>>> loadedRecordsMapByDomainClassMap = new HashMap<>();
 		loadedRecordsMapByDomainClassMap.put(objectDomainClass, loadedRecordsMap);
-
-		Set<Long> idsOfSelectedRecords = new HashSet<>(loadedRecordsMap.keySet());
-
-		try {
-			// UPDATE status field of selected records in database and COMMIT
-			SortedMap<String, Object> oneCVMap = CMap.newSortedMap(column.name, inUseStatus);
-			List<String> idsLists = buildMax1000IdsLists(idsOfSelectedRecords);
-			for (String idsList : idsLists) {
-				sqlDb.update(cn, table.name, oneCVMap, "ID IN (" + idsList + ")");
-			}
-			cn.commit();
-
-			log.info("SDC: SELECT FOR UPDATE transaction committed and status set to '{}'", inUseStatus);
-
-			// Update status field in retrieved records
-			for (SortedMap<String, Object> loadedRecord : loadedRecordsMap.values()) {
-				loadedRecord.put(column.name, inUseStatus);
-			}
-		}
-		catch (SQLException | SqlDbException e) {
-
-			// Method is used in Java functional interface (select supplier) and therefore may not throw exceptions
-
-			log.error("SDC: {} updating status of selected objects of domain class '{}' from database: {}", e.getClass().getSimpleName(), domainClass.getName(), e.getMessage());
-			try {
-				cn.rollback();
-			}
-			catch (SQLException e1) {
-				log.error("SDC: Exception ROLLing BACK transaction after UPDATE failed in SELECT FOR UPDATE context: ", e1);
-			}
-		}
 
 		return loadedRecordsMapByDomainClassMap;
 	}
@@ -608,7 +566,7 @@ public abstract class SqlDomainController extends DomainController {
 			Map<Long, SortedMap<String, Object>> collectedRecordMap = new HashMap<>();
 			List<String> idsLists = buildMax1000IdsLists(entry.getValue());
 			for (String idsList : idsLists) {
-				collectedRecordMap.putAll(retrieveRecordsForObjectDomainClass(cn, false, 0, objectDomainClass, SqlRegistry.getTableFor(objectDomainClass).name + ".ID IN (" + idsList + ")"));
+				collectedRecordMap.putAll(retrieveRecordsForObjectDomainClass(cn, 0, objectDomainClass, SqlRegistry.getTableFor(objectDomainClass).name + ".ID IN (" + idsList + ")"));
 			}
 
 			loadedMissingRecordsMap.put(objectDomainClass, collectedRecordMap);
@@ -789,7 +747,9 @@ public abstract class SqlDomainController extends DomainController {
 	private static Set<SqlDomainObject> buildObjectsFromLoadedRecords(Map<Class<? extends DomainObject>, Map<Long, SortedMap<String, Object>>> loadedRecordsMap,
 			Set<DomainObject> objectsWhereReferencesChanged, Set<UnresolvedReference> unresolvedReferences) {
 
-		log.info("SDC: Build objects from loaded records...");
+		if (!CMap.isEmpty(loadedRecordsMap)) {
+			log.info("SDC: Build objects from loaded records...");
+		}
 
 		Set<SqlDomainObject> loadedObjects = new HashSet<>();
 		Set<SqlDomainObject> newObjects = new HashSet<>();
@@ -1010,10 +970,10 @@ public abstract class SqlDomainController extends DomainController {
 	}
 
 	/**
-	 * Mark objects of a specified object domain class for exclusive usage by current instance and return these objects.
+	 * Mark objects of a specified object domain class for exclusive use by current instance and return these objects.
 	 * <p>
 	 * Mark objects which status' matches a specified 'available' status and immediately update status to specified 'in-use' status in database and so avoid that another instance is able to mark these
-	 * objects too for exclusive usage. (SELECT FOR UPDATE WHERE status = availableStatus, UPDATE SET status = inUseStatus and COMMIT).
+	 * objects too for exclusive use. (SELECT FOR UPDATE WHERE status = availableStatus, UPDATE SET status = inUseStatus and COMMIT).
 	 * <p>
 	 * Use this method if multiple process instances operate on the same database and it must be ensured that objects are processed by one instance exclusively (like orders)
 	 * 
@@ -1034,31 +994,27 @@ public abstract class SqlDomainController extends DomainController {
 	 *             if executed SELECT FOR UPDATE or UPDATE statement throws SQLException
 	 */
 	@SuppressWarnings("unchecked")
-	public static synchronized <T extends SqlDomainObject> Set<T> allocateForExclusivUsage(Class<T> objectDomainClass, String statusFieldName, Object availableStatus, Object inUseStatus, int maxCount)
+	public static synchronized <T extends SqlDomainObject> Set<T> allocateForExclusiveUse(Class<T> objectDomainClass, Class<? extends SqlDomainObject> inProgressClass, int maxCount)
 			throws SQLException {
 
-		if (availableStatus == null || inUseStatus == null) {
-			log.error("SDC: 'available' status or 'in-use' status is null - cannot select objects exclusively");
-			return Collections.emptySet();
-		}
-
-		log.info("SDC: SELECT {}'{}' objects with status '{}' of status field '{}'  FOR UPDATE and UPDATE status to '{}' for these objects", (maxCount > 0 ? maxCount : ""),
-				objectDomainClass.getSimpleName(), availableStatus, statusFieldName, inUseStatus);
+		log.info("SDC: SELECT {} '{}' objects and try to INSERT '{}' record for these objects", (maxCount > 0 ? maxCount : ""), objectDomainClass.getSimpleName(), inProgressClass.getSimpleName());
 
 		try (SqlConnection sqlcn = SqlConnection.open(sqlDb.pool, false)) {
 
 			// Load objects based on given object domain class
-			Set<SqlDomainObject> loadedObjects = load(sqlcn.cn, cn -> selectAndUpdateStatus(cn, objectDomainClass, statusFieldName, availableStatus.toString(), inUseStatus.toString(), maxCount));
+			Set<SqlDomainObject> loadedObjects = load(sqlcn.cn, cn -> selectForExclusiveUse(cn, objectDomainClass, inProgressClass, maxCount));
+			loadedObjects = loadedObjects.stream().filter(o -> o.getClass().equals(objectDomainClass)).collect(Collectors.toSet());
 
 			log.info("SDC: {} '{}' objects exclusively retrieved", loadedObjects.size(), objectDomainClass.getSimpleName());
 
 			// Filter objects of given object domain class (because loaded objects may contain referenced objects of other domain classes too)
-			return (Set<T>) loadedObjects.stream().filter(o -> o.getClass().equals(objectDomainClass)).collect(Collectors.toSet());
+			return (Set<T>) loadedObjects;
 		}
 	}
 
+	// TODO: Ensure synchronization for multiple instances (formerly used SELECT FOR UPDATE) on allocateAndUpdate() or remove method
 	/**
-	 * Retrieve objects of a specified object domain class for exclusive usage by current instance; update, save and return objects matching a given predicate .
+	 * Retrieve objects of a specified object domain class for exclusive use by current instance; update, save and return objects matching a given predicate .
 	 * 
 	 * @param <T>
 	 * @param objectDomainClass
@@ -1086,7 +1042,7 @@ public abstract class SqlDomainController extends DomainController {
 
 			try (SqlConnection sqlcn = SqlConnection.open(sqlDb.pool, false)) {
 
-				t.reload(sqlcn.cn, true);
+				t.reload(sqlcn.cn);
 				if (predicate.test(t)) {
 
 					update.accept(t);
