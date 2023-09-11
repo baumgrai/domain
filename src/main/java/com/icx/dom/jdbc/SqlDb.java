@@ -26,8 +26,9 @@ import java.util.TreeSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.dom.common.Common;
+import com.icx.dom.common.CLog;
 import com.icx.dom.common.CMap;
+import com.icx.dom.common.Common;
 import com.icx.dom.common.Prop;
 import com.icx.dom.jdbc.SqlDbTable.Column;
 import com.icx.dom.jdbc.SqlDbTable.ForeignKeyColumn;
@@ -79,7 +80,7 @@ public class SqlDb extends Common {
 		}
 	}
 
-	static final Map<DbType, String> DB_DATE_FUNCT = new EnumMap<DbType, String>(DbType.class) {
+	public static final Map<DbType, String> DB_DATE_FUNCT = new EnumMap<DbType, String>(DbType.class) {
 		static final long serialVersionUID = 1L;
 		{
 			put(DbType.ORACLE, "SYSDATE");
@@ -343,7 +344,7 @@ public class SqlDb extends Common {
 	 */
 	public long selectCountFrom(Connection cn, String tableName, String whereClause) throws SQLException, SqlDbException {
 
-		List<SortedMap<String, Object>> records = selectFrom(cn, false, tableName, "count(*)", whereClause, null, 0, null, null);
+		List<SortedMap<String, Object>> records = selectFrom(cn, tableName, "count(*)", whereClause, null, 0, null, null);
 
 		return ((Number) records.iterator().next().values().iterator().next()).longValue();
 	}
@@ -353,8 +354,6 @@ public class SqlDb extends Common {
 	 * 
 	 * @param cn
 	 *            database connection
-	 * @param forUpdate
-	 *            if true "SELECT FOR UPDATE" will be used instead of only "SELECT"
 	 * @param tableExpr
 	 *            table name or SQL joined table expression like "LEAVES L JOIN COLOURS C ON L.COLOUR_ID = C.ID"
 	 * @param colExpr
@@ -378,16 +377,12 @@ public class SqlDb extends Common {
 	 *             on JDBC or SQL errors
 	 */
 	@SuppressWarnings("unchecked")
-	public List<SortedMap<String, Object>> selectFrom(Connection cn, boolean forUpdate, String tableExpr, Object colExpr, String whereClause, String orderByClause, int limit, List<Object> values,
+	public List<SortedMap<String, Object>> selectFrom(Connection cn, String tableExpr, Object colExpr, String whereClause, String orderByClause, int limit, List<Object> values,
 			List<Class<?>> requiredResultTypes) throws SQLException, SqlDbException {
 
 		// Check preconditions
 		if (isEmpty(tableExpr)) {
 			throw new SqlDbException("SELECT: No table(s) specified!");
-		}
-
-		if (forUpdate && cn.getAutoCommit()) {
-			throw new SqlDbException("SDC: SELECT FOR UPDATE may not be invoked on an AUTO COMMIT database connection!");
 		}
 
 		// Uppercase table expression
@@ -413,8 +408,9 @@ public class SqlDb extends Common {
 			List<String> columns = (List<String>) colExpr;
 			boolean first = true;
 			for (String col : columns) {
-				if (!first)
+				if (!first) {
 					sql.append(", ");
+				}
 				first = false;
 				sql.append(col.toUpperCase());
 			}
@@ -433,24 +429,26 @@ public class SqlDb extends Common {
 		sql.append(tableExpr);
 
 		// Where clause?
-		if (whereClause != null && !whereClause.isEmpty())
+		if (!isEmpty(whereClause)) {
 			sql.append(" WHERE " + whereClause);
+		}
 
-		// Order by clause?
-		if (orderByClause != null && !orderByClause.isEmpty())
-			sql.append(" ORDER BY " + orderByClause);
-
-		if (limit > 0) {
-			if (getDbType() == DbType.MYSQL) {
-				sql.append(" LIMIT " + limit);
+		if (limit > 0 && getDbType() == DbType.ORACLE) {
+			if (isEmpty(whereClause)) {
+				sql.append("WHERE ROWNUM <= " + limit);
 			}
-			else if (getDbType() == DbType.ORACLE) {
-				sql.append(" FETCH FIRST " + limit + " ROWS ONLY");
+			else {
+				sql.append(" AND ROWNUM <= " + limit);
 			}
 		}
 
-		if (forUpdate) {
-			sql.append(" FOR UPDATE");
+		// Order by clause?
+		if (!isEmpty(orderByClause)) {
+			sql.append(" ORDER BY " + orderByClause);
+		}
+
+		if (limit > 0 && getDbType() == DbType.MYSQL) {
+			sql.append(" LIMIT " + limit);
 		}
 
 		return select(cn, sql.toString(), values, requiredResultTypes);
@@ -461,8 +459,6 @@ public class SqlDb extends Common {
 	 * 
 	 * @param cn
 	 *            database connection
-	 * @param forUpdate
-	 *            if true "SELECT FOR UPDATE" will be used instead of only "SELECT"
 	 * @param tableExpr
 	 *            table name or SQL joined table expression like "LEAVES L JOIN COLOURS C ON L.COLOUR_ID = C.ID"
 	 * @param colExpr
@@ -481,10 +477,10 @@ public class SqlDb extends Common {
 	 * @throws SQLException
 	 *             on JDBC or SQL errors
 	 */
-	public List<SortedMap<String, Object>> selectFrom(Connection cn, boolean forUpdate, String tableExpr, Object colExpr, String whereClause, String orderByClause, List<Class<?>> requiredResultTypes)
+	public List<SortedMap<String, Object>> selectFrom(Connection cn, String tableExpr, Object colExpr, String whereClause, String orderByClause, List<Class<?>> requiredResultTypes)
 			throws SQLException, SqlDbException {
 
-		return selectFrom(cn, forUpdate, tableExpr, colExpr, whereClause, orderByClause, 0, null, requiredResultTypes);
+		return selectFrom(cn, tableExpr, colExpr, whereClause, orderByClause, 0, null, requiredResultTypes);
 	}
 
 	// -------------------------------------------------------------------------
@@ -853,11 +849,16 @@ public class SqlDb extends Common {
 				for (int i = 0; i < columnsWithPlaceholders.size(); i++) {
 
 					Object columnValue = columnValueMap.get(columnsWithPlaceholders.get(i).name);
-					if (columnValue == null) {
-						pst.setNull(i + 1, typeIntegerFromJdbcType(columnsWithPlaceholders.get(i).jdbcType));
+					try {
+						if (columnValue == null) {
+							pst.setNull(i + 1, typeIntegerFromJdbcType(columnsWithPlaceholders.get(i).jdbcType));
+						}
+						else { // Normal value
+							pst.setObject(i + 1, columnValue);
+						}
 					}
-					else { // Normal value
-						pst.setObject(i + 1, columnValue);
+					catch (IllegalArgumentException iaex) {
+						log.error("SQL: Column {} could not be set to value {} ({})", columnsWithPlaceholders.get(i).name, CLog.forAnalyticLogging(columnValue), iaex);
 					}
 				}
 
