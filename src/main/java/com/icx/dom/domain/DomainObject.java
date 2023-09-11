@@ -45,6 +45,10 @@ public abstract class DomainObject extends Common implements Comparable<DomainOb
 		return id;
 	}
 
+	public void setId(long id) { // May not be called from applications - only used in SqlDomainController#selectForExclusiveUse()
+		this.id = id;
+	}
+
 	// Shadows for reference fields where accumulations are assigned to -
 	// contains referenced objects before updating accumulations and so allow both changing accumulation of old and new referenced objects
 	transient Map<Field, DomainObject> refForAccuShadowMap = new HashMap<>();
@@ -60,7 +64,7 @@ public abstract class DomainObject extends Common implements Comparable<DomainOb
 	 */
 	@Override
 	public String toString() {
-		return (getClass().getSimpleName() + "@" + id);
+		return defaultName();
 	}
 
 	// Default comparison - may be overridden
@@ -83,10 +87,22 @@ public abstract class DomainObject extends Common implements Comparable<DomainOb
 	// Name
 	// -------------------------------------------------------------------------
 
+	// Default object name consisting of class name (preceded by outer class name on member classes) and obkect id
+	private String defaultName() {
+
+		String name = (getClass().getSimpleName() + "@" + id);
+
+		if (getClass().isMemberClass()) {
+			name = getClass().getDeclaringClass().getSimpleName() + "." + name;
+		}
+
+		return name;
+	}
+
 	// Identifier - domain object class name and object id plus - if working and different - toString() for object - used for logging
 	public String name() {
 
-		String internalName = getClass().getSimpleName() + "@" + id;
+		String name = defaultName();
 
 		String logicalName;
 		try {
@@ -96,8 +112,7 @@ public abstract class DomainObject extends Common implements Comparable<DomainOb
 			logicalName = null;
 		}
 
-		String name = internalName;
-		if (logicalName != null && !objectsEqual(logicalName, internalName)) {
+		if (logicalName != null && !objectsEqual(logicalName, name)) {
 			name += " ('" + logicalName + "')";
 		}
 
@@ -207,7 +222,7 @@ public abstract class DomainObject extends Common implements Comparable<DomainOb
 			field.set(this, value);
 		}
 		catch (IllegalArgumentException | IllegalAccessException e) {
-			log.error("DC: {} '{}' oocurred trying to set field '{}'  of object {} to {}", e.getClass().getSimpleName(), e.getMessage(), Reflection.qualifiedName(field), name(),
+			log.error("DC: {} '{}' oocurred trying to set field '{}' of object {} to {}", e.getClass().getSimpleName(), e.getMessage(), Reflection.qualifiedName(field), name(),
 					CLog.forAnalyticLogging(value));
 		}
 	}
