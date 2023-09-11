@@ -103,7 +103,7 @@ public abstract class SqlRegistry extends Registry {
 				columnName += "_ID";
 			}
 			else if (columnName.equals("START") || columnName.equals("END") || columnName.equals("COUNT") || columnName.equals("COMMENT") || columnName.equals("DATE") || columnName.equals("TYPE")
-					|| columnName.equals("GROUP")) {
+					|| columnName.equals("GROUP") || columnName.equals("FILE")) {
 				columnName = TABLE_PREFIX + columnName;
 			}
 
@@ -178,7 +178,7 @@ public abstract class SqlRegistry extends Registry {
 		}
 
 		if (SqlDomainObject.ID_COL.equals(column.name)) {
-			return idField.getType();
+			return Reflection.getBoxingWrapperType(idField.getType());
 		}
 		else if (SqlDomainObject.LAST_MODIFIED_COL.equals(column.name)) {
 			return lastModifiedInDbField.getType();
@@ -212,13 +212,7 @@ public abstract class SqlRegistry extends Registry {
 	private static void associateColumnAndField(Column column, Field field) {
 
 		sqlColumnByFieldMap.put(field, column);
-
-		if (isReferenceField(field)) {
-			sqlReqiredJdbcTypeByColumnMap.put(column, Reflection.getBoxingWrapperType(idField.getType())); // Do not use idField.getType() - long - here because references may be null
-		}
-		else {
-			sqlReqiredJdbcTypeByColumnMap.put(column, Helpers.requiredJdbcTypeFor(field.getType()));
-		}
+		sqlReqiredJdbcTypeByColumnMap.put(column, Helpers.requiredJdbcTypeFor(isReferenceField(field) ? idField.getType() : field.getType()));
 	}
 
 	// -------------------------------------------------------------------------
