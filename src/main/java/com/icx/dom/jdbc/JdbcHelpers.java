@@ -363,8 +363,8 @@ public abstract class JdbcHelpers extends Common {
 					}
 					catch (SQLException sqlex) {
 						value = rs.getObject(c + 1);
-						log.error("SQL: Exception '{}' on retrieving result in column '{}' as type '{}'! Value: {}", sqlex.getMessage(), rsmd.getColumnName(c + 1), requiredResultTypes.get(c),
-								CLog.forAnalyticLogging(value));
+						log.error("SQL: Exception '{}' on retrieving '{}' result in column '{}' as type '{}'! Value: {}", sqlex.getMessage(), rsmd.getColumnClassName(c + 1), rsmd.getColumnName(c + 1),
+								requiredResultTypes.get(c), CLog.forAnalyticLogging(value));
 					}
 				}
 				else {
