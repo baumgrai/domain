@@ -168,6 +168,22 @@ public abstract class DomainController extends Common {
 		return obj;
 	}
 
+	// Create object with given id - only used in SqlDomainController#selectForExclusiveUse()
+	public static final synchronized <T extends DomainObject> T createWithId(final Class<T> domainObjectClass, long id) {
+
+		T obj = instantiate(domainObjectClass);
+		if (obj != null) {
+
+			obj.registerById(id);
+
+			if (log.isDebugEnabled()) {
+				log.debug("DC: Created {}.", obj.name());
+			}
+		}
+
+		return obj;
+	}
+
 	// -------------------------------------------------------------------------
 	// Access domain objects
 	// -------------------------------------------------------------------------
