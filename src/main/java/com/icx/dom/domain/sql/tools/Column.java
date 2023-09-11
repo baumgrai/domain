@@ -95,13 +95,13 @@ public class Column {
 			type = (dbType == DbType.ORACLE ? "NUMBER" : dbType == DbType.MS_SQL ? "BIGINT" : dbType == DbType.MYSQL ? "BIGINT" : "");
 		}
 		else if (fieldRelatedType == double.class || fieldRelatedType == Double.class) {
-			type = (dbType == DbType.ORACLE ? "NUMBER" : dbType == DbType.MS_SQL ? "DOUBLE" : dbType == DbType.MYSQL ? "DOUBLE" : "");
+			type = (dbType == DbType.ORACLE ? "NUMBER" : dbType == DbType.MS_SQL ? "FLOAT" : dbType == DbType.MYSQL ? "DOUBLE" : "");
 		}
 		else if (fieldRelatedType == BigInteger.class) {
 			type = (dbType == DbType.ORACLE ? "NUMBER" : dbType == DbType.MS_SQL ? "BIGINT" : dbType == DbType.MYSQL ? "BIGINT" : "");
 		}
 		else if (fieldRelatedType == BigDecimal.class) {
-			type = (dbType == DbType.ORACLE ? "NUMBER" : dbType == DbType.MS_SQL ? "DOUBLE" : dbType == DbType.MYSQL ? "DOUBLE" : "");
+			type = (dbType == DbType.ORACLE ? "NUMBER" : dbType == DbType.MS_SQL ? "FLOAT" : dbType == DbType.MYSQL ? "DOUBLE" : "");
 		}
 		else if (fieldRelatedType == String.class || List.class.isAssignableFrom(fieldRelatedType) || Set.class.isAssignableFrom(fieldRelatedType) || Map.class.isAssignableFrom(fieldRelatedType)) {
 			if (isText) {
