@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.SortedSet;
 
 import org.slf4j.Logger;
@@ -140,13 +141,37 @@ public abstract class Java2Sql extends JdbcHelpers {
 
 				if (Registry.isReferenceField(field)) { // Reference field
 
+					// Check if reference is part of circular reference cycle
+					String className = domainClass.getSimpleName();
+					String refClassName = field.getType().getSimpleName();
+					boolean isPartOfCircularReference = false;
+
+					for (List<String> circle : circularReferences) {
+
+						if (!objectsEqual(className, refClassName) && circle.contains(className) && circle.contains(refClassName)
+								|| objectsEqual(className, refClassName) && circle.contains(className) && circle.size() == 1) {
+
+							log.info("J2S:\t\t\tReference '{}' -> '{}' is part of reference circle {}", className, refClassName, circle);
+							isPartOfCircularReference = true;
+						}
+					}
+
 					// Add FOREIGN KEY constraint for reference field if field type is a domain class
 					FkConstraint fkConstraint = column.addFkConstraint(FkConstraint.ConstraintType.REFERENCE, field.getType());
 
 					// Determine if ON DELETE CASCADE shall be set on foreign key constraint - do this if it is explicitly specified in column annotation or if class uses 'data horizon' mechanism
 					// to allow deleting parent objects even if children were not loaded
 					SqlColumn ca = field.getAnnotation(SqlColumn.class);
-					fkConstraint.onDeleteCascade = (Registry.isDataHorizonControlled(domainClass) || ca != null && ca.onDeleteCascade());
+					if (Registry.isDataHorizonControlled(domainClass) || ca != null && ca.onDeleteCascade()) {
+
+						if (isPartOfCircularReference && dbType == DbType.MS_SQL) {
+							log.warn("J2S:\t\t\tDo not set ON DELETE CASCADE for FOREIGN KEY constraint '{}' on SQL Server!", fkConstraint.name());
+							fkConstraint.onDeleteCascade = false;
+						}
+						else {
+							fkConstraint.onDeleteCascade = true;
+						}
+					}
 				}
 			}
 		}
@@ -281,7 +306,7 @@ public abstract class Java2Sql extends JdbcHelpers {
 					if (changeInfoMap.containsKey(DomainAnnotations.UNIQUE)) {
 
 						// Add or drop UNIQUE constraint if unique value specified in changed info differs from value specified in @SqlColumn annotation
-						boolean isUnique = Boolean.parseBoolean(changeInfoMap.get(DomainAnnotations.UNIQUE));
+						boolean isUnique = Boolean.valueOf(changeInfoMap.get(DomainAnnotations.UNIQUE));
 						if (isUnique && !column.isUnique) {
 							script.append(new UniqueConstraint(table, column).alterTableAddConstraintStatement());
 						}
@@ -477,6 +502,8 @@ public abstract class Java2Sql extends JdbcHelpers {
 	// Main
 	// ----------------------------------------------------------------------
 
+	static Set<List<String>> circularReferences = null;
+
 	public static void main(String[] args) throws Exception {
 
 		// Determine domain class package and supposed app name (second last part of package name)
@@ -486,6 +513,10 @@ public abstract class Java2Sql extends JdbcHelpers {
 		// Register domain classes
 		// Registry.register(SqlDomainObject.class, Xxx.class, Y.class, Z.class); // Only for test!
 		Registry.registerDomainClasses(SqlDomainObject.class, pack.getName());
+
+		// Determine circular references - to avoid setting ON DELETE CASCADE for foreign keys within circular references
+		circularReferences = Registry.determineCircularReferences();
+		log.info("J2S: Circular references: " + circularReferences);
 
 		// Generate SQL scripts for database generation and version specific updates for all supported database types
 		for (DbType dbType : DbType.values()) {
