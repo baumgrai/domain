@@ -18,6 +18,7 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,7 +27,6 @@ import com.icx.dom.common.CList;
 import com.icx.dom.common.CLog;
 import com.icx.dom.common.CMap;
 import com.icx.dom.common.Reflection;
-import com.icx.dom.domain.DomainController;
 import com.icx.dom.domain.DomainObject;
 import com.icx.dom.domain.Registry;
 import com.icx.dom.jdbc.SqlConnection;
@@ -347,7 +347,7 @@ public abstract class SqlDomainObject extends DomainObject {
 	 * @return true if deletion was successful, false if object or at least one of its direct or indirect children cannot be deleted by can-be-deleted check.
 	 * 
 	 * @throws SQLException
-	 *             exceptions thrown on executing SQL DELETE statement
+	 *             exceptions thrown establishing connection or on executing SQL DELETE statement
 	 * @throws SqlDbException
 	 *             on internal errors
 	 */
@@ -386,38 +386,19 @@ public abstract class SqlDomainObject extends DomainObject {
 	// -------------------------------------------------------------------------
 
 	// SELECT records and build domain object record for this object - returns empty map if object could not be loaded
-	private Map<Class<? extends DomainObject>, Map<Long, SortedMap<String, Object>>> selectObjectRecord(Connection cn) {
+	@SuppressWarnings("unchecked")
+	private <S extends SqlDomainObject> Map<Class<S>, Map<Long, SortedMap<String, Object>>> selectObjectRecord(Connection cn) {
 
 		SqlDbTable table = SqlRegistry.getTableFor(getClass());
 
-		Map<Long, SortedMap<String, Object>> loadedRecordsMap = SqlDomainController.retrieveRecordsForObjectDomainClass(cn, 0, getClass(), table.name + "." + ID_COL + "=" + id);
+		Map<Long, SortedMap<String, Object>> loadedRecordsMap = LoadHelpers.retrieveRecordsForObjectDomainClass(cn, 0, getClass(), table.name + "." + ID_COL + "=" + id);
 
-		Map<Class<? extends DomainObject>, Map<Long, SortedMap<String, Object>>> loadedRecordsMapByDomainClassMap = new HashMap<>();
+		Map<Class<S>, Map<Long, SortedMap<String, Object>>> loadedRecordsMapByDomainClassMap = new HashMap<>();
 		if (!loadedRecordsMap.isEmpty()) {
-			loadedRecordsMapByDomainClassMap.put(getClass(), loadedRecordsMap);
+			loadedRecordsMapByDomainClassMap.put((Class<S>) getClass(), loadedRecordsMap);
 		}
 
 		return loadedRecordsMapByDomainClassMap;
-	}
-
-	// Load with given connection and FOR UPDATE option
-	public void reload(Connection cn) {
-
-		if (!isStored) {
-			log.warn("SDO: {} is not yet stored in database and therefore cannot be loaded!", name());
-			return;
-		}
-		else if (!isRegistered()) {
-			log.warn("SDO: {} is not registered in object store and cannot be loaded from database!", name());
-			return;
-		}
-
-		if (log.isDebugEnabled()) {
-			log.debug("SDO: Load {} from database", name());
-		}
-
-		// Load object record and assign changed values to object - ensure referential integrity by loading directly and indirectly referenced objects if they are currently not registered
-		SqlDomainController.load(cn, this::selectObjectRecord);
 	}
 
 	/**
@@ -432,40 +413,43 @@ public abstract class SqlDomainObject extends DomainObject {
 	 * @throws SQLException
 	 *             on error establishing database connection
 	 */
-	public void reload() throws SQLException {
+	public boolean reload() throws SQLException {
 
-		try (SqlConnection sqlcn = SqlConnection.open(SqlDomainController.sqlDb.pool, true)) {
-			reload(sqlcn.cn);
+		if (!isStored) {
+			log.warn("SDO: {} is not yet stored in database and therefore cannot be loaded!", name());
+			return false;
 		}
+		else if (!isRegistered()) {
+			log.warn("SDO: {} is not registered in object store and cannot be loaded from database!", name());
+			return false;
+		}
+
+		if (log.isDebugEnabled()) {
+			log.debug("SDO: Load {} from database", name());
+		}
+
+		return SqlDomainController.loadAssuringReferentialIntegrity(this::selectObjectRecord, new HashSet<>());
 	}
 
 	/**
-	 * Release object from exclusive usage (allocated before by {@link SqlDomainController#allocateForExclusiveUse(Class, Class, int)})
-	 * <p>
-	 * DELETEs in-progress object for this object.
+	 * Perform update function on exclusively on this object and save changed object immediately.
 	 * 
 	 * @param inProgressClass
-	 *            class domain class of in-progress objects associated to domain class of this object
-	 * 
-	 * @return true if in-progress object was found and could be deleted, false if object is not allocated for exclusive usage
+	 *            class for shadow records to ensure exclusivity of this operation
+	 * @param update
+	 *            update function
 	 * 
 	 * @throws SQLException
-	 *             exceptions thrown on executing SQL DELETE statement
+	 *             exceptions thrown establishing connection or on executing SQL UPDATE statement
 	 * @throws SqlDbException
-	 *             on internal errors on executing SQL DELETE statement
+	 *             on internal errors
 	 */
-	public boolean releaseFromExclusiveUse(Class<? extends SqlDomainObject> inProgressClass) throws SQLException, SqlDbException {
+	public void updateExclusively(Class<? extends SqlDomainObject> inProgressClass, Consumer<? super SqlDomainObject> update) throws SQLException, SqlDbException {
+		SqlDomainController.updateExclusively((Class<? extends SqlDomainObject>) getClass(), inProgressClass, SqlRegistry.getTableFor(getClass()).name + ".ID=" + id, update);
+	}
 
-		SqlDomainObject inProgressObject = DomainController.find(inProgressClass, id);
-		if (inProgressObject == null) {
-			log.info("SDO: {} is currently not allocated for exclusive usage", this);
-			return false;
-		}
-		else {
-			log.info("SDO: Release {} from exclusive usage...", this);
-			inProgressObject.delete();
-			return true;
-		}
+	public void release(Class<? extends SqlDomainObject> inProgressClass, Consumer<? super SqlDomainObject> update) throws SQLException, SqlDbException {
+		SqlDomainController.release(this, inProgressClass, update);
 	}
 
 	// -------------------------------------------------------------------------
@@ -641,7 +625,7 @@ public abstract class SqlDomainObject extends DomainObject {
 					Object fieldValue = getFieldValue(dataField);
 					Object columnValue = objectRecord.get(column.name);
 
-					if (!logicallyEqual(Helpers.fieldToColumnValue(fieldValue), columnValue)) {
+					if (!logicallyEqual(Helpers.field2ColumnValue(fieldValue), columnValue)) {
 						fieldChangesMapByDomainClassMap.computeIfAbsent(domainClass, dc -> new HashMap<>()).put(dataField, fieldValue);
 					}
 				}
@@ -669,7 +653,7 @@ public abstract class SqlDomainObject extends DomainObject {
 					if (Collection.class.isAssignableFrom(complexField.getType())) {
 
 						Collection<Object> fieldCollection = (Collection<Object>) getFieldValue(complexField);
-						Collection<Object> columnCollection = Helpers.entryRecordsToCollection(genericFieldType, entries);
+						Collection<Object> columnCollection = Helpers.entryRecords2Collection(genericFieldType, entries);
 
 						if (!objectsEqual(fieldCollection, columnCollection)) {
 							fieldChangesMapByDomainClassMap.computeIfAbsent(domainClass, dc -> new HashMap<>()).put(complexField, fieldCollection);
@@ -677,7 +661,7 @@ public abstract class SqlDomainObject extends DomainObject {
 					}
 					else {
 						Map<Object, Object> fieldMap = (Map<Object, Object>) getFieldValue(complexField);
-						Map<Object, Object> columnMap = Helpers.entryRecordsToMap(genericFieldType, entries);
+						Map<Object, Object> columnMap = Helpers.entryRecords2Map(genericFieldType, entries);
 
 						if (!objectsEqual(fieldMap, columnMap)) {
 							fieldChangesMapByDomainClassMap.computeIfAbsent(domainClass, dc -> new HashMap<>()).put(complexField, fieldMap);
@@ -726,7 +710,7 @@ public abstract class SqlDomainObject extends DomainObject {
 					columnValue = ((String) fieldValue).substring(0, column.maxlen);
 				}
 				else {
-					columnValue = Helpers.fieldToColumnValue(fieldValue);
+					columnValue = Helpers.field2ColumnValue(fieldValue);
 				}
 
 				columnValueMap.put(column.name, columnValue);
@@ -744,7 +728,7 @@ public abstract class SqlDomainObject extends DomainObject {
 
 		for (Object element : elements) {
 
-			element = Helpers.fieldToColumnValue(element);
+			element = Helpers.field2ColumnValue(element);
 			if (element instanceof String) {
 				sb.append("'" + element + "'");
 			}
@@ -790,7 +774,7 @@ public abstract class SqlDomainObject extends DomainObject {
 				if (isMap) {
 
 					// Map field -> get existing map from object record and new map from field
-					Map<?, ?> oldMap = Helpers.entryRecordsToMap(genericFieldType, existingEntryRecords);
+					Map<?, ?> oldMap = Helpers.entryRecords2Map(genericFieldType, existingEntryRecords);
 					Map<?, ?> newMap = (Map<?, ?>) fieldChangesMap.get(complexField);
 
 					// Ignore unchanged map
@@ -835,7 +819,7 @@ public abstract class SqlDomainObject extends DomainObject {
 
 					// INSERT new records for new map entries
 					if (!mapEntriesToInsert.isEmpty()) {
-						SqlDomainController.sqlDb.insertInto(cn, entryTable.name, Helpers.mapToEntryRecords(mainTableRefIdColumn.name, id, mapEntriesToInsert));
+						SqlDomainController.sqlDb.insertInto(cn, entryTable.name, Helpers.map2EntryRecords(mainTableRefIdColumn.name, id, mapEntriesToInsert));
 					}
 
 					// UPDATE records for changed map entries
@@ -843,21 +827,21 @@ public abstract class SqlDomainObject extends DomainObject {
 						for (Object key : mapEntriesToChange.keySet()) {
 
 							SortedMap<String, Object> changedValueMap = new TreeMap<>();
-							changedValueMap.put(VALUE_COL, Helpers.fieldToColumnValue(mapEntriesToChange.get(key)));
+							changedValueMap.put(VALUE_COL, Helpers.field2ColumnValue(mapEntriesToChange.get(key)));
 
-							key = Helpers.fieldToColumnValue(key);
+							key = Helpers.field2ColumnValue(key);
 							SqlDomainController.sqlDb.update(cn, entryTable.name, changedValueMap,
 									mainTableRefIdColumn.name + "=" + id + " AND " + KEY_COL + "=" + (key instanceof String ? "'" + key + "'" : key));
 						}
 					}
 
 					// Update object record
-					objectRecord.put(entryTable.name, Helpers.mapToEntryRecords(mainTableRefIdColumn.name, id, newMap));
+					objectRecord.put(entryTable.name, Helpers.map2EntryRecords(mainTableRefIdColumn.name, id, newMap));
 				}
 				else if (Set.class.isAssignableFrom(complexField.getType())) {
 
 					// Set field -> get existing set from object record and new set from field
-					Set<?> oldSet = (Set<?>) Helpers.entryRecordsToCollection(genericFieldType, existingEntryRecords);
+					Set<?> oldSet = (Set<?>) Helpers.entryRecords2Collection(genericFieldType, existingEntryRecords);
 					Set<?> newSet = (Set<?>) fieldChangesMap.get(complexField);
 
 					// Ignore unchanged set
@@ -897,15 +881,15 @@ public abstract class SqlDomainObject extends DomainObject {
 
 					// INSERT new records for new elements
 					if (!elementsToInsert.isEmpty()) {
-						SqlDomainController.sqlDb.insertInto(cn, entryTable.name, Helpers.collectionToEntryRecords(mainTableRefIdColumn.name, id, elementsToInsert));
+						SqlDomainController.sqlDb.insertInto(cn, entryTable.name, Helpers.collection2EntryRecords(mainTableRefIdColumn.name, id, elementsToInsert));
 					}
 
 					// Update object record
-					objectRecord.put(entryTable.name, Helpers.collectionToEntryRecords(mainTableRefIdColumn.name, id, newSet));
+					objectRecord.put(entryTable.name, Helpers.collection2EntryRecords(mainTableRefIdColumn.name, id, newSet));
 				}
 				else {
 					// List field -> get existing list from object record and new list from field
-					List<?> oldList = (List<?>) Helpers.entryRecordsToCollection(genericFieldType, existingEntryRecords);
+					List<?> oldList = (List<?>) Helpers.entryRecords2Collection(genericFieldType, existingEntryRecords);
 					List<?> newList = (List<?>) fieldChangesMap.get(complexField);
 
 					// Ignore unchanged list
@@ -913,12 +897,12 @@ public abstract class SqlDomainObject extends DomainObject {
 						continue;
 					}
 
-					// DELETE old entry records and INSERT new ones (to simplify operation where changes of only list entry order must be reflected too)
+					// DELETE old entry records and INSERT new ones (to simplify operation on list where order-only changes must be reflected too)
 					SqlDb.deleteFrom(cn, entryTable.name, mainTableRefIdColumn.name + "=" + id);
-					SqlDomainController.sqlDb.insertInto(cn, entryTable.name, Helpers.collectionToEntryRecords(mainTableRefIdColumn.name, id, newList));
+					SqlDomainController.sqlDb.insertInto(cn, entryTable.name, Helpers.collection2EntryRecords(mainTableRefIdColumn.name, id, newList));
 
 					// Update object record
-					objectRecord.put(entryTable.name, Helpers.collectionToEntryRecords(mainTableRefIdColumn.name, id, newList));
+					objectRecord.put(entryTable.name, Helpers.collection2EntryRecords(mainTableRefIdColumn.name, id, newList));
 				}
 			}
 			catch (SQLException sqlex) {
