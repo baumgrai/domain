@@ -6,6 +6,8 @@ import java.nio.charset.StandardCharsets;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.text.NumberFormat;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -98,6 +100,9 @@ public abstract class Common {
 			String s1 = String.format("%.5f", ((Number) o1).doubleValue());
 			String s2 = String.format("%.5f", ((Number) o2).doubleValue());
 			return s1.equals(s2);
+		}
+		else if (o1 instanceof LocalDateTime && o2 instanceof LocalDateTime) { // Databases potentially does not store milliseconds
+			return Math.abs(ChronoUnit.MILLIS.between((LocalDateTime) o1, (LocalDateTime) o2)) < 1000;
 		}
 		else {
 			return false;
