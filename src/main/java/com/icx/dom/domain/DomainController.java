@@ -61,7 +61,7 @@ public abstract class DomainController extends Common {
 	 * @throws DomainException
 	 *             on registration error
 	 */
-	protected static void registerDomainClasses(Class<? extends DomainObject> baseClass, String domainPackageName) throws DomainException {
+	protected static <T extends DomainObject> void registerDomainClasses(Class<T> baseClass, String domainPackageName) throws DomainException {
 
 		Registry.registerDomainClasses(baseClass, domainPackageName);
 		Registry.getRegisteredDomainClasses().forEach(c -> objectMap.put(c, new ConcurrentSkipListMap<>()));
@@ -81,7 +81,7 @@ public abstract class DomainController extends Common {
 	 *             on registration error
 	 */
 	@SafeVarargs
-	protected static void registerDomainClasses(Class<? extends DomainObject> baseClass, Class<? extends DomainObject>... domainClasses) throws DomainException {
+	public static <T extends DomainObject> void registerDomainClasses(Class<T> baseClass, Class<? extends T>... domainClasses) throws DomainException {
 
 		Registry.registerDomainClasses(baseClass, domainClasses);
 		Registry.getRegisteredDomainClasses().forEach(c -> objectMap.put(c, new ConcurrentSkipListMap<>()));
@@ -105,11 +105,11 @@ public abstract class DomainController extends Common {
 	// -------------------------------------------------------------------------
 
 	// Use milliseconds, thread id and random value for unique identifier
-	protected static synchronized long generateUniqueId(final Class<? extends DomainObject> domainObjectClass) {
+	protected static synchronized <T extends DomainObject> long generateUniqueId(final Class<T> domainObjectClass) {
 
 		long id = new Date().getTime() * 100000 + (Thread.currentThread().getId() % 100) * 1000 + CRandom.randomInt(1000);
 
-		for (Class<? extends Object> domainClass : Registry.getInheritanceStack(domainObjectClass)) {
+		for (Class<? extends DomainObject> domainClass : Registry.getInheritanceStack(domainObjectClass)) {
 			while (objectMap.get(domainClass).containsKey(id)) {
 				id++;
 			}
@@ -119,7 +119,7 @@ public abstract class DomainController extends Common {
 	}
 
 	// Instantiate domain object - called on loading new object from database and if objects are created using create() methods of domain controller
-	protected static final <T extends DomainObject> T instantiate(Class<T> objectDomainClass) {
+	public static final <T extends DomainObject> T instantiate(Class<T> objectDomainClass) {
 
 		T obj = null;
 		try {
@@ -168,22 +168,6 @@ public abstract class DomainController extends Common {
 		return obj;
 	}
 
-	// Create object with given id - only used in SqlDomainController#selectForExclusiveUse()
-	public static final synchronized <T extends DomainObject> T createWithId(final Class<T> domainObjectClass, long id) {
-
-		T obj = instantiate(domainObjectClass);
-		if (obj != null) {
-
-			obj.registerById(id);
-
-			if (log.isDebugEnabled()) {
-				log.debug("DC: Created {}.", obj.name());
-			}
-		}
-
-		return obj;
-	}
-
 	// -------------------------------------------------------------------------
 	// Access domain objects
 	// -------------------------------------------------------------------------
@@ -207,8 +191,9 @@ public abstract class DomainController extends Common {
 	public static final <T extends DomainObject> T get(Class<T> domainClass, long objectId) throws ObjectNotFoundException {
 
 		T object = (T) objectMap.get(domainClass).get(objectId);
-		if (object != null)
+		if (object != null) {
 			return object;
+		}
 
 		throw new ObjectNotFoundException("No " + domainClass.getSimpleName().toLowerCase() + " found for id: " + objectId);
 	}
@@ -240,11 +225,12 @@ public abstract class DomainController extends Common {
 	 * 
 	 * @return set of all objects currently loaded into object store
 	 */
-	public static final Set<DomainObject> findAll(Predicate<? super DomainObject> predicate) {
+	@SuppressWarnings("unchecked")
+	public static final <T extends DomainObject> Set<T> findAll(Predicate<? super T> predicate) {
 
-		Set<DomainObject> all = new HashSet<>();
+		Set<T> all = new HashSet<>();
 		for (Class<? extends DomainObject> objectDomainClass : Registry.getRegisteredObjectDomainClasses()) {
-			all.addAll(findAll(objectDomainClass, predicate));
+			all.addAll(findAll((Class<T>) objectDomainClass, predicate));
 		}
 
 		return all;
