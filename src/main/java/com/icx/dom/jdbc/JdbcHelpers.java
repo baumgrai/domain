@@ -7,13 +7,7 @@ import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Types;
-import java.text.SimpleDateFormat;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Calendar;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -27,9 +21,8 @@ import java.util.regex.Matcher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.dom.common.Common;
-import com.icx.dom.common.CDateTime;
 import com.icx.dom.common.CLog;
+import com.icx.dom.common.Common;
 import com.icx.dom.jdbc.SqlDb.DbType;
 import com.icx.dom.jdbc.SqlDbTable.Column;
 
@@ -113,60 +106,12 @@ public abstract class JdbcHelpers extends Common {
 	// Logging helpers
 	// -------------------------------------------------------------------------
 
-	// Log SQL value
-	public static String forLoggingSql(String key, Object value) {
-
-		if (value instanceof String && CLog.isSecret(key)) {
-			return CLog.greyOut((String) value);
-		}
-
-		String logString = null;
-
-		if (value == null) {
-			logString = "NULL";
-		}
-		else if (value instanceof String) {
-			logString = "'" + value.toString() + "'";
-		}
-		else if (value instanceof java.sql.Timestamp) {
-			logString = "'" + new SimpleDateFormat(CDateTime.DATETIME_MS_FORMAT).format(((java.sql.Timestamp) value)) + "'";
-		}
-		else if (value instanceof oracle.sql.TIMESTAMP) {
-			try {
-				logString = "'" + new SimpleDateFormat(CDateTime.DATETIME_MS_FORMAT).format(((oracle.sql.TIMESTAMP) value).timestampValue()) + "'";
-			}
-			catch (SQLException e) {
-				logString = "'" + value.toString() + "'";
-			}
-		}
-		else if (value instanceof Calendar) {
-			logString = "'" + new SimpleDateFormat(CDateTime.DATETIME_MS_FORMAT).format(((Calendar) value).getTime()) + "'";
-		}
-		else if (value instanceof LocalDate) {
-			logString = "'" + ((LocalDate) value).format(DateTimeFormatter.ISO_LOCAL_DATE) + "'";
-		}
-		else if (value instanceof LocalTime) {
-			logString = "'" + ((LocalTime) value).format(DateTimeFormatter.ISO_LOCAL_TIME) + "'";
-		}
-		else if (value instanceof LocalDateTime) {
-			logString = "'" + ((LocalDateTime) value).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME) + "'";
-		}
-		else if (value instanceof Boolean) {
-			logString = value.toString();
-		}
-		else {
-			logString = value.toString();
-		}
-
-		return logString.substring(0, min(1024, logString.length()));
-	}
-
 	private static final String QUESTION_MARKS = "?????";
 	private static final String QUESTION_MARKS_EXPRESSION = "\\?\\?\\?\\?\\?";
 
 	// Build formatted SQL statement string from column names and column value map containing real values string representation instead of '?' place holders for
 	// logging - do not log passwords
-	protected static String forLoggingSql(String stmt, Map<String, Object> columnValueMap, SortedSet<Column> columns) {
+	protected static String forLoggingInsertUpdate(String stmt, Map<String, Object> columnValueMap, SortedSet<Column> columns) {
 
 		if (stmt == null) {
 			return "(null)";
@@ -196,14 +141,14 @@ public abstract class JdbcHelpers extends Common {
 				continue;
 			}
 
-			sqlForLogging = sqlForLogging.replaceFirst(QUESTION_MARKS_EXPRESSION, Matcher.quoteReplacement(forLoggingSql(column.name, value)));
+			sqlForLogging = sqlForLogging.replaceFirst(QUESTION_MARKS_EXPRESSION, Matcher.quoteReplacement(CLog.forSecretLogging(column.name, value)));
 		}
 
 		return sqlForLogging;
 	}
 
 	// Build formatted SQL statement string from values containing real values string representation instead of '?' place holders for logging
-	protected static String forLoggingSql(String stmt, List<Object> values) {
+	protected static String forLoggingSelect(String stmt, List<Object> values) {
 
 		if (stmt == null) {
 			return "(null)";
@@ -236,7 +181,7 @@ public abstract class JdbcHelpers extends Common {
 				sqlForLogging = sqlForLogging.replaceFirst(QUESTION_MARKS_EXPRESSION, "?");
 			}
 			else {
-				sqlForLogging = sqlForLogging.replaceFirst(QUESTION_MARKS_EXPRESSION, Matcher.quoteReplacement(forLoggingSql(null, value)));
+				sqlForLogging = sqlForLogging.replaceFirst(QUESTION_MARKS_EXPRESSION, Matcher.quoteReplacement(CLog.forSecretLogging(null, value)));
 			}
 		}
 
