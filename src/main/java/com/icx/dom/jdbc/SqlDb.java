@@ -261,7 +261,7 @@ public class SqlDb extends Common {
 	public List<SortedMap<String, Object>> select(Connection cn, String sql, List<Object> valuesOfPlaceholders, List<Class<?>> requiredResultTypes) throws SQLException {
 
 		if (log.isDebugEnabled()) {
-			log.debug("SQL: {}", JdbcHelpers.forLoggingSql(sql, valuesOfPlaceholders));
+			log.debug("SQL: {}", JdbcHelpers.forLoggingSelect(sql, valuesOfPlaceholders));
 		}
 
 		try (PreparedStatement st = cn.prepareStatement(sql)) {
@@ -313,14 +313,14 @@ public class SqlDb extends Common {
 					return JdbcHelpers.buildAndLogResult(rs, requiredResultTypes);
 				}
 				catch (SQLException sqlex) {
-					log.error("SQL: {} '{}' on retrieving results '{}' ({})", sqlex.getClass().getSimpleName(), sqlex.getMessage(), JdbcHelpers.forLoggingSql(sql, valuesOfPlaceholders),
+					log.error("SQL: {} '{}' on retrieving results '{}' ({})", sqlex.getClass().getSimpleName(), sqlex.getMessage(), JdbcHelpers.forLoggingSelect(sql, valuesOfPlaceholders),
 							exceptionStackToString(sqlex));
 					throw sqlex;
 				}
 			}
 		}
 		catch (SQLException sqlex) {
-			log.error("SQL: {} '{}' on '{}'", sqlex.getClass().getSimpleName(), sqlex.getMessage(), JdbcHelpers.forLoggingSql(sql, valuesOfPlaceholders)); // Log SQL statement on exception
+			log.error("SQL: {} '{}' on '{}'", sqlex.getClass().getSimpleName(), sqlex.getMessage(), JdbcHelpers.forLoggingSelect(sql, valuesOfPlaceholders)); // Log SQL statement on exception
 			throw sqlex;
 		}
 	}
@@ -863,7 +863,7 @@ public class SqlDb extends Common {
 				}
 
 				if (log.isDebugEnabled()) {
-					log.debug("SQL: {}", JdbcHelpers.forLoggingSql(preparedStatementString, columnValueMap, columnsToInsert));
+					log.debug("SQL: {}", JdbcHelpers.forLoggingInsertUpdate(preparedStatementString, columnValueMap, columnsToInsert));
 				}
 
 				if (numberOfRecords > 1) {
@@ -906,7 +906,7 @@ public class SqlDb extends Common {
 
 			log.error("SQL: {} '{}' on... ", sqlex.getClass().getSimpleName(), sqlex.getMessage()); // Log SQL statement(s) on exception
 			for (Map<String, Object> columnValueMap : columnValueMaps) {
-				log.error("SQL: '{}'", JdbcHelpers.forLoggingSql(preparedStatementString, columnValueMap, columnsToInsert));
+				log.error("SQL: '{}'", JdbcHelpers.forLoggingInsertUpdate(preparedStatementString, columnValueMap, columnsToInsert));
 			}
 
 			throw sqlex;
@@ -1038,7 +1038,7 @@ public class SqlDb extends Common {
 			}
 
 			if (log.isDebugEnabled()) {
-				log.debug("SQL: {}", JdbcHelpers.forLoggingSql(preparedStatementString, columnValueMap, columnsToUpdate));
+				log.debug("SQL: {}", JdbcHelpers.forLoggingInsertUpdate(preparedStatementString, columnValueMap, columnsToUpdate));
 			}
 
 			// Execute UPDATE statement and get update count
@@ -1052,7 +1052,7 @@ public class SqlDb extends Common {
 			return count;
 		}
 		catch (SQLException sqlex) {
-			log.error("SQL: {} '{}' on '{}'", sqlex.getClass().getSimpleName(), sqlex.getMessage(), JdbcHelpers.forLoggingSql(preparedStatementString, columnValueMap, columnsToUpdate));
+			log.error("SQL: {} '{}' on '{}'", sqlex.getClass().getSimpleName(), sqlex.getMessage(), JdbcHelpers.forLoggingInsertUpdate(preparedStatementString, columnValueMap, columnsToUpdate));
 			throw sqlex;
 		}
 	}
@@ -1286,7 +1286,7 @@ public class SqlDb extends Common {
 			// Retrieve JDBC types of columns using dummy query
 			sql = String.format(DUMMY_QUERY_MASK, tableName);
 			if (log.isTraceEnabled()) {
-				log.trace("SQL: \t{}", JdbcHelpers.forLoggingSql(sql, null, null));
+				log.trace("SQL: \t{}", JdbcHelpers.forLoggingInsertUpdate(sql, null, null));
 			}
 
 			try (Statement st = cn.createStatement()) {
