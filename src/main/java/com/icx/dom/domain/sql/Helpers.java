@@ -7,18 +7,18 @@ import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Set;
+import java.util.Map.Entry;
+import java.util.stream.Collectors;
 import java.util.SortedMap;
 import java.util.TreeMap;
-import java.util.stream.Collectors;
+import java.util.AbstractMap.SimpleEntry;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,64 +29,17 @@ import com.icx.dom.common.CLog;
 import com.icx.dom.common.CMap;
 import com.icx.dom.common.Common;
 import com.icx.dom.common.Reflection;
+import com.icx.dom.domain.DomainController;
+import com.icx.dom.domain.DomainObject;
 
-public abstract class Helpers {
+public abstract class Helpers extends Common {
 
 	static final Logger log = LoggerFactory.getLogger(Helpers.class);
-
-	// -------------------------------------------------------------------------
-	// General helpers
-	// -------------------------------------------------------------------------
-
-	// Check equality of entry records - ignore record order, works only on entry records for sets or lists (may fail on general collections with multiple equal records with different quantities in
-	// both entry record lists)
-	static boolean entryRecordsEqual(List<SortedMap<String, Object>> loadedEntryRecords, List<SortedMap<String, Object>> entryRecords) {
-
-		if (loadedEntryRecords.size() != entryRecords.size()) {
-			return false;
-		}
-
-		for (SortedMap<String, Object> loadedEntryRecord : loadedEntryRecords) {
-			if (!entryRecords.contains(loadedEntryRecord)) {
-				return false;
-			}
-		}
-
-		for (SortedMap<String, Object> entryRecord : entryRecords) {
-			if (!loadedEntryRecords.contains(entryRecord)) {
-				return false;
-			}
-		}
-
-		return true;
-	}
-
-	// Logically equal considering entry record lists
-	@SuppressWarnings("unchecked")
-	static boolean logicallyEqual(Object loadedValue, Object value) {
-
-		if (loadedValue instanceof List && value instanceof List) { // Lists as values in object record may only be lists of records of entry tables (storing Lists or Sets of objects)
-			return entryRecordsEqual((List<SortedMap<String, Object>>) loadedValue, (List<SortedMap<String, Object>>) value);
-		}
-		else {
-			return Common.logicallyEqual(loadedValue, value);
-		}
-	}
-
-	// Count new and changed objects grouped by object domain classes (for logging only)
-	static Set<Entry<String, Integer>> groupCountsByDomainClassName(Set<SqlDomainObject> objects) {
-		return objects.stream().collect(Collectors.groupingBy(Object::getClass)).entrySet().stream().map(e -> new SimpleEntry<>(e.getKey().getSimpleName(), e.getValue().size()))
-				.collect(Collectors.toSet());
-	}
-
-	// -------------------------------------------------------------------------
-	// Local conversion helpers
-	// -------------------------------------------------------------------------
 
 	private static final String NULL = "(null)";
 
 	// Collection -> comma separated string, caring for null elements
-	private static <T> String collectionToString(Collection<T> collection) {
+	private static <T> String collection2String(Collection<T> collection) {
 
 		if (CCollection.isEmpty(collection)) {
 			return null;
@@ -101,7 +54,7 @@ public abstract class Helpers {
 	}
 
 	// Map -> semicolon/equal-sign separated string, caring for null keys and values
-	private static <K, V> String mapToString(Map<K, V> map) {
+	private static <K, V> String map2String(Map<K, V> map) {
 
 		if (CMap.isEmpty(map)) {
 			return null;
@@ -120,23 +73,23 @@ public abstract class Helpers {
 		return sb.substring(0, sb.length() - 1);
 	}
 
-	private static Object elementToColumnValue(Object element) {
+	private static Object element2ColumnValue(Object element) {
 
 		if (element instanceof Collection) {
-			return collectionToString((Collection<?>) element);
+			return collection2String((Collection<?>) element);
 		}
 		else if (element instanceof Map) {
-			return mapToString((Map<?, ?>) element);
+			return map2String((Map<?, ?>) element);
 		}
 		else {
-			return fieldToColumnValue(element);
+			return field2ColumnValue(element);
 		}
 	}
 
 	// String -> object, used in string2Collection() and string2Map() to allow converting collections and maps of objects which are not strings; works for enum objects, strings and objects which can
 	// be constructed using a constructor with one string argument
 	@SuppressWarnings({ "unchecked", "rawtypes" })
-	private static <T> T simpleObjectFromString(Class<? extends T> objectClass, String s) {
+	private static <T> T string2SimpleObject(Class<? extends T> objectClass, String s) {
 
 		objectClass = (Class<? extends T>) Reflection.getBoxingWrapperType(objectClass);
 
@@ -176,13 +129,13 @@ public abstract class Helpers {
 	}
 
 	// Comma separated string -> collection
-	private static <T> Collection<T> collectionFromString(Class<? extends Collection<T>> collectionClass, Class<? extends T> elementClass, String collectionAsString) {
+	private static <T> Collection<T> string2Collection(Class<? extends Collection<T>> collectionClass, Class<? extends T> elementClass, String collectionAsString) {
 
 		try {
 			Collection<T> collection = (collectionClass.isInterface() ? Reflection.newCollection(collectionClass) : collectionClass.getDeclaredConstructor().newInstance());
 			if (collectionAsString != null) {
 				for (String element : collectionAsString.split("\\,")) {
-					collection.add(Common.objectsEqual(element, NULL) ? null : simpleObjectFromString(elementClass, element));
+					collection.add(objectsEqual(element, NULL) ? null : string2SimpleObject(elementClass, element));
 				}
 			}
 
@@ -195,7 +148,7 @@ public abstract class Helpers {
 	}
 
 	// Comma/equal-sign separated string -> map
-	private static <K, V> Map<K, V> mapFromString(Class<? extends Map<K, V>> mapClass, Class<? extends K> keyClass, Class<? extends V> valueClass, String mapAsString) {
+	private static <K, V> Map<K, V> string2Map(Class<? extends Map<K, V>> mapClass, Class<? extends K> keyClass, Class<? extends V> valueClass, String mapAsString) {
 
 		try {
 			Map<K, V> map = (mapClass.isInterface() ? Reflection.newMap(mapClass) : mapClass.getDeclaredConstructor().newInstance());
@@ -204,10 +157,10 @@ public abstract class Helpers {
 				for (String entry : mapAsString.split("\\;")) {
 
 					String[] keyValue = entry.split("\\=", 2);
-					String key = (Common.objectsEqual(keyValue[0], NULL) ? null : keyValue[0]);
-					String value = (keyValue.length > 1 ? Common.objectsEqual(keyValue[1], NULL) ? null : keyValue[1] : "");
+					String key = (objectsEqual(keyValue[0], NULL) ? null : keyValue[0]);
+					String value = (keyValue.length > 1 ? objectsEqual(keyValue[1], NULL) ? null : keyValue[1] : "");
 
-					map.put(simpleObjectFromString(keyClass, key), simpleObjectFromString(valueClass, value));
+					map.put(string2SimpleObject(keyClass, key), string2SimpleObject(valueClass, value));
 				}
 			}
 
@@ -221,7 +174,7 @@ public abstract class Helpers {
 
 	// Method will only be used for elements of collections or keys or values of maps - so here lists of lists, lists of maps, maps with lists or maps as keys or values will be handled
 	@SuppressWarnings("unchecked")
-	private static Object elementFromColumnValue(Type elementType, Object columnValue) {
+	private static Object columnValue2Element(Type elementType, Object columnValue) {
 
 		if (elementType instanceof ParameterizedType) {
 
@@ -234,19 +187,19 @@ public abstract class Helpers {
 				Class<? extends Collection<Object>> collectionClass = (Class<? extends Collection<Object>>) rawType;
 				Class<? extends Object> elementClass = (Class<?>) parameterizedType.getActualTypeArguments()[0];
 
-				return collectionFromString(collectionClass, elementClass, (String) columnValue);
+				return string2Collection(collectionClass, elementClass, (String) columnValue);
 			}
 			else { // Map
 				Class<? extends Map<Object, Object>> mapClass = (Class<? extends Map<Object, Object>>) rawType;
 				Class<? extends Object> keyClass = (Class<? extends Object>) parameterizedType.getActualTypeArguments()[0];
 				Class<? extends Object> valueClass = (Class<? extends Object>) parameterizedType.getActualTypeArguments()[1];
 
-				return mapFromString(mapClass, keyClass, valueClass, (String) columnValue);
+				return string2Map(mapClass, keyClass, valueClass, (String) columnValue);
 			}
 		}
 		else {
 			// Element of collection or value of map is simple object
-			return columnToFieldValue((Class<?>) elementType, columnValue);
+			return column2FieldValue((Class<?>) elementType, columnValue);
 		}
 	}
 
@@ -274,13 +227,10 @@ public abstract class Helpers {
 	}
 
 	// Convert field value to value to store in database
-	static Object fieldToColumnValue(Object fieldValue) {
+	static Object field2ColumnValue(Object fieldValue) {
 
 		if (fieldValue == null) {
 			return null;
-		}
-		else if (fieldValue instanceof Boolean) {
-			return ((boolean) fieldValue ? "TRUE" : "FALSE");
 		}
 		else if (fieldValue instanceof Enum) {
 			return fieldValue.toString();
@@ -301,7 +251,7 @@ public abstract class Helpers {
 
 	// Convert value retrieved from database to value for field
 	@SuppressWarnings({ "unchecked", "rawtypes" })
-	static <T> T columnToFieldValue(Class<? extends T> fieldType, Object columnValue) {
+	static <T> T column2FieldValue(Class<? extends T> fieldType, Object columnValue) {
 
 		if (fieldType == null) {
 			return (T) columnValue;
@@ -313,9 +263,6 @@ public abstract class Helpers {
 			}
 			else if (fieldType.isAssignableFrom(columnValue.getClass()) || Reflection.getBoxingWrapperType(fieldType).isAssignableFrom(columnValue.getClass())) {
 				return (T) columnValue;
-			}
-			else if (fieldType == Boolean.class || fieldType == boolean.class) {
-				return (T) Boolean.valueOf((String) columnValue);
 			}
 			else if (fieldType == BigInteger.class) {
 				return (T) BigInteger.valueOf((long) columnValue);
@@ -355,7 +302,7 @@ public abstract class Helpers {
 	// -------------------------------------------------------------------------
 
 	// Convert collection to entry records (to INSERT INTO entry table)
-	static List<SortedMap<String, Object>> collectionToEntryRecords(String mainTableRefIdColumnName, long objId, Collection<?> collection) {
+	static List<SortedMap<String, Object>> collection2EntryRecords(String mainTableRefIdColumnName, long objId, Collection<?> collection) {
 
 		List<SortedMap<String, Object>> entryRecords = new ArrayList<>();
 
@@ -371,7 +318,7 @@ public abstract class Helpers {
 			entryRecords.add(entryRecord);
 
 			entryRecord.put(mainTableRefIdColumnName, objId);
-			entryRecord.put(SqlDomainObject.ELEMENT_COL, elementToColumnValue(it.next()));
+			entryRecord.put(SqlDomainObject.ELEMENT_COL, element2ColumnValue(it.next()));
 			if (collection instanceof List) { // Care for element order on lists
 				entryRecord.put(SqlDomainObject.ORDER_COL, order++);
 			}
@@ -382,7 +329,7 @@ public abstract class Helpers {
 
 	// Convert records of entry table to collection
 	@SuppressWarnings("unchecked")
-	static Collection<Object> entryRecordsToCollection(ParameterizedType genericFeldType, List<SortedMap<String, Object>> entryRecords) {
+	static Collection<Object> entryRecords2Collection(ParameterizedType genericFeldType, List<SortedMap<String, Object>> entryRecords) {
 
 		Collection<Object> collection = Reflection.newCollection((Class<? extends Collection<Object>>) genericFeldType.getRawType());
 
@@ -393,7 +340,7 @@ public abstract class Helpers {
 		for (SortedMap<String, Object> entryRecord : entryRecords) {
 
 			Type elementType = genericFeldType.getActualTypeArguments()[0];
-			Object element = elementFromColumnValue(elementType, entryRecord.get(SqlDomainObject.ELEMENT_COL)); // Element of collection can be a collection or map itself
+			Object element = columnValue2Element(elementType, entryRecord.get(SqlDomainObject.ELEMENT_COL)); // Element of collection can be a collection or map itself
 
 			collection.add(element);
 		}
@@ -402,7 +349,7 @@ public abstract class Helpers {
 	}
 
 	// Convert key value map to entry records (to INSERT INTO entry table)
-	static List<SortedMap<String, Object>> mapToEntryRecords(String mainTableRefIdColumnName, long objId, Map<?, ?> map) {
+	static List<SortedMap<String, Object>> map2EntryRecords(String mainTableRefIdColumnName, long objId, Map<?, ?> map) {
 
 		List<SortedMap<String, Object>> entryRecords = new ArrayList<>();
 
@@ -419,8 +366,8 @@ public abstract class Helpers {
 			Entry<?, ?> keyValuePair = (Entry<?, ?>) it.next();
 
 			entryRecord.put(mainTableRefIdColumnName, objId);
-			entryRecord.put(SqlDomainObject.KEY_COL, fieldToColumnValue(keyValuePair.getKey())); // Keys may not be complex objects
-			entryRecord.put(SqlDomainObject.VALUE_COL, elementToColumnValue(keyValuePair.getValue()));
+			entryRecord.put(SqlDomainObject.KEY_COL, field2ColumnValue(keyValuePair.getKey())); // Keys may not be complex objects
+			entryRecord.put(SqlDomainObject.VALUE_COL, element2ColumnValue(keyValuePair.getValue()));
 		}
 
 		return entryRecords;
@@ -428,7 +375,7 @@ public abstract class Helpers {
 
 	// Convert records of entry table to map
 	@SuppressWarnings("unchecked")
-	static Map<Object, Object> entryRecordsToMap(ParameterizedType genericFeldType, List<SortedMap<String, Object>> entryRecords) {
+	static Map<Object, Object> entryRecords2Map(ParameterizedType genericFeldType, List<SortedMap<String, Object>> entryRecords) {
 
 		Map<Object, Object> map = Reflection.newMap((Class<? extends Map<Object, Object>>) genericFeldType.getRawType());
 
@@ -439,10 +386,10 @@ public abstract class Helpers {
 		for (SortedMap<String, Object> entryRecord : entryRecords) {
 
 			Type keyType = genericFeldType.getActualTypeArguments()[0];
-			Object key = columnToFieldValue((Class<?>) keyType, entryRecord.get(SqlDomainObject.KEY_COL)); // Keys may not be complex objects
+			Object key = column2FieldValue((Class<?>) keyType, entryRecord.get(SqlDomainObject.KEY_COL)); // Keys may not be complex objects
 
 			Type valueType = genericFeldType.getActualTypeArguments()[1];
-			Object value = elementFromColumnValue(valueType, entryRecord.get(SqlDomainObject.VALUE_COL)); // Value of map can be a collection or map itself
+			Object value = columnValue2Element(valueType, entryRecord.get(SqlDomainObject.VALUE_COL)); // Value of map can be a collection or map itself
 
 			map.put(key, value);
 		}
@@ -450,4 +397,63 @@ public abstract class Helpers {
 		return map;
 	}
 
+	// -------------------------------------------------------------------------
+	// General helpers
+	// -------------------------------------------------------------------------
+
+	// Count new and changed objects grouped by object domain classes (for logging only)
+	static <T extends SqlDomainObject> Set<Entry<String, Integer>> groupCountsByDomainClassName(Set<T> objects) {
+
+		return objects.stream().collect(Collectors.groupingBy(Object::getClass)).entrySet().stream().map(e -> new SimpleEntry<>(e.getKey().getSimpleName(), e.getValue().size()))
+				.collect(Collectors.toSet());
+	}
+
+	// Build "(<ids>)" lists with at maximum 1000 ids (Oracle limit for # of elements in WHERE IN (...) clause = 1000)
+	static List<String> buildMax1000IdsLists(Set<Long> ids) {
+
+		List<String> idStringLists = new ArrayList<>();
+		if (ids == null || ids.isEmpty()) {
+			return idStringLists;
+		}
+
+		StringBuilder sb = new StringBuilder();
+		int i = 0;
+		for (long id : ids) {
+
+			if (i % 1000 != 0) {
+				sb.append(",");
+			}
+
+			sb.append(id);
+
+			if (i % 1000 == 999) {
+				idStringLists.add(sb.toString());
+				sb.setLength(0);
+			}
+
+			i++;
+		}
+
+		if (sb.length() > 0) {
+			idStringLists.add(sb.toString());
+		}
+
+		return idStringLists;
+	}
+
+	// Create object with given id - only used for exclusive selection methods
+	static final synchronized <T extends DomainObject> T createWithId(final Class<T> domainObjectClass, long id) {
+
+		T obj = DomainController.instantiate(domainObjectClass);
+		if (obj != null) {
+
+			obj.registerById(id);
+
+			if (log.isDebugEnabled()) {
+				log.debug("DC: Created {}.", obj.name());
+			}
+		}
+
+		return obj;
+	}
 }
