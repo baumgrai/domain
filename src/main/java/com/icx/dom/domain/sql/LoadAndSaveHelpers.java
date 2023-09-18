@@ -235,12 +235,12 @@ public abstract class LoadAndSaveHelpers extends Common {
 					if (Collection.class.isAssignableFrom(complexField.getType())) { // Collection
 
 						for (long objectId : entryRecordsByObjectIdMap.keySet()) {
-							loadedRecordMap.get(objectId).put(entryTableName, Helpers.entryRecords2Collection(genericFieldType, entryRecordsByObjectIdMap.get(objectId)));
+							loadedRecordMap.get(objectId).put(entryTableName, ComplexFieldHelpers.entryRecords2Collection(genericFieldType, entryRecordsByObjectIdMap.get(objectId)));
 						}
 					}
 					else { // Map
 						for (long objectId : entryRecordsByObjectIdMap.keySet()) {
-							loadedRecordMap.get(objectId).put(entryTableName, Helpers.entryRecords2Map(genericFieldType, entryRecordsByObjectIdMap.get(objectId)));
+							loadedRecordMap.get(objectId).put(entryTableName, ComplexFieldHelpers.entryRecords2Map(genericFieldType, entryRecordsByObjectIdMap.get(objectId)));
 						}
 					}
 				}
@@ -454,7 +454,7 @@ public abstract class LoadAndSaveHelpers extends Common {
 
 					// INSERT new records for new map entries
 					if (!mapEntriesToInsert.isEmpty()) {
-						SqlDomainController.sqlDb.insertInto(cn, entryTableName, Helpers.map2EntryRecords(refIdColumnName, object.getId(), mapEntriesToInsert));
+						SqlDomainController.sqlDb.insertInto(cn, entryTableName, ComplexFieldHelpers.map2EntryRecords(refIdColumnName, object.getId(), mapEntriesToInsert));
 					}
 
 					// UPDATE records for changed map entries
@@ -462,7 +462,7 @@ public abstract class LoadAndSaveHelpers extends Common {
 						for (Object key : mapEntriesToChange.keySet()) {
 
 							SortedMap<String, Object> valueMap = new TreeMap<>();
-							valueMap.put(Const.VALUE_COL, Helpers.field2ColumnValue(mapEntriesToChange.get(key)));
+							valueMap.put(Const.VALUE_COL, ComplexFieldHelpers.element2ColumnValue(mapEntriesToChange.get(key)));
 
 							key = Helpers.field2ColumnValue(key);
 
@@ -518,14 +518,14 @@ public abstract class LoadAndSaveHelpers extends Common {
 
 					// INSERT new records for new elements
 					if (!elementsToInsert.isEmpty()) {
-						SqlDomainController.sqlDb.insertInto(cn, entryTableName, Helpers.collection2EntryRecords(refIdColumnName, object.getId(), elementsToInsert));
+						SqlDomainController.sqlDb.insertInto(cn, entryTableName, ComplexFieldHelpers.collection2EntryRecords(refIdColumnName, object.getId(), elementsToInsert));
 					}
 
 					// Update object record - store set itself instead of entry records
 					objectRecord.put(entryTableName, newSet);
 				}
-				else {
-					// List field -> get existing list from object record and new list from field
+				else { // List
+						// List field -> get existing list from object record and new list from field
 					List<?> oldList = (List<?>) objectRecord.computeIfAbsent(entryTableName, l -> new ArrayList<>());
 					List<?> newList = (List<?>) fieldChangesMap.get(complexField);
 
@@ -534,9 +534,9 @@ public abstract class LoadAndSaveHelpers extends Common {
 						continue;
 					}
 
-					// DELETE old entry records and INSERT new ones (to simplify operation on list where order-only changes must be reflected too)
+					// DELETE old entry records and INSERT new ones (to simplify operation on list where order-only changes must be reflected)
 					SqlDb.deleteFrom(cn, entryTableName, refIdColumnName + "=" + object.getId());
-					SqlDomainController.sqlDb.insertInto(cn, entryTableName, Helpers.collection2EntryRecords(refIdColumnName, object.getId(), newList));
+					SqlDomainController.sqlDb.insertInto(cn, entryTableName, ComplexFieldHelpers.collection2EntryRecords(refIdColumnName, object.getId(), newList));
 
 					// Update object record - store list itself instead of entry records
 					objectRecord.put(entryTableName, newList);
