@@ -66,12 +66,12 @@ public class Initialize {
 
 		log.info("Create objects...");
 
-		// There are three possibilities to assign objects to Domain persistence system:
+		// There are three ways to assign objects to Domain persistence system:
 
 		// I: Use any specific constructor for object instantiation here
-		// Note: If you define individual constructors you have to define the parameterless default constructor too which is used by domain controller to instantiate objects loaded from database
+		// Note: If you define individual constructors you have to define the parameterless default constructor too, which is used by domain controller to instantiate objects loaded from database
 
-		// Create and register manufacturers
+		// Create and register manufacturers - explicit registration
 		Manufacturer bianchi = new Manufacturer("Bianchi", Country.ITALY).register();
 		Manufacturer colnago = new Manufacturer("Colnago", Country.ITALY).register();
 		Manufacturer cervelo = new Manufacturer("Cervélo", Country.ITALY).register();
@@ -89,7 +89,7 @@ public class Initialize {
 		Manufacturer rockymountain = new Manufacturer("Rocky Mountain", Country.CANADA).register();
 		Manufacturer bmc = new Manufacturer("BMC", Country.SWITZERLAND).register();
 
-		// Save manufacturers - database INSERTs are performed here
+		// Save manufacturers - INSERTs are performed here
 
 		// Note: To speed up initialization use one transaction to save multiple new objects. Transaction will automatically be committed on closing connection
 		try (SqlConnection sqlcn = SqlConnection.open(SqlDomainController.sqlDb.pool, false)) {
@@ -103,7 +103,7 @@ public class Initialize {
 
 		byte[] picture = CFile.readBinary(BikeStoreApp.BIKE_PICTURE);
 
-		// Create and initially save bikes
+		// Create and initially save bikes - registration is done by constructor
 		new RaceBike(bianchi, "SPECIALISSIMA", Frame.CARBON, Breaks.DISK, 24, 11449.0, picture).groups(GroupSet.SHIMANO, GroupSet.CAMPAGNOLO, GroupSet.SRAM).allSizes();
 		new RaceBike(colnago, "C69 Titanium", Frame.CARBON, null, 0, 6430.0, picture).frameOnly().groups(GroupSet.SHIMANO, GroupSet.CAMPAGNOLO, GroupSet.SRAM).allSizes();
 		new RaceBike(cervelo, "S5 Rival eTap AXS", Frame.CARBON, Breaks.DISK, 24, 13000.0, picture).aero().groups(GroupSet.SRAM).electricGearShift().allSizes();

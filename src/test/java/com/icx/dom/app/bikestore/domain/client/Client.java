@@ -1,5 +1,6 @@
 package com.icx.dom.app.bikestore.domain.client;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -8,8 +9,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.ResourceBundle;
 import java.util.Set;
-import java.util.function.Consumer;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
@@ -22,11 +21,11 @@ import com.icx.dom.app.bikestore.domain.bike.CityBike;
 import com.icx.dom.app.bikestore.domain.bike.MTB;
 import com.icx.dom.app.bikestore.domain.bike.RaceBike;
 import com.icx.dom.app.bikestore.domain.client.Order.Operation;
-import com.icx.dom.common.Common;
 import com.icx.dom.common.CCollection;
 import com.icx.dom.common.CList;
 import com.icx.dom.common.CMap;
 import com.icx.dom.common.CResource;
+import com.icx.dom.common.Common;
 import com.icx.dom.domain.DomainAnnotations.Accumulation;
 import com.icx.dom.domain.DomainAnnotations.SqlColumn;
 import com.icx.dom.domain.DomainAnnotations.SqlTable;
@@ -39,7 +38,7 @@ import com.icx.dom.domain.sql.SqlDomainObject;
  * 
  * @author RainerBaumgärtel
  */
-@SqlTable(uniqueConstraints = { "firstName, country" }, indexes = "bikeSize") // Define multi column UNIQUE constraints here
+@SqlTable(uniqueConstraints = { "firstName, country" }, indexes = "bikeSize") // Define multi column UNIQUE constraints and indexes here
 public class Client extends SqlDomainObject {
 
 	static final Logger log = LoggerFactory.getLogger(Client.class);
@@ -278,29 +277,43 @@ public class Client extends SqlDomainObject {
 		// Check if bike can be ordered, if yes order it and wait for order processing
 		private <T extends Bike> Order orderBikeAndWaitForProcessing(Class<T> bikeType) throws Exception {
 
-			Predicate<? super Bike> isBikeAvailableInSize = b -> !(gender == Gender.MALE && b.isForWoman) && b.price.doubleValue() <= wantedBikesMaxPriceMap.get(bikeType.getSimpleName())
-					&& b.sizes.contains(bikeSize) && b.availabilityMap.get(bikeSize) != null && b.availabilityMap.get(bikeSize) > 0;
+			// Predicate<? super Bike> isBikeAvailableInSize = b -> !(gender == Gender.MALE && b.isForWoman) && b.price.doubleValue() <= wantedBikesMaxPriceMap.get(bikeType.getSimpleName())
+			// && b.sizes.contains(bikeSize) && b.availabilityMap.get(bikeSize) != null && b.availabilityMap.get(bikeSize) > 0;
 
-			Consumer<? super Bike> decrementBikeAvailabilityCountForSize = b -> b.availabilityMap.put(bikeSize, b.availabilityMap.get(bikeSize) - 1);
+			String whereClause = "DOM_BIKE.PRICE <= " + wantedBikesMaxPriceMap.get(bikeType.getSimpleName());
+			if (gender == Gender.MALE) {
+				whereClause += " AND DOM_BIKE.IS_FOR_WOMAN = 'FALSE'";
+			}
 
-			Set<T> bikes = SqlDomainController.allocateAndUpdate(bikeType, isBikeAvailableInSize, decrementBikeAvailabilityCountForSize, 1);
-
+			Set<T> bikes = SqlDomainController.allocateExclusively(bikeType, Bike.InProgress.class, whereClause, 1, null);
 			if (CCollection.isEmpty(bikes)) {
 				return null;
 			}
 
-			T bike = bikes.iterator().next();
+			Bike orderedBike = null;
+			for (T bike : bikes) {
 
-			log.info("'{}' orders bike '{}' ({})", client, bike, bikeSize);
+				if (orderedBike == null && bike.sizes.contains(bikeSize) && bike.availabilityMap.get(bikeSize) > 0) {
+					orderedBike = bike;
+					bike.availabilityMap.put(bikeSize, bike.availabilityMap.get(bikeSize) - 1);
+					log.info("'{}' orders bike '{}' ({})", client, bike, bikeSize);
+				}
+
+				bike.release(Bike.class, Bike.InProgress.class, null);
+			}
+
+			if (orderedBike == null) {
+				return null;
+			}
 
 			counters.numberOfOrdersCreated++;
 
 			// Note: Using constructor here allows deferred registration which is necessary to ensure that order cannot be found by order processing thread before synchronized block is left here
-			Order order = new Order(bike, client);
+			Order order = new Order(orderedBike, client);
 			synchronized (order) {
 				order.register();
 				order.save();
-				order.wait(Operation.ORDER_PROCESSING);
+				order.waitFor(Operation.ORDER_PROCESSING);
 			}
 
 			return order;
@@ -309,8 +322,7 @@ public class Client extends SqlDomainObject {
 		// Pay bike and wait for delivery or cancel order on less money
 		private void payBikeAndWaitForDeliveryOrCancelOrder(Order order) throws Exception {
 
-			Iterator<Invoice> it = order.invoices.iterator();
-			if (!it.hasNext()) {
+			if (order.invoiceDate == null) {
 
 				log.warn("No invoice was received during waiting for processing order '{}'! Cancel order", order);
 				order.bike.incrementAvailableCount(bikeSize); // Timeout processing order
@@ -323,8 +335,9 @@ public class Client extends SqlDomainObject {
 			if (order.bike.price.doubleValue() <= disposableMoney) {
 
 				log.info("Pay price for order '{}' ({}$). (resting disposable money: {}$)", order, order.bike.price, disposableMoney);
-				order.payAndWaitForDelivery(it.next());
-
+				order.payDate = LocalDateTime.now();
+				order.save();
+				order.waitFor(Operation.BIKE_DELIVERY);
 				disposableMoney -= order.bike.price.doubleValue();
 			}
 			else {
@@ -366,7 +379,7 @@ public class Client extends SqlDomainObject {
 				Thread.currentThread().interrupt();
 			}
 			catch (Exception e) { // TODO: Exception handling
-				e.printStackTrace();
+				log.error(Common.exceptionStackToString(e));
 			}
 		}
 	}

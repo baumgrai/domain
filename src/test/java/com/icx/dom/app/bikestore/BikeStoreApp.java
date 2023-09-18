@@ -16,8 +16,6 @@ import com.icx.dom.app.bikestore.domain.client.Client.Country;
 import com.icx.dom.app.bikestore.domain.client.Client.Gender;
 import com.icx.dom.app.bikestore.domain.client.Client.Region;
 import com.icx.dom.app.bikestore.domain.client.Client.RegionInUse;
-import com.icx.dom.app.bikestore.domain.client.DeliveryNote;
-import com.icx.dom.app.bikestore.domain.client.Invoice;
 import com.icx.dom.app.bikestore.domain.client.Order;
 import com.icx.dom.common.Prop;
 import com.icx.dom.domain.sql.SqlDomainController;
@@ -29,8 +27,7 @@ import com.icx.dom.domain.sql.SqlDomainController;
  * provided by Domain persistence mechanism. See comments in {@code Java2Sql.java} for how to create persistence database from domain classes.
  * 
  * One instance of this test program processes orders from clients of world regions ({@link Client#country}, {@link RegionInUse#region}). So one can run six parallel instances to cover whole world.
- * Parallel database operations within one instance (multiple clients) are synchronized by Java thread synchronization and parallel operations of different instances by database synchronization
- * methods (FOR UPDATE, etc.).
+ * Parallel database operations are synchronized by database synchronization using unique shadow records for records to update exclusively.
  * 
  * @author RainerBaumgärtel
  */
@@ -41,7 +38,7 @@ public class BikeStoreApp extends SqlDomainController {
 	public static final File BIKE_PICTURE = new File("src/test/resources/bike.jpg");
 
 	// Delay time between client bike order requests. One client tries to order bikes of 3 different types. Acts also as delay time for start of client order threads.
-	public static final long ORDER_DELAY_TIME_MS = 200;
+	public static final long ORDER_DELAY_TIME_MS = 100;
 
 	// List of bike models with availabilities for different sizes
 	protected static List<Bike> bikes = null;
@@ -66,14 +63,14 @@ public class BikeStoreApp extends SqlDomainController {
 		registerDomainClasses(Manufacturer.class.getPackage().getName() /* use any class directly in 'domain' package to find all domain classes */);
 
 		// Read JDBC and Domain properties. Note: you should not have multiple properties files with same name in your class path
-		Properties dbProps = Prop.readEnvironmentSpecificProperties(Prop.findPropertiesFile("db.properties"), "local/mysql/bikes", null);
+		Properties dbProps = Prop.readEnvironmentSpecificProperties(Prop.findPropertiesFile("db.properties"), "local/mssql/bikes", null);
 		Properties domainProps = Prop.readProperties(Prop.findPropertiesFile("domain.properties"));
 
 		// Associate domain classes and database tables
 		associateDomainClassesAndDatabaseTables(dbProps, domainProps);
 
-		// Initially load existing domain objects from database (SELECT statements are performed here)
-		synchronize(Order.class, Invoice.class, DeliveryNote.class);
+		// Initially load existing domain objects from database - exclude historical data from loading (SELECT statements are performed here)
+		synchronize(Order.class);
 
 		// Force deleting bikes, clients, etc. on first instance (first region)
 		boolean cleanupDatabaseOnStartup = false;
@@ -106,15 +103,12 @@ public class BikeStoreApp extends SqlDomainController {
 		// Note: No difference between all() and allValid() here - but generally, if domain objects exist which are not savable (by database constraint violation), they are marked as invalid
 		bikes = sort(allValid(Bike.class));
 
-		// // Get existing orders (to later check for new orders)
-		// Set<Order> existingOrders = new HashSet<>(all(Order.class));
-
 		// Log bike store before ordering/buying bikes...
 		// Note: use groupBy() to group accumulated children by classifier or countBy() to get # of accumulated children grouped by classifier
 		bikes.forEach(b -> log.info("'{}': price: {}€, sizes: {}, availability: {}, orders: {}'", b, b.price, b.sizes, b.availabilityMap, countBy(b.orders, o -> o.client.bikeSize)));
 
 		// Start order processing and bike delivery thread
-		Thread orderProcessingThread = new Thread(new Order.ProcessOrders());
+		Thread orderProcessingThread = new Thread(new Order.SendInvoices());
 		orderProcessingThread.setName("--ORDER--");
 		orderProcessingThread.start();
 
@@ -127,7 +121,7 @@ public class BikeStoreApp extends SqlDomainController {
 		for (Country country : RegionInUse.getRegionCountryMap().get(regionInUse.region)) {
 			for (String clientName : Client.getCountryNamesMap().get(country)) {
 
-				// Use create() method of domain controller to instantiate, initialize and register new object or createAndSave() to additionally save object after registration.
+				// Use create() method of domain controller to instantiate, initialize and register new object or createAndSave() to additionally save object immediately after registration.
 				// Logical initialization by init routine will be performed before object registration.
 				// Note: Alternatively you may use specific constructors for object creation and register and save objects there or after creation explicitly - see examples in Initialize.java
 
@@ -164,9 +158,9 @@ public class BikeStoreApp extends SqlDomainController {
 		bikeDeliveryThread.join();
 
 		// Log results
-		int numberOfPendingOrders = (int) count(Order.class, o -> RegionInUse.getRegion(o.client.country) == regionInUse.region && o.deliveryNotes.isEmpty());
-		int numberOfInvoicesSent = (int) count(Invoice.class, i -> RegionInUse.getRegion(i.order.client.country) == regionInUse.region);
-		int numberOfDeliveryNotesSent = (int) count(DeliveryNote.class, dn -> RegionInUse.getRegion(dn.order.client.country) == regionInUse.region);
+		int numberOfPendingOrders = (int) count(Order.class, o -> RegionInUse.getRegion(o.client.country) == regionInUse.region && o.payDate != null && o.deliveryDate == null);
+		int numberOfInvoicesSent = (int) count(Order.class, o -> RegionInUse.getRegion(o.client.country) == regionInUse.region && o.invoiceDate != null);
+		int numberOfDeliveryNotesSent = (int) count(Order.class, o -> RegionInUse.getRegion(o.client.country) == regionInUse.region && o.deliveryDate != null);
 		log.info("Order processing and bike delivery completed for {} clients of region {}. Total # of orders generated: {}", count(Client.class, c -> true), regionInUse.region,
 				counters.numberOfOrdersCreated);
 		log.info("# of invoices sent: {}", numberOfInvoicesSent);
@@ -174,8 +168,8 @@ public class BikeStoreApp extends SqlDomainController {
 		log.info("# of pending orders: {}", numberOfPendingOrders);
 		log.info("# of orders canceled by inability to pay: {}", counters.numberOfOrdersCanceledByInabilityToPay);
 		log.info("# of orders canceled by order processing timeout: {}", counters.numberOfOrdersCanceledByProcessingTimeout);
-		log.info("Order processing time statistic (# of order processing operations in less than 1, 2, 3, 4, 5, 6, 7 ms): {}", Order.orderProcessingDurationMap);
-		log.info("Bike delivery time statistic (# of bike delivery operations in less than 1, 2, 3, 4, 5, 6, 7 ms): {}", Order.bikeDeliveryDurationMap);
+		log.info("Order processing time statistic (# of order processing operations in less than 10, 20, 30, 40, 50, 60, 70 ms): {}", Order.orderProcessingDurationMap);
+		log.info("Bike delivery time statistic (# of bike delivery operations in less than 10, 20, 30, 40, 50, 60, 70 ms): {}", Order.bikeDeliveryDurationMap);
 
 		// Check results
 		int sumOfCounters = numberOfDeliveryNotesSent + counters.numberOfOrdersCanceledByInabilityToPay + counters.numberOfOrdersCanceledByProcessingTimeout + numberOfPendingOrders;
@@ -184,27 +178,6 @@ public class BikeStoreApp extends SqlDomainController {
 			log.error("Sum of # of delivered bikes, canceled and pending orders {} differs from total # of orders created {}!", sumOfCounters, counters.numberOfOrdersCreated);
 			log.error("");
 		}
-
-		// // Log bike store after buying bikes...
-		// for (Bike bike : bikes) {
-		// bike.load();
-		// }
-		// for (Bike bike : bikes) {
-		// log.info("'{}': availability: {}, orders: {}", bike, bike.availabilityMap, countBy(bike.orders, o -> o.client.bikeSize));
-		// }
-		//
-		// if (log.isDebugEnabled()) {
-		//
-		// log.debug("New orders: ");
-		// Collection<Order> orders = all(Order.class);
-		// sort(orders).forEach(o -> {
-		// if (!existingOrders.contains(o)) {
-		// log.debug("{}", o);
-		// }
-		// });
-		//
-		// log.debug("# of orders: {}", orders.size());
-		// }
 
 		// // Free region in use (to allow re-run test with multiple parallel instances)
 		regionInUse.delete();
