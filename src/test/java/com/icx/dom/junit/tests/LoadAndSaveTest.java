@@ -4,9 +4,10 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -14,6 +15,7 @@ import java.io.File;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.sql.SQLException;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -29,6 +31,7 @@ import org.opentest4j.AssertionFailedError;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.icx.dom.common.CFile;
 import com.icx.dom.common.CList;
 import com.icx.dom.common.CMap;
 import com.icx.dom.common.CResource;
@@ -58,6 +61,61 @@ class LoadAndSaveTest extends TestHelpers {
 	static final Logger log = LoggerFactory.getLogger(LoadAndSaveTest.class);
 
 	static DbType dbType = null;
+
+	private static String getLocal(DbType dbType) {
+
+		if (dbType == DbType.MYSQL) {
+			return "local/mysql/junit";
+		}
+		else if (dbType == DbType.MS_SQL) {
+			return "local/ms_sql/junit";
+		}
+		else if (dbType == DbType.ORACLE) {
+			return "local/oracle/junit";
+		}
+		else {
+			return null;
+		}
+	}
+
+	@SuppressWarnings("static-method")
+	@Test
+	@Order(1)
+	void initialize() throws Throwable {
+
+		log.info("\tTEST 1: initialize()");
+
+		log.info("\tRegister only domain class AA...");
+
+		try {
+			SqlDomainController.registerDomainClasses(AA.class); // For coverage
+
+			assertEquals(A.class, DomainController.getDomainClassByName("A"));
+
+			log.info("\tRegister all domain classes in package...");
+
+			SqlDomainController.registerDomainClasses(A.class.getPackage().getName());
+
+			log.info("\tEstablish logical database connection...");
+
+			dbType = DbType.MYSQL;
+
+			Properties dbProps = Prop.readEnvironmentSpecificProperties(Prop.findPropertiesFile("db.properties"), getLocal(dbType), CList.newList("dbConnectionString", "dbUser"));
+
+			Properties domainProps = Prop.readProperties(Prop.findPropertiesFile("domain.properties"));
+
+			log.info("\tInitialize Java <-> SQL association...");
+
+			SqlDomainController.associateDomainClassesAndDatabaseTables(dbProps, domainProps);
+		}
+		catch (AssertionFailedError failed) {
+			throw failed;
+		}
+		catch (Throwable ex) {
+			log.error(Common.exceptionStackToString(ex));
+			throw ex;
+		}
+	}
 
 	static void cleanup() throws Exception {
 
@@ -100,44 +158,6 @@ class LoadAndSaveTest extends TestHelpers {
 		}
 	}
 
-	@SuppressWarnings("static-method")
-	@Test
-	@Order(1)
-	void initialize() throws Throwable {
-
-		log.info("\tTEST 1: initialize()");
-
-		log.info("\tRegister only domain class AA...");
-
-		try {
-			SqlDomainController.registerDomainClasses(AA.class); // For coverage
-
-			assertEquals(A.class, DomainController.getDomainClassByName("A"));
-
-			log.info("\tRegister all domain classes in package...");
-
-			SqlDomainController.registerDomainClasses(A.class.getPackage().getName());
-
-			log.info("\tEstablish logical database connection...");
-
-			dbType = DbType.MYSQL;
-			Properties dbProps = Prop.readEnvironmentSpecificProperties(Prop.findPropertiesFile("db.properties"), "local/mysql/junit", CList.newList("dbConnectionString", "dbUser"));
-
-			Properties domainProps = Prop.readProperties(Prop.findPropertiesFile("domain.properties"));
-
-			log.info("\tInitialize Java <-> SQL association...");
-
-			SqlDomainController.associateDomainClassesAndDatabaseTables(dbProps, domainProps);
-		}
-		catch (AssertionFailedError failed) {
-			throw failed;
-		}
-		catch (Throwable ex) {
-			log.error(Common.exceptionStackToString(ex));
-			throw ex;
-		}
-	}
-
 	//
 	// Next 3 test belong together - no cleanup meanwhile
 	//
@@ -146,6 +166,8 @@ class LoadAndSaveTest extends TestHelpers {
 	@Test
 	@Order(2)
 	void saveAndReload() throws Throwable {
+
+		LocalDateTime now = LocalDateTime.now();
 
 		try {
 			cleanup();
@@ -158,6 +180,8 @@ class LoadAndSaveTest extends TestHelpers {
 
 			AA aa1 = SqlDomainController.createAndSave(AA.class, aa -> {
 
+				aa.bool = true;
+				aa.booleanValue = false;
 				aa.i = Integer.MIN_VALUE;
 				aa.integerValue = Integer.MAX_VALUE;
 				aa.l = Long.MIN_VALUE;
@@ -166,12 +190,15 @@ class LoadAndSaveTest extends TestHelpers {
 				aa.doubleValue = -0.0000123456789; // Double.MAX_VALUE: underflow with Oracle
 				aa.bigIntegerValue = BigInteger.valueOf(Long.MAX_VALUE);
 				aa.bigDecimalValue = BigDecimal.valueOf(123456789.123456789); // Double.MAX_VALUE: underflow with Oracle
+				aa.datetime = now;
+
 				aa.s = "S";
 				aa.bytes = Common.getBytesUTF8("ÄÖÜäöüß");
+				assertDoesNotThrow(() -> aa.picture = CFile.readBinary(new File("src/test/resources/bike.jpg")));
 
-				aa.strings = CList.newList("A", "B", "C", "D", "", null);
+				aa.strings = CList.newList("A", "B", "C", "D", (dbType == DbType.ORACLE ? null : ""), null); // Oracle does not allow empty string values (stores as NULL instead)
 				aa.doubleSet = CSet.newSet(0.0, 0.1, 0.2, null);
-				aa.bigDecimalMap = CMap.newMap("a", BigDecimal.valueOf(1L), "b", BigDecimal.valueOf(2L), "c", BigDecimal.valueOf(3L), "d", null, null, 0.0);
+				aa.bigDecimalMap = CMap.newMap("a", BigDecimal.valueOf(1L), "b", BigDecimal.valueOf(2L), "c", BigDecimal.valueOf(3.1), "d", null, null, BigDecimal.valueOf(0L));
 
 				aa.listOfLists = CList.newList(new ArrayList<>(), CList.newList(Type.A), CList.newList(Type.A, Type.B), CList.newList(Type.A, Type.B, null));
 				aa.listOfMaps = CList.newList(new HashMap<>(), CMap.newMap("A", 1), CMap.newMap("A", 1, "B", 2), CMap.newMap("A", 1, "B", 2, "C", null));
@@ -190,6 +217,10 @@ class LoadAndSaveTest extends TestHelpers {
 			assertNotNull(DomainController.findAny(A.class, a -> true));
 			assertEquals(1, DomainController.count(A.class, a -> a.type == Type.A));
 
+			log.info("\tReload object to check if no changes will be detected...");
+
+			assertFalse(aa1.reload());
+
 			log.info("\tUnregister objects to force reload...");
 
 			aa1.unregisterForTest();
@@ -206,14 +237,17 @@ class LoadAndSaveTest extends TestHelpers {
 
 			log.info("\tAssertions on loaded objects...");
 
-			assertNotEquals(aa1, DomainController.findAny(AA.class, aa -> true));
-			assertNotEquals(o1, DomainController.findAny(O.class, o -> true));
+			assertNotSame(aa1, DomainController.findAny(AA.class, aa -> true));
+			assertNotSame(o1, DomainController.findAny(O.class, o -> true));
 
 			aa1 = DomainController.findAny(AA.class, aa -> true);
 			o1 = DomainController.findAny(O.class, o -> true);
 
-			// Check if loaded object equal object created before
+			// Check if loaded object equals object created before
 
+			assertEquals(true, aa1.bool);
+			assertEquals(false, aa1.booleanValue);
+			assertEquals(Integer.MIN_VALUE, aa1.i);
 			assertEquals(Integer.MIN_VALUE, aa1.i);
 			assertEquals(Integer.MAX_VALUE, aa1.integerValue);
 			assertEquals(Long.MIN_VALUE, aa1.l);
@@ -223,18 +257,15 @@ class LoadAndSaveTest extends TestHelpers {
 			assertEquals(BigInteger.valueOf(Long.MAX_VALUE), aa1.bigIntegerValue);
 			assertEquals(BigDecimal.valueOf(123456789.123456789), aa1.bigDecimalValue);
 			assertEquals("S", aa1.s);
+			assertTrue(logicallyEqual(now, aa1.datetime)); // Check only seconds because milliseconds will not be stored in database (Oracle)
 			assertArrayEquals(Common.getBytesUTF8("ÄÖÜäöüß"), aa1.bytes);
+			assertArrayEquals(CFile.readBinary(new File("src/test/resources/bike.jpg")), aa1.picture);
 			assertEquals(CResource.findFirstJavaResourceFile("x.txt"), aa1.file);
 			assertEquals(Type.A, aa1.type);
 
-			if (dbType == DbType.ORACLE) {
-				assertEquals(CList.newList("A", "B", "C", "D", null, null), aa1.strings); // Oracle does not allow empty string values it provides null instead
-			}
-			else {
-				assertEquals(CList.newList("A", "B", "C", "D", "", null), aa1.strings);
-			}
+			assertEquals(CList.newList("A", "B", "C", "D", (dbType == DbType.ORACLE ? null : ""), null), aa1.strings); // Oracle does not allow empty string values (stores as NULL instead)
 			assertEquals(CSet.newSet(0.0, 0.1, 0.2, null), aa1.doubleSet);
-			assertEquals(CMap.newMap("a", BigDecimal.valueOf(1L), "b", BigDecimal.valueOf(2L), "c", BigDecimal.valueOf(3L), "d", null, null, BigDecimal.valueOf(0L)), aa1.bigDecimalMap);
+			assertEquals(CMap.newMap("a", BigDecimal.valueOf(1L), "b", BigDecimal.valueOf(2L), "c", BigDecimal.valueOf(3.1), "d", null, null, BigDecimal.valueOf(0L)), aa1.bigDecimalMap);
 
 			assertEquals(CList.newList(new ArrayList<>(), CList.newList(Type.A), CList.newList(Type.A, Type.B), CList.newList(Type.A, Type.B, null)), aa1.listOfLists);
 			assertEquals(CList.newList(new HashMap<>(), CMap.newMap("A", 1), CMap.newMap("A", 1, "B", 2), CMap.newMap("A", 1, "B", 2, "C", null)), aa1.listOfMaps);
@@ -348,7 +379,7 @@ class LoadAndSaveTest extends TestHelpers {
 				assertEquals(CList.newList("C", "B", "E", null, "E", "G"), aa1.strings);
 			}
 			assertEquals(CSet.newSet(0.1, 0.2, 0.3, 0.4), aa1.doubleSet);
-			assertEquals(CMap.newMap("b", BigDecimal.valueOf(2L), "c", BigDecimal.valueOf(3L), "e", BigDecimal.valueOf(5L), "f", BigDecimal.valueOf(6L)), aa1.bigDecimalMap);
+			assertEquals(CMap.newMap("b", BigDecimal.valueOf(2L), "c", BigDecimal.valueOf(3.1), "e", BigDecimal.valueOf(5L), "f", BigDecimal.valueOf(6L)), aa1.bigDecimalMap);
 
 			assertEquals(CList.newList(CList.newList(Type.A), CList.newList(Type.A, Type.B), CList.newList(Type.A, Type.B, Type.C)), aa1.listOfLists);
 			assertEquals(CList.newList(CMap.newMap("A", 1), CMap.newMap("A", 1, "B", 2), CMap.newMap("A", 2, "B", 1, "C", 3)), aa1.listOfMaps);
@@ -643,19 +674,25 @@ class LoadAndSaveTest extends TestHelpers {
 	@SuppressWarnings("static-method")
 	@Test
 	@Order(7)
-	void loadReferencedObjectsAndAllocateObjectsExclusively() throws Throwable {
+	void loadReferencedObjects() throws Throwable {
 
 		try {
 			cleanup();
 
-			log.info("\tTEST 7: loadReferencedObjectsAndAllocateObjectsExclusively()");
+			log.info("\tTEST 7: loadReferencedObjects()");
 
 			log.info("\tCreate and save objects with parent child relation...");
 
 			O o1 = SqlDomainController.createAndSave(O.class, null);
 			AA aa1 = SqlDomainController.createAndSave(AA.class, aa -> aa.o = o1);
-			X x1a = SqlDomainController.createAndSave(X.class, x -> { x.a = aa1; });
-			X x1b = SqlDomainController.createAndSave(X.class, x -> { x.a = aa1; });
+			X x1a = SqlDomainController.createAndSave(X.class, x -> {
+				x.a = aa1;
+				x.s = "available";
+			});
+			X x1b = SqlDomainController.createAndSave(X.class, x -> {
+				x.a = aa1;
+				x.s = "available";
+			});
 
 			log.info("\tUnregister all objects to force reload of these objects...");
 
@@ -668,67 +705,83 @@ class LoadAndSaveTest extends TestHelpers {
 			assertFalse(DomainController.hasAny(AA.class));
 			assertFalse(DomainController.hasAny(O.class));
 
-			log.info("\tLoad objects of one domain class for excusive use and force loading referenced parent objects in separate load cycles...");
+			log.info("\tLoad objects of one domain class and force loading referenced parent objects in separate load cycles...");
 
-			Set<X> xs = SqlDomainController.allocateForExclusiveUse(X.class, X.InProgress.class, -1);
+			Set<X> xs = SqlDomainController.loadOnly(X.class, null, -1);
 
-			Iterator<X> it = xs.iterator();
-			x1a = it.next();
-			x1b = it.next();
-			assertEquals(2, xs.size());
+			assertEquals(4, xs.size());
 			assertEquals(2, DomainController.count(X.class, x -> true));
-			assertEquals(2, SqlDomainController.count(X.InProgress.class, s -> true));
 			assertTrue(DomainController.hasAny(AA.class));
 			assertTrue(DomainController.hasAny(O.class));
 
+		}
+		catch (AssertionFailedError failed) {
+			throw failed;
+		}
+		catch (Throwable ex) {
+			log.error(Common.exceptionStackToString(ex));
+			throw ex;
+		}
+	}
+
+	@SuppressWarnings("static-method")
+	@Test
+	@Order(8)
+	void allocateObjectsExclusively() throws Throwable {
+
+		try {
+			cleanup();
+
+			log.info("\tTEST 8: allocateObjectsExclusively()");
+
+			log.info("\tCreate and save objects...");
+
+			X x1a = SqlDomainController.createAndSave(X.class, x -> { x.s = "available"; });
+			X x1b = SqlDomainController.createAndSave(X.class, x -> { x.s = "available"; });
+
+			log.info("\tLoad objects of one domain class for excusive use");
+
+			Set<X> xs = SqlDomainController.allocateExclusively(X.class, X.InProgress.class, "S='available'", -1, x -> x.s = "in_use");
+			assertEquals(2, xs.size());
+			assertEquals(2, DomainController.count(X.class, x -> true));
+			assertEquals(2, SqlDomainController.count(X.InProgress.class, s -> true));
+
+			Iterator<X> it = xs.iterator();
+			X xTmp = it.next();
+			if (x1a.equals(xTmp)) {
+				assertSame(x1b, it.next());
+			}
+			else {
+				assertSame(x1b, xTmp);
+				assertSame(x1a, it.next());
+			}
+
 			log.info("\tTry to load another object excusively (but no object exists)...");
 
-			xs = SqlDomainController.allocateForExclusiveUse(X.class, X.InProgress.class, -1);
+			xs = SqlDomainController.allocateExclusively(X.class, X.InProgress.class, "s='available'", -1, null);
+			assertTrue(xs.isEmpty());
 
+			xs = SqlDomainController.allocateExclusively(X.class, X.InProgress.class, null, -1, null);
 			assertTrue(xs.isEmpty());
 
 			log.info("\tRelease one exclusively used object...");
 
-			x1b.releaseFromExclusiveUse(X.InProgress.class);
-
+			assertTrue(x1b.release(X.class, X.InProgress.class, x -> x.s = "available"));
 			assertEquals(1, SqlDomainController.count(X.InProgress.class, s -> true));
 
 			log.info("\tTry to allocate another object excusively (now one object exists)...");
 
-			final Set<X> xs2 = SqlDomainController.allocateForExclusiveUse(X.class, X.InProgress.class, 1);
-
-			assertDoesNotThrow(() -> xs2.iterator().next());
+			Set<X> xs2 = SqlDomainController.allocateExclusively(X.class, X.InProgress.class, null, 1, x -> x.s = "in_use");
+			assertEquals(1, xs2.size());
 			assertEquals(2, SqlDomainController.count(X.InProgress.class, s -> true));
 
-			x1a.releaseFromExclusiveUse(X.InProgress.class);
-			x1b.releaseFromExclusiveUse(X.InProgress.class);
-
+			x1a.release(X.class, X.InProgress.class, x -> x.s = "available");
+			x1b.release(X.class, X.InProgress.class, x -> x.s = "available");
 			assertEquals(0, SqlDomainController.count(X.InProgress.class, s -> true));
 
-			log.info("\tAllocate and update objects...");
-
-			x1a.s = "available";
-			x1b.s = "available";
-
-			xs = SqlDomainController.allocateAndUpdate(X.class, x -> "available".equals(x.s), x -> x.s = "in_use", -1);
-
-			it = xs.iterator();
-			x1a = it.next();
-			x1b = it.next();
-			assertEquals("in_use", x1a.s);
-			assertEquals("in_use", x1a.s);
-
-			log.info("\tAllocate and update one object...");
-
-			x1a.s = "available";
-			x1b.s = "available";
-
-			xs = SqlDomainController.allocateAndUpdate(X.class, x -> "available".equals(x.s), x -> x.s = "in_use", 1);
-
-			it = xs.iterator();
-			x1a = it.next();
-			assertFalse(it.hasNext());
-			assertEquals("in_use", x1a.s);
+			assertTrue(x1a.allocateExclusively(X.class, X.InProgress.class, x -> x.s = "in_use"));
+			assertEquals(1, SqlDomainController.count(X.InProgress.class, s -> true));
+			x1a.release(X.class, X.InProgress.class, x -> x.s = "available");
 		}
 		catch (AssertionFailedError failed) {
 			throw failed;
