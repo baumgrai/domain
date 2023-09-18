@@ -289,7 +289,7 @@ public abstract class LoadAndSaveHelpers extends Common {
 					Object fieldValue = object.getFieldValue(dataField);
 					Object columnValue = objectRecord.get(SqlRegistry.getColumnFor(dataField).name);
 
-					if (!logicallyEqual(Helpers.field2ColumnValue(fieldValue), columnValue)) {
+					if (!logicallyEqual(fieldValue, Helpers.column2FieldValue(dataField.getType(), columnValue))) {
 						fieldChangesMapByDomainClassMap.computeIfAbsent(domainClass, dc -> new HashMap<>()).put(dataField, fieldValue);
 					}
 				}
