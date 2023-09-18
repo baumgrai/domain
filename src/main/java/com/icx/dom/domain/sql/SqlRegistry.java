@@ -50,11 +50,11 @@ public abstract class SqlRegistry extends Registry {
 	static {
 		try {
 			idField = DomainObject.class.getDeclaredField(DomainObject.ID_FIELD);
-			lastModifiedInDbField = SqlDomainObject.class.getDeclaredField(SqlDomainObject.LAST_MODIFIED_IN_DB_FIELD);
+			lastModifiedInDbField = SqlDomainObject.class.getDeclaredField(Const.LAST_MODIFIED_IN_DB_FIELD);
 		}
 		catch (Exception e) {
 			log.error("SRG: Internal error: 'DomainObject' class does not contain field {} or 'SqlDomainObject' class does not contain field {}!", DomainObject.ID_FIELD,
-					SqlDomainObject.LAST_MODIFIED_IN_DB_FIELD);
+					Const.LAST_MODIFIED_IN_DB_FIELD);
 		}
 	}
 
@@ -177,13 +177,13 @@ public abstract class SqlRegistry extends Registry {
 			return null;
 		}
 
-		if (SqlDomainObject.ID_COL.equals(column.name)) {
+		if (Const.ID_COL.equals(column.name)) {
 			return Reflection.getBoxingWrapperType(idField.getType());
 		}
-		else if (SqlDomainObject.LAST_MODIFIED_COL.equals(column.name)) {
+		else if (Const.LAST_MODIFIED_COL.equals(column.name)) {
 			return lastModifiedInDbField.getType();
 		}
-		else if (SqlDomainObject.DOMAIN_CLASS_COL.equals(column.name)) {
+		else if (Const.DOMAIN_CLASS_COL.equals(column.name)) {
 			return String.class;
 		}
 
@@ -236,7 +236,7 @@ public abstract class SqlRegistry extends Registry {
 			boolean javaSqlInconsistence = false;
 
 			// Check static [ 'id' : ID ] field : column relation
-			Column idColumn = registeredTable.findColumnByName(SqlDomainObject.ID_COL);
+			Column idColumn = registeredTable.findColumnByName(Const.ID_COL);
 			if (idColumn != null) {
 				log.info("SRG: \t\t[ {} ({}) : {} ]", Reflection.qualifiedName(idField), idField.getType().getSimpleName(), idColumn.toStringWithoutTable(idField.getType()));
 			}
@@ -246,7 +246,7 @@ public abstract class SqlRegistry extends Registry {
 			}
 
 			// Check column 'DOMAIN_CLASS'
-			Column domainClassColumn = registeredTable.findColumnByName(SqlDomainObject.DOMAIN_CLASS_COL);
+			Column domainClassColumn = registeredTable.findColumnByName(Const.DOMAIN_CLASS_COL);
 			if (domainClassColumn == null) {
 				throw new SqlDbException(
 						"Detected Java : SQL inconsistency! Table '" + registeredTable.toString() + "' associated to domain class '" + domainClass.getName() + "' does not have DOMAIN_CLASS column!");
@@ -255,7 +255,7 @@ public abstract class SqlRegistry extends Registry {
 			// For base (or only) domain classes check static [ 'lastModifiedInDb' : LAST_MODIFIED ] field : column relation
 			if (isBaseDomainClass(domainClass)) {
 
-				Column lastModifiedColumn = registeredTable.findColumnByName(SqlDomainObject.LAST_MODIFIED_COL);
+				Column lastModifiedColumn = registeredTable.findColumnByName(Const.LAST_MODIFIED_COL);
 				if (lastModifiedColumn != null) {
 					log.info("SRG: \t\t[ {} ({}) : {} ]", Reflection.qualifiedName(lastModifiedInDbField), lastModifiedInDbField.getType().getSimpleName(),
 							lastModifiedColumn.toStringWithoutTable(lastModifiedInDbField.getType()));
@@ -371,8 +371,7 @@ public abstract class SqlRegistry extends Registry {
 
 			// Check if field for data and reference column exists
 			for (Column column : registeredTable.columns) {
-				if (!Common.objectsEqual(column.name, SqlDomainObject.ID_COL) && !Common.objectsEqual(column.name, SqlDomainObject.LAST_MODIFIED_COL)
-						&& !Common.objectsEqual(column.name, SqlDomainObject.DOMAIN_CLASS_COL)
+				if (!Common.objectsEqual(column.name, Const.ID_COL) && !Common.objectsEqual(column.name, Const.LAST_MODIFIED_COL) && !Common.objectsEqual(column.name, Const.DOMAIN_CLASS_COL)
 						&& getDataAndReferenceFields(domainClass).stream().map(f -> getColumnFor(f).name).noneMatch(n -> Common.objectsEqual(column.name, n))) {
 
 					log.warn("SRG: Table '{}' associated to domain class '{}' has column '{}' where no field of this class is associated to!", registeredTable.name, domainClass.getSimpleName(),

@@ -19,7 +19,7 @@ import com.icx.dom.domain.DomainAnnotations.Changed;
 import com.icx.dom.domain.DomainAnnotations.Created;
 import com.icx.dom.domain.DomainAnnotations.Removed;
 import com.icx.dom.domain.DomainObject;
-import com.icx.dom.domain.sql.SqlDomainObject;
+import com.icx.dom.domain.sql.Const;
 import com.icx.dom.domain.sql.SqlRegistry;
 import com.icx.dom.domain.sql.tools.FkConstraint.ConstraintType;
 import com.icx.dom.jdbc.JdbcHelpers;
@@ -205,10 +205,10 @@ public class Helpers extends JdbcHelpers {
 			// Create element column- allow collections or maps of simple objects as element type - convert with string2list and string2map and vice versa
 			Column elementColumn = null;
 			if (elementType instanceof Class<?>) {
-				elementColumn = entryTable.addStandardColumn(SqlDomainObject.ELEMENT_COL, (Class<?>) elementType);
+				elementColumn = entryTable.addStandardColumn(Const.ELEMENT_COL, (Class<?>) elementType);
 			}
 			else { // if elementType instanceof ParameterizedType
-				elementColumn = entryTable.addStandardColumn(SqlDomainObject.ELEMENT_COL, String.class);
+				elementColumn = entryTable.addStandardColumn(Const.ELEMENT_COL, String.class);
 			}
 
 			// Add UNIQUE constraint for element sets (or if type is unknown)
@@ -218,7 +218,7 @@ public class Helpers extends JdbcHelpers {
 
 			// Add add order column for element lists (or if type is unknown)
 			if (currentType == null || List.class.isAssignableFrom(currentType)) {
-				entryTable.addStandardColumn(SqlDomainObject.ORDER_COL, Integer.class);
+				entryTable.addStandardColumn(Const.ORDER_COL, Integer.class);
 			}
 		}
 		else { // Map field
@@ -232,15 +232,15 @@ public class Helpers extends JdbcHelpers {
 				log.error("J2S: Key type of map {} must be a simple type (not a collection or a map)!", keyType);
 			}
 			else { // if elementType instanceof ParameterizedType
-				keyColumn = entryTable.addStandardColumn(SqlDomainObject.KEY_COL, (Class<?>) keyType);
+				keyColumn = entryTable.addStandardColumn(Const.KEY_COL, (Class<?>) keyType);
 			}
 
 			// Create value column - differ between simple objects and collections or maps as values
 			if (valueType instanceof Class<?>) {
-				entryTable.addStandardColumn(SqlDomainObject.VALUE_COL, (Class<?>) valueType);
+				entryTable.addStandardColumn(Const.VALUE_COL, (Class<?>) valueType);
 			}
 			else { // if elementType instanceof ParameterizedType
-				entryTable.addStandardColumn(SqlDomainObject.VALUE_COL, String.class);
+				entryTable.addStandardColumn(Const.VALUE_COL, String.class);
 			}
 
 			// Add UNIQUE constraint on key

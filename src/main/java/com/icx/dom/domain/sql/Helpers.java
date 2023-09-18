@@ -229,10 +229,7 @@ public abstract class Helpers extends Common {
 	// Convert field value to value to store in database
 	static Object field2ColumnValue(Object fieldValue) {
 
-		if (fieldValue == null) {
-			return null;
-		}
-		else if (fieldValue instanceof Enum) {
+		if (fieldValue instanceof Enum) {
 			return fieldValue.toString();
 		}
 		else if (fieldValue instanceof BigInteger) {
@@ -318,9 +315,9 @@ public abstract class Helpers extends Common {
 			entryRecords.add(entryRecord);
 
 			entryRecord.put(mainTableRefIdColumnName, objId);
-			entryRecord.put(SqlDomainObject.ELEMENT_COL, element2ColumnValue(it.next()));
+			entryRecord.put(Const.ELEMENT_COL, element2ColumnValue(it.next()));
 			if (collection instanceof List) { // Care for element order on lists
-				entryRecord.put(SqlDomainObject.ORDER_COL, order++);
+				entryRecord.put(Const.ORDER_COL, order++);
 			}
 		}
 
@@ -329,9 +326,9 @@ public abstract class Helpers extends Common {
 
 	// Convert records of entry table to collection
 	@SuppressWarnings("unchecked")
-	static Collection<Object> entryRecords2Collection(ParameterizedType genericFeldType, List<SortedMap<String, Object>> entryRecords) {
+	static Collection<Object> entryRecords2Collection(ParameterizedType genericFieldType, List<SortedMap<String, Object>> entryRecords) {
 
-		Collection<Object> collection = Reflection.newCollection((Class<? extends Collection<Object>>) genericFeldType.getRawType());
+		Collection<Object> collection = Reflection.newCollection((Class<? extends Collection<Object>>) genericFieldType.getRawType());
 
 		if (CList.isEmpty(entryRecords)) {
 			return collection;
@@ -339,8 +336,8 @@ public abstract class Helpers extends Common {
 
 		for (SortedMap<String, Object> entryRecord : entryRecords) {
 
-			Type elementType = genericFeldType.getActualTypeArguments()[0];
-			Object element = columnValue2Element(elementType, entryRecord.get(SqlDomainObject.ELEMENT_COL)); // Element of collection can be a collection or map itself
+			Type elementType = genericFieldType.getActualTypeArguments()[0];
+			Object element = columnValue2Element(elementType, entryRecord.get(Const.ELEMENT_COL)); // Element of collection can be a collection or map itself
 
 			collection.add(element);
 		}
@@ -366,8 +363,8 @@ public abstract class Helpers extends Common {
 			Entry<?, ?> keyValuePair = (Entry<?, ?>) it.next();
 
 			entryRecord.put(mainTableRefIdColumnName, objId);
-			entryRecord.put(SqlDomainObject.KEY_COL, field2ColumnValue(keyValuePair.getKey())); // Keys may not be complex objects
-			entryRecord.put(SqlDomainObject.VALUE_COL, element2ColumnValue(keyValuePair.getValue()));
+			entryRecord.put(Const.KEY_COL, field2ColumnValue(keyValuePair.getKey())); // Keys may not be complex objects
+			entryRecord.put(Const.VALUE_COL, element2ColumnValue(keyValuePair.getValue()));
 		}
 
 		return entryRecords;
@@ -375,9 +372,9 @@ public abstract class Helpers extends Common {
 
 	// Convert records of entry table to map
 	@SuppressWarnings("unchecked")
-	static Map<Object, Object> entryRecords2Map(ParameterizedType genericFeldType, List<SortedMap<String, Object>> entryRecords) {
+	static Map<Object, Object> entryRecords2Map(ParameterizedType genericFieldType, List<SortedMap<String, Object>> entryRecords) {
 
-		Map<Object, Object> map = Reflection.newMap((Class<? extends Map<Object, Object>>) genericFeldType.getRawType());
+		Map<Object, Object> map = Reflection.newMap((Class<? extends Map<Object, Object>>) genericFieldType.getRawType());
 
 		if (CList.isEmpty(entryRecords)) {
 			return map;
@@ -385,11 +382,11 @@ public abstract class Helpers extends Common {
 
 		for (SortedMap<String, Object> entryRecord : entryRecords) {
 
-			Type keyType = genericFeldType.getActualTypeArguments()[0];
-			Object key = column2FieldValue((Class<?>) keyType, entryRecord.get(SqlDomainObject.KEY_COL)); // Keys may not be complex objects
+			Type keyType = genericFieldType.getActualTypeArguments()[0];
+			Object key = column2FieldValue((Class<?>) keyType, entryRecord.get(Const.KEY_COL)); // Keys may not be complex objects
 
-			Type valueType = genericFeldType.getActualTypeArguments()[1];
-			Object value = columnValue2Element(valueType, entryRecord.get(SqlDomainObject.VALUE_COL)); // Value of map can be a collection or map itself
+			Type valueType = genericFieldType.getActualTypeArguments()[1];
+			Object value = columnValue2Element(valueType, entryRecord.get(Const.VALUE_COL)); // Value of map can be a collection or map itself
 
 			map.put(key, value);
 		}
@@ -400,6 +397,22 @@ public abstract class Helpers extends Common {
 	// -------------------------------------------------------------------------
 	// General helpers
 	// -------------------------------------------------------------------------
+
+	// Create object with given id - only used for exclusive selection methods
+	static final synchronized <T extends DomainObject> T createWithId(final Class<T> domainObjectClass, long id) {
+
+		T obj = DomainController.instantiate(domainObjectClass);
+		if (obj != null) {
+
+			obj.registerById(id);
+
+			if (log.isDebugEnabled()) {
+				log.debug("DC: Created {}.", obj.name());
+			}
+		}
+
+		return obj;
+	}
 
 	// Count new and changed objects grouped by object domain classes (for logging only)
 	static <T extends SqlDomainObject> Set<Entry<String, Integer>> groupCountsByDomainClassName(Set<T> objects) {
@@ -441,19 +454,28 @@ public abstract class Helpers extends Common {
 		return idStringLists;
 	}
 
-	// Create object with given id - only used for exclusive selection methods
-	static final synchronized <T extends DomainObject> T createWithId(final Class<T> domainObjectClass, long id) {
+	// Build string list of elements for WHERE clause (of DELETE statement)
+	static String buildElementList(Set<Object> elements) {
 
-		T obj = DomainController.instantiate(domainObjectClass);
-		if (obj != null) {
+		StringBuilder sb = new StringBuilder();
+		sb.append("(");
 
-			obj.registerById(id);
+		for (Object element : elements) {
 
-			if (log.isDebugEnabled()) {
-				log.debug("DC: Created {}.", obj.name());
+			element = Helpers.field2ColumnValue(element);
+			if (element instanceof String) {
+				sb.append("'" + element + "'");
 			}
+			else {
+				sb.append(element);
+			}
+
+			sb.append(",");
 		}
 
-		return obj;
+		sb.replace(sb.length() - 1, sb.length(), ")");
+
+		return sb.toString();
 	}
+
 }
