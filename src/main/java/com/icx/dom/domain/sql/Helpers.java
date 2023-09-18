@@ -207,25 +207,6 @@ public abstract class Helpers extends Common {
 	// Conversion from/to field to/from column value
 	// -------------------------------------------------------------------------
 
-	static Class<?> requiredJdbcTypeFor(Class<?> fieldClass) {
-
-		if (fieldClass == BigInteger.class) {
-			return Long.class;
-		}
-		else if (fieldClass == BigDecimal.class) {
-			return Double.class;
-		}
-		else if (Enum.class.isAssignableFrom(fieldClass)) {
-			return String.class;
-		}
-		else if (File.class.isAssignableFrom(fieldClass)) {
-			return String.class;
-		}
-		else {
-			return Reflection.getBoxingWrapperType(fieldClass);
-		}
-	}
-
 	// Convert field value to value to store in database
 	static Object field2ColumnValue(Object fieldValue) {
 
@@ -397,6 +378,25 @@ public abstract class Helpers extends Common {
 	// -------------------------------------------------------------------------
 	// General helpers
 	// -------------------------------------------------------------------------
+
+	static Class<?> requiredJdbcTypeFor(Class<?> fieldClass) {
+
+		if (fieldClass == BigInteger.class) {
+			return Long.class;
+		}
+		else if (fieldClass == BigDecimal.class) {
+			return Double.class;
+		}
+		else if (Enum.class.isAssignableFrom(fieldClass)) {
+			return String.class;
+		}
+		else if (File.class.isAssignableFrom(fieldClass)) {
+			return String.class;
+		}
+		else {
+			return Reflection.getBoxingWrapperType(fieldClass);
+		}
+	}
 
 	// Create object with given id - only used for exclusive selection methods
 	static final synchronized <T extends DomainObject> T createWithId(final Class<T> domainObjectClass, long id) {
