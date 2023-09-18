@@ -101,7 +101,6 @@ class LoadAndSaveTest extends TestHelpers {
 			dbType = DbType.MYSQL;
 
 			Properties dbProps = Prop.readEnvironmentSpecificProperties(Prop.findPropertiesFile("db.properties"), getLocal(dbType), CList.newList("dbConnectionString", "dbUser"));
-
 			Properties domainProps = Prop.readProperties(Prop.findPropertiesFile("domain.properties"));
 
 			log.info("\tInitialize Java <-> SQL association...");
@@ -196,7 +195,7 @@ class LoadAndSaveTest extends TestHelpers {
 				aa.bytes = Common.getBytesUTF8("ÄÖÜäöüß");
 				assertDoesNotThrow(() -> aa.picture = CFile.readBinary(new File("src/test/resources/bike.jpg")));
 
-				aa.strings = CList.newList("A", "B", "C", "D", (dbType == DbType.ORACLE ? null : ""), null); // Oracle does not allow empty string values (stores as NULL instead)
+				aa.strings = CList.newList("A", "B", "C", "D", (dbType == DbType.ORACLE ? null : ""), null); // Oracle does not allow empty string values (stored as NULL instead)
 				aa.doubleSet = CSet.newSet(0.0, 0.1, 0.2, null);
 				aa.bigDecimalMap = CMap.newMap("a", BigDecimal.valueOf(1L), "b", BigDecimal.valueOf(2L), "c", BigDecimal.valueOf(3.1), "d", null, null, BigDecimal.valueOf(0L));
 
@@ -263,7 +262,7 @@ class LoadAndSaveTest extends TestHelpers {
 			assertEquals(CResource.findFirstJavaResourceFile("x.txt"), aa1.file);
 			assertEquals(Type.A, aa1.type);
 
-			assertEquals(CList.newList("A", "B", "C", "D", (dbType == DbType.ORACLE ? null : ""), null), aa1.strings); // Oracle does not allow empty string values (stores as NULL instead)
+			assertEquals(CList.newList("A", "B", "C", "D", (dbType == DbType.ORACLE ? null : ""), null), aa1.strings); // Oracle does not allow empty string values (stored as NULL instead)
 			assertEquals(CSet.newSet(0.0, 0.1, 0.2, null), aa1.doubleSet);
 			assertEquals(CMap.newMap("a", BigDecimal.valueOf(1L), "b", BigDecimal.valueOf(2L), "c", BigDecimal.valueOf(3.1), "d", null, null, BigDecimal.valueOf(0L)), aa1.bigDecimalMap);
 
