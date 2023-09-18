@@ -48,7 +48,6 @@ import com.icx.dom.common.Common;
 import com.icx.dom.common.Prop;
 import com.icx.dom.common.Reflection;
 import com.icx.dom.jdbc.ConfigException;
-import com.icx.dom.jdbc.JdbcHelpers;
 import com.icx.dom.jdbc.SqlConnection;
 import com.icx.dom.jdbc.SqlDb;
 import com.icx.dom.jdbc.SqlDb.DbType;
@@ -309,14 +308,14 @@ class CommonTest extends TestHelpers {
 	@Order(6)
 	void jdbc() throws Exception {
 
-		assertEquals("***", JdbcHelpers.forLoggingSql("pwd", "123"));
-		assertFalse(JdbcHelpers.forLoggingSql("oracleTimestamp", new oracle.sql.TIMESTAMP()).isEmpty());
-		assertFalse(JdbcHelpers.forLoggingSql("timestamp", new java.sql.Timestamp(0L)).isEmpty());
-		assertFalse(JdbcHelpers.forLoggingSql("LocalDateTime", LocalDateTime.now()).isEmpty());
-		assertFalse(JdbcHelpers.forLoggingSql("LocalDate", LocalDate.now()).isEmpty());
-		assertFalse(JdbcHelpers.forLoggingSql("LocalTime", LocalTime.now()).isEmpty());
-		assertFalse(JdbcHelpers.forLoggingSql("Calendar", new GregorianCalendar()).isEmpty());
-		assertFalse(JdbcHelpers.forLoggingSql("boolean", true).isEmpty());
+		assertEquals("\"***\"", CLog.forSecretLogging("pwd", "123"));
+		assertFalse(CLog.forSecretLogging("oracleTimestamp", new oracle.sql.TIMESTAMP()).isEmpty());
+		assertFalse(CLog.forSecretLogging("timestamp", new java.sql.Timestamp(0L)).isEmpty());
+		assertFalse(CLog.forSecretLogging("LocalDateTime", LocalDateTime.now()).isEmpty());
+		assertFalse(CLog.forSecretLogging("LocalDate", LocalDate.now()).isEmpty());
+		assertFalse(CLog.forSecretLogging("LocalTime", LocalTime.now()).isEmpty());
+		assertFalse(CLog.forSecretLogging("Calendar", new GregorianCalendar()).isEmpty());
+		assertFalse(CLog.forSecretLogging("boolean", true).isEmpty());
 
 		// TODO: Test with Oracle and SQL Server
 		checkDatabase("jdbc:mysql://localhost/junit?useSSL=false", "infinit", "infinit", DbType.MYSQL);
