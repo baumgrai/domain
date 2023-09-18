@@ -427,7 +427,7 @@ class LoadAndSaveTest extends TestHelpers {
 			aa1.listOfLists = CList.newList(new ArrayList<>(), CList.newList(Type.A), CList.newList(Type.A, Type.B), CList.newList(Type.A, Type.B, Type.C));
 			aa1.listOfMaps = CList.newList(new HashMap<>(), CMap.newMap("A", 1), CMap.newMap("A", 1, "B", 2), CMap.newMap("A", 1, "B", 2, "C", 3));
 			aa1.mapOfLists = CMap.newMap(0L, new ArrayList<>(), 1L, CList.newList("A"), 2L, CList.newList("A", "B"), 3L, CList.newList("A", "B", "C"));
-			aa1.mapOfMaps = CMap.newMap("0", new HashMap<>(), "1", CMap.newMap(Type.A, true), "2", CMap.newMap(Type.A, true, Type.B, false));
+			aa1.mapOfMaps = CMap.newMap("0", new HashMap<>(), "1", CMap.newMap(Type.A, true), "2", CMap.newMap(Type.A, false, Type.B, true));
 
 			aa1.o = o1;
 
@@ -467,7 +467,7 @@ class LoadAndSaveTest extends TestHelpers {
 			assertEquals(CList.newList(new ArrayList<>(), CList.newList(Type.A), CList.newList(Type.A, Type.B), CList.newList(Type.A, Type.B, Type.C)), aa1.listOfLists);
 			assertEquals(CList.newList(new HashMap<>(), CMap.newMap("A", 1), CMap.newMap("A", 1, "B", 2), CMap.newMap("A", 1, "B", 2, "C", 3)), aa1.listOfMaps);
 			assertEquals(CMap.newMap(0L, new ArrayList<>(), 1L, CList.newList("A"), 2L, CList.newList("A", "B"), 3L, CList.newList("A", "B", "C")), aa1.mapOfLists);
-			assertEquals(CMap.newMap("0", new HashMap<>(), "1", CMap.newMap(Type.A, true), "2", CMap.newMap(Type.A, true, Type.B, false)), aa1.mapOfMaps);
+			assertEquals(CMap.newMap("0", new HashMap<>(), "1", CMap.newMap(Type.A, true), "2", CMap.newMap(Type.A, false, Type.B, true)), aa1.mapOfMaps);
 
 			assertEquals(o1, aa1.o);
 		}
