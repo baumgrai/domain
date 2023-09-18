@@ -23,6 +23,10 @@ public class Survey extends SqlDomainObject {
 
 	static final Logger log = LoggerFactory.getLogger(Survey.class);
 
+	// Helper domain class avoid ordering more bikes than available
+	public static class InProgress extends SqlDomainObject {
+	}
+
 	public enum Semaphore {
 		GREEN, RED
 	}
