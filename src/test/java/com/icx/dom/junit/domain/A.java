@@ -3,6 +3,7 @@ package com.icx.dom.junit.domain;
 import java.io.File;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -48,12 +49,15 @@ public abstract class A extends SqlDomainObject {
 	public BigInteger bigIntegerValue;
 	public BigDecimal bigDecimalValue;
 
+	public LocalDateTime datetime;
+
 	@Created(version = "1.1:isText=true")
 	@Changed(versions = { "1.2:isText=false;unique=false", "1.3:charsize=16;unique=true" })
 	@SqlColumn(unique = true, charsize = 16)
 	public String s;
 
 	public byte[] bytes;
+	public byte[] picture;
 
 	@SqlColumn(charsize = 1024)
 	public File file;
