@@ -155,4 +155,14 @@ public abstract class CLog {
 		return forAnalyticLogging((value instanceof String && isSecret(expr) ? greyOut((String) value) : value));
 	}
 
+	// Indentation for logging
+	public static String tabs(int count) {
+
+		StringBuilder sb = new StringBuilder();
+		for (int i = 0; i < count; i++) {
+			sb.append("\t");
+		}
+		return sb.toString();
+	}
+
 }
