@@ -31,39 +31,14 @@ import com.icx.dom.domain.DomainController;
 import com.icx.dom.domain.DomainObject;
 import com.icx.dom.domain.Registry;
 import com.icx.dom.jdbc.JdbcHelpers;
+import com.icx.dom.jdbc.SqlDb;
 import com.icx.dom.jdbc.SqlDbException;
 import com.icx.dom.jdbc.SqlDbTable;
 import com.icx.dom.jdbc.SqlDbTable.Column;
 
-public abstract class LoadHelpers extends Common {
+public abstract class LoadAndSaveHelpers extends Common {
 
-	static final Logger log = LoggerFactory.getLogger(LoadHelpers.class);
-
-	// Determine object domain class of (missing) object given by id and derived domain class by loading object record
-	@SuppressWarnings("unchecked")
-	private static <S extends SqlDomainObject> Class<S> determineObjectDomainClassOfMissingObject(Connection cn, Class<S> domainClass, long id) {
-
-		log.info("SDC: Domain class '{}' is not an object domain class -> determine object domain class for missing object(s).", domainClass.getSimpleName());
-
-		// Determine object domain class by retrieving domain class name from selected referenced object record
-		try {
-			String refTableName = SqlRegistry.getTableFor(domainClass).name;
-			List<SortedMap<String, Object>> records = SqlDomainController.sqlDb.selectFrom(cn, refTableName, SqlDomainObject.DOMAIN_CLASS_COL, "ID=" + id, null, CList.newList(String.class));
-			if (records.isEmpty()) {
-				log.error("No record found for object {}@{} which is referenced by child object and therefore should exist", domainClass.getSimpleName(), id);
-			}
-			else {
-				String objectDomainClassName = (String) records.get(0).get(SqlDomainObject.DOMAIN_CLASS_COL); // Assume JDBC type of column is String for String field
-				log.info("SDC: Object domain class for referenced domain class '{}' is: '{}'", domainClass.getSimpleName(), objectDomainClassName);
-				return (Class<S>) DomainController.getDomainClassByName(objectDomainClassName);
-			}
-		}
-		catch (SQLException | SqlDbException e) {
-			log.error("SDC: Exception determining object domain class for domain class '{}'", domainClass, e);
-		}
-
-		return null;
-	}
+	static final Logger log = LoggerFactory.getLogger(LoadAndSaveHelpers.class);
 
 	// -------------------------------------------------------------------------
 	// SELECT helpers
@@ -94,7 +69,7 @@ public abstract class LoadHelpers extends Common {
 
 		// Extend table and column expression for inherited domain classes
 
-		Predicate<Column> isNonStandardColumnPredicate = c -> !objectsEqual(c.name, SqlDomainObject.ID_COL) && !objectsEqual(c.name, SqlDomainObject.DOMAIN_CLASS_COL);
+		Predicate<Column> isNonStandardColumnPredicate = c -> !objectsEqual(c.name, Const.ID_COL) && !objectsEqual(c.name, Const.DOMAIN_CLASS_COL);
 
 		Class<? extends DomainObject> derivedDomainClass = Registry.getSuperclass(objectDomainClass);
 		while (derivedDomainClass != SqlDomainObject.class) {
@@ -118,15 +93,15 @@ public abstract class LoadHelpers extends Common {
 
 		// Build table clause - join entry table and main object table
 
-		SqlDbTable entryTable = SqlRegistry.getEntryTableFor(complexField);
-		Column mainTableRefIdColumn = SqlRegistry.getMainTableRefIdColumnFor(complexField);
+		String entryTableName = SqlRegistry.getEntryTableFor(complexField).name;
+		String refIdColumnName = SqlRegistry.getMainTableRefIdColumnFor(complexField).name;
 
-		sde.joinedTableExpression = entryTable.name + " JOIN " + baseTableExpression + " ON " + entryTable.name + "." + mainTableRefIdColumn.name + "=" + mainObjectTable.name + ".ID";
+		sde.joinedTableExpression = entryTableName + " JOIN " + baseTableExpression + " ON " + entryTableName + "." + refIdColumnName + "=" + mainObjectTable.name + ".ID";
 
 		// Build column clause for entry records
 
 		// Column referencing main table for domain class
-		sde.allColumnNames.add(mainTableRefIdColumn.name);
+		sde.allColumnNames.add(refIdColumnName);
 		sde.allFieldTypes.add(Long.class);
 
 		Class<?> fieldClass = complexField.getType();
@@ -135,7 +110,7 @@ public abstract class LoadHelpers extends Common {
 		if (Collection.class.isAssignableFrom(fieldClass)) {
 
 			// Column for elements of collection
-			sde.allColumnNames.add(SqlDomainObject.ELEMENT_COL);
+			sde.allColumnNames.add(Const.ELEMENT_COL);
 			Type elementType = genericFieldType.getActualTypeArguments()[0];
 			if (elementType instanceof ParameterizedType) {
 				elementType = String.class; // Collections and maps as elements of a collection are stored as strings in database
@@ -148,20 +123,20 @@ public abstract class LoadHelpers extends Common {
 			if (List.class.isAssignableFrom(fieldClass)) {
 
 				// Column for list order and ORDER BY clause
-				sde.allColumnNames.add(SqlDomainObject.ORDER_COL);
+				sde.allColumnNames.add(Const.ORDER_COL);
 				sde.allFieldTypes.add(Integer.class);
-				sde.orderByClause = SqlDomainObject.ORDER_COL;
+				sde.orderByClause = Const.ORDER_COL;
 			}
 		}
 		else {
 			// Column for keys of map
-			sde.allColumnNames.add(SqlDomainObject.KEY_COL);
+			sde.allColumnNames.add(Const.KEY_COL);
 			Type keyType = genericFieldType.getActualTypeArguments()[0];
 			keyType = Helpers.requiredJdbcTypeFor((Class<?>) keyType);
 			sde.allFieldTypes.add((Class<?>) keyType); // Keys may not be complex objects
 
 			// Column for values of map
-			sde.allColumnNames.add(SqlDomainObject.VALUE_COL);
+			sde.allColumnNames.add(Const.VALUE_COL);
 			Type valueType = genericFieldType.getActualTypeArguments()[1];
 			if (valueType instanceof ParameterizedType) {
 				valueType = String.class; // Collections and maps as values of a map are stored as strings in database
@@ -177,7 +152,7 @@ public abstract class LoadHelpers extends Common {
 
 	// Load object records for one object domain class - means one record per object, containing data of all tables associated with object domain class according inheritance
 	// e.g. class Racebike extends Bike -> tables [ DOM_BIKE, DOM_RACEBIKE ])
-	static <S extends SqlDomainObject> Map<Long, SortedMap<String, Object>> retrieveRecordsForObjectDomainClass(Connection cn, int limit, Class<S> objectDomainClass, String whereClause) {
+	static <S extends SqlDomainObject> Map<Long, SortedMap<String, Object>> retrieveRecordsFor(Connection cn, int limit, Class<S> objectDomainClass, String whereClause) {
 
 		Map<Long, SortedMap<String, Object>> loadedRecordMap = new HashMap<>();
 
@@ -187,7 +162,7 @@ public abstract class LoadHelpers extends Common {
 			// Build select description for object records
 			SelectDescription sd = buildSelectDescriptionFor(objectDomainClass);
 
-			// SELECT object records and return empty map if no (matching) object found in database
+			// SELECT object records
 			List<SortedMap<String, Object>> loadedRecords = SqlDomainController.sqlDb.selectFrom(cn, sd.joinedTableExpression, sd.allColumnNames, whereClause, null, limit, null, sd.allFieldTypes);
 			if (CList.isEmpty(loadedRecords)) {
 				return loadedRecordMap;
@@ -197,10 +172,10 @@ public abstract class LoadHelpers extends Common {
 			for (SortedMap<String, Object> rec : loadedRecords) {
 
 				// Check if record is a 'real' (not derived) object record (this should not be necessary)
-				String actualObjectDomainClassName = (String) rec.get(SqlDomainObject.DOMAIN_CLASS_COL);
+				String actualObjectDomainClassName = (String) rec.get(Const.DOMAIN_CLASS_COL);
 				if (objectsEqual(actualObjectDomainClassName, objectDomainClass.getSimpleName())) {
 
-					long objectId = (long) rec.get(SqlDomainObject.ID_COL);
+					long objectId = (long) rec.get(Const.ID_COL);
 					loadedRecordMap.put(objectId, rec);
 				}
 				else {
@@ -214,6 +189,8 @@ public abstract class LoadHelpers extends Common {
 			SqlDbTable objectTable = SqlRegistry.getTableFor(objectDomainClass);
 
 			for (Class<? extends DomainObject> domainClass : Registry.getInheritanceStack(objectDomainClass)) {
+
+				// For all table related fields...
 				for (Field complexField : Registry.getComplexFields(domainClass)) {
 
 					// Build table expression, column names and order by clause to SELECT entry records
@@ -225,8 +202,8 @@ public abstract class LoadHelpers extends Common {
 						// If # of loaded object records is limited SELECT only entry records for actually loaded object records
 						List<String> idsLists = Helpers.buildMax1000IdsLists(loadedRecordMap.keySet());
 						for (String idsList : idsLists) {
-							String localWhereClause = (!isEmpty(whereClause) ? "(" + whereClause + ") AND " : "") + objectTable.name + ".ID IN (" + idsList + ")";
-							loadedEntryRecords.addAll(SqlDomainController.sqlDb.selectFrom(cn, sde.joinedTableExpression, sde.allColumnNames, localWhereClause, sde.orderByClause, sde.allFieldTypes));
+							String limitWhereClause = (!isEmpty(whereClause) ? "(" + whereClause + ") AND " : "") + objectTable.name + ".ID IN (" + idsList + ")";
+							loadedEntryRecords.addAll(SqlDomainController.sqlDb.selectFrom(cn, sde.joinedTableExpression, sde.allColumnNames, limitWhereClause, sde.orderByClause, sde.allFieldTypes));
 						}
 					}
 					else {
@@ -234,24 +211,37 @@ public abstract class LoadHelpers extends Common {
 						loadedEntryRecords.addAll(SqlDomainController.sqlDb.selectFrom(cn, sde.joinedTableExpression, sde.allColumnNames, whereClause, sde.orderByClause, sde.allFieldTypes));
 					}
 
-					// Get entry table and column referencing id of main object record for complex (collection or map) field
-					String entryTableName = SqlRegistry.getEntryTableFor(complexField).name;
+					// Group selected entry records
+					Map<Long, List<SortedMap<String, Object>>> entryRecordsByObjectIdMap = new HashMap<>();
 					String refIdColumnName = SqlRegistry.getMainTableRefIdColumnFor(complexField).name;
 
-					// Add records of entry table to related object records using entry table name as key
 					for (SortedMap<String, Object> entryRecord : loadedEntryRecords) {
 
-						// Get object id and check if object record is present
+						// Ignore entry record if main object record (referenced by object id) is not present
 						long objectId = (long) entryRecord.get(refIdColumnName);
 						if (!loadedRecordMap.containsKey(objectId)) {
 							log.warn("SDC: Object {}@{} was not loaded before (trying) updating collection or map field '{}'", domainClass.getSimpleName(), objectId, complexField.getName());
 							continue;
 						}
 
-						// Add entry record to record list
-						@SuppressWarnings("unchecked")
-						List<SortedMap<String, Object>> entryRecords = (List<SortedMap<String, Object>>) loadedRecordMap.get(objectId).computeIfAbsent(entryTableName, t -> new ArrayList<>());
-						entryRecords.add(entryRecord);
+						// Add entry record to entry records for object
+						entryRecordsByObjectIdMap.computeIfAbsent(objectId, m -> new ArrayList<>()).add(entryRecord);
+					}
+
+					// Put collection or map defined by entry records to loaded object record with entry table name as key
+					String entryTableName = SqlRegistry.getEntryTableFor(complexField).name;
+					ParameterizedType genericFieldType = ((ParameterizedType) complexField.getGenericType());
+
+					if (Collection.class.isAssignableFrom(complexField.getType())) { // Collection
+
+						for (long objectId : entryRecordsByObjectIdMap.keySet()) {
+							loadedRecordMap.get(objectId).put(entryTableName, Helpers.entryRecords2Collection(genericFieldType, entryRecordsByObjectIdMap.get(objectId)));
+						}
+					}
+					else { // Map
+						for (long objectId : entryRecordsByObjectIdMap.keySet()) {
+							loadedRecordMap.get(objectId).put(entryTableName, Helpers.entryRecords2Map(genericFieldType, entryRecordsByObjectIdMap.get(objectId)));
+						}
 					}
 				}
 			}
@@ -264,6 +254,302 @@ public abstract class LoadHelpers extends Common {
 		}
 
 		return loadedRecordMap;
+	}
+
+	// -------------------------------------------------------------------------
+	// INSERT and UPDATE helpers
+	// -------------------------------------------------------------------------
+
+	// Collect changed field values (in respect to object record) or all field values if object is still unsaved
+	static Map<Class<? extends DomainObject>, Map<Field, Object>> collectFieldChanges(SqlDomainObject object) {
+
+		long id = object.getId();
+		Class<? extends SqlDomainObject> cls = object.getClass();
+
+		Map<Class<? extends DomainObject>, Map<Field, Object>> fieldChangesMapByDomainClassMap = new HashMap<>();
+
+		// Try to find object record
+		SortedMap<String, Object> objectRecord = SqlDomainController.recordMap.get(cls).get(id);
+		if (objectRecord == null) {
+
+			// New object: add { field , field value } entry to changes map for all registered fields (there is no conversion necessary here - field values will be collected as they are)
+			for (Class<? extends DomainObject> domainClass : Registry.getInheritanceStack(cls)) {
+				for (Field field : Registry.getRegisteredFields(domainClass)) {
+					fieldChangesMapByDomainClassMap.computeIfAbsent(domainClass, dc -> new HashMap<>()).put(field, object.getFieldValue(field));
+				}
+			}
+		}
+		else {
+			// Check fields and add { field , field value } entries to changes map if value was changed (conversion is only necessary for check of equality of field and column value)
+			for (Class<? extends DomainObject> domainClass : Registry.getInheritanceStack(cls)) {
+
+				// Data fields
+				for (Field dataField : Registry.getDataFields(domainClass)) {
+
+					Object fieldValue = object.getFieldValue(dataField);
+					Object columnValue = objectRecord.get(SqlRegistry.getColumnFor(dataField).name);
+
+					if (!logicallyEqual(Helpers.field2ColumnValue(fieldValue), columnValue)) {
+						fieldChangesMapByDomainClassMap.computeIfAbsent(domainClass, dc -> new HashMap<>()).put(dataField, fieldValue);
+					}
+				}
+
+				// Reference fields
+				for (Field refField : Registry.getReferenceFields(domainClass)) {
+
+					DomainObject refObj = (DomainObject) object.getFieldValue(refField);
+					Long refObjIdFromField = (refObj == null ? null : refObj.getId());
+					Long refObjIdFromColumn = (Long) objectRecord.get(SqlRegistry.getColumnFor(refField).name);
+
+					if (!objectsEqual(refObjIdFromField, refObjIdFromColumn)) {
+						fieldChangesMapByDomainClassMap.computeIfAbsent(domainClass, dc -> new HashMap<>()).put(refField, refObj);
+					}
+				}
+
+				// Element collection and key/value map fields
+				for (Field complexField : Registry.getComplexFields(domainClass)) {
+
+					SqlDbTable entryTable = SqlRegistry.getEntryTableFor(complexField);
+
+					if (Collection.class.isAssignableFrom(complexField.getType())) { // Collection
+
+						Collection<?> fieldCollection = (Collection<?>) object.getFieldValue(complexField);
+						Collection<?> columnCollection = (Collection<?>) objectRecord.get(entryTable.name);
+
+						if (!objectsEqual(fieldCollection, columnCollection)) {
+							fieldChangesMapByDomainClassMap.computeIfAbsent(domainClass, dc -> new HashMap<>()).put(complexField, fieldCollection);
+						}
+					}
+					else { // Map
+						Map<?, ?> fieldMap = (Map<?, ?>) object.getFieldValue(complexField);
+						Map<?, ?> columnMap = (Map<?, ?>) objectRecord.get(entryTable.name);
+
+						if (!objectsEqual(fieldMap, columnMap)) {
+							fieldChangesMapByDomainClassMap.computeIfAbsent(domainClass, dc -> new HashMap<>()).put(complexField, fieldMap);
+						}
+					}
+				}
+			}
+		}
+
+		return fieldChangesMapByDomainClassMap;
+	}
+
+	// Build column value map for SQL INSERT or UPDATE from field changes map
+	static SortedMap<String, Object> fieldChangesMap2ColumnValueMap(Map<Field, Object> fieldChangesMap, SqlDomainObject object) {
+
+		SortedMap<String, Object> columnValueMap = new TreeMap<>();
+
+		if (CMap.isEmpty(fieldChangesMap)) {
+			return columnValueMap;
+		}
+
+		for (Entry<Field, Object> entry : fieldChangesMap.entrySet()) {
+
+			// Handle only column related fields here
+			Field field = entry.getKey();
+			if (!Registry.isDataField(field) && !Registry.isReferenceField(field)) {
+				continue;
+			}
+
+			// Build column/value entry for data or reference field
+			Column column = SqlRegistry.getColumnFor(field);
+			if (Registry.isReferenceField(field)) { // Reference field
+
+				DomainObject refObj = (DomainObject) entry.getValue();
+				columnValueMap.put(column.name, refObj == null ? null : refObj.getId());
+			}
+			else { // Data field
+				Object columnValue = null;
+				Object fieldValue = entry.getValue();
+
+				if (fieldValue instanceof String && ((String) fieldValue).length() > column.maxlen) {
+
+					log.warn("SDO: Value '{}' exceeds maximum size {} of column '{}' for object {}! Truncate before saving object...", fieldValue, column.maxlen, column.name, object.name());
+					object.setFieldWarning(field, "CONTENT_TRUNCATED_IN_DATABASE");
+
+					columnValue = ((String) fieldValue).substring(0, column.maxlen);
+				}
+				else {
+					columnValue = Helpers.field2ColumnValue(fieldValue); // Convert object field value to appropriate value to set in table column (enum,BigInteger, BigDecimal, File)
+				}
+
+				columnValueMap.put(column.name, columnValue);
+			}
+		}
+
+		return columnValueMap;
+	}
+
+	// DELETE, UPDATE or/and INSERT entry records (reflecting element collection or key/value map fields) and update object record
+	static void updateEntryTables(Connection cn, Map<Field, Object> fieldChangesMap, SortedMap<String, Object> objectRecord, SqlDomainObject object) throws SqlDbException, SQLException {
+
+		if (CMap.isEmpty(fieldChangesMap)) {
+			return;
+		}
+
+		// For all changed complex fields...
+		for (Field complexField : fieldChangesMap.keySet()) {
+
+			// Ignore changes of column related fields here
+			if (!Registry.isComplexField(complexField)) {
+				continue;
+			}
+
+			// Get entry table and column referencing domain object
+			String entryTableName = SqlRegistry.getEntryTableFor(complexField).name;
+			String refIdColumnName = SqlRegistry.getMainTableRefIdColumnFor(complexField).name;
+
+			// Perform database operations
+			boolean isMap = Map.class.isAssignableFrom(complexField.getType());
+			try {
+				if (isMap) {
+
+					// Map field -> get existing map from object record and new map from field
+					Map<?, ?> oldMap = (Map<?, ?>) objectRecord.computeIfAbsent(entryTableName, m -> new HashMap<>());
+					Map<?, ?> newMap = (Map<?, ?>) fieldChangesMap.get(complexField);
+
+					// Ignore unchanged map
+					if (objectsEqual(oldMap, newMap)) {
+						continue;
+					}
+
+					// Determine map entries which do not exist anymore
+					Set<Object> mapKeysToRemove = new HashSet<>();
+					boolean hasOldMapNullKey = false;
+					for (Entry<?, ?> oldMapEntry : oldMap.entrySet()) {
+
+						if (!newMap.containsKey(oldMapEntry.getKey())) {
+							if (oldMapEntry.getKey() == null) {
+								hasOldMapNullKey = true;
+							}
+							else {
+								mapKeysToRemove.add(oldMapEntry.getKey());
+							}
+						}
+					}
+
+					// DELETE entry records for non-existing map entries
+					if (!mapKeysToRemove.isEmpty()) {
+						// TODO: Multiple DELETES with lists of max 1000 elements (Oracle)
+						SqlDb.deleteFrom(cn, entryTableName, refIdColumnName + "=" + object.getId() + " AND " + Const.KEY_COL + " IN " + Helpers.buildElementList(mapKeysToRemove));
+					}
+
+					if (hasOldMapNullKey) {
+						SqlDb.deleteFrom(cn, entryTableName, refIdColumnName + "=" + object.getId() + " AND " + Const.KEY_COL + " IS NULL");
+					}
+
+					// Determine new and changes map entries
+					Map<Object, Object> mapEntriesToInsert = new HashMap<>();
+					Map<Object, Object> mapEntriesToChange = new HashMap<>();
+					for (Entry<?, ?> newMapEntry : newMap.entrySet()) {
+
+						if (!oldMap.containsKey(newMapEntry.getKey())) {
+							mapEntriesToInsert.put(newMapEntry.getKey(), newMapEntry.getValue());
+						}
+						else if (!objectsEqual(oldMap.get(newMapEntry.getKey()), newMapEntry.getValue())) {
+							mapEntriesToChange.put(newMapEntry.getKey(), newMapEntry.getValue());
+						}
+					}
+
+					// INSERT new records for new map entries
+					if (!mapEntriesToInsert.isEmpty()) {
+						SqlDomainController.sqlDb.insertInto(cn, entryTableName, Helpers.map2EntryRecords(refIdColumnName, object.getId(), mapEntriesToInsert));
+					}
+
+					// UPDATE records for changed map entries
+					if (!mapEntriesToChange.isEmpty()) {
+						for (Object key : mapEntriesToChange.keySet()) {
+
+							SortedMap<String, Object> valueMap = new TreeMap<>();
+							valueMap.put(Const.VALUE_COL, Helpers.field2ColumnValue(mapEntriesToChange.get(key)));
+
+							key = Helpers.field2ColumnValue(key);
+
+							SqlDomainController.sqlDb.update(cn, entryTableName, valueMap,
+									refIdColumnName + "=" + object.getId() + " AND " + Const.KEY_COL + "=" + (key instanceof String ? "'" + key + "'" : key));
+						}
+					}
+
+					// Update object record - store map itself instead of entry records
+					objectRecord.put(entryTableName, newMap);
+				}
+				else if (Set.class.isAssignableFrom(complexField.getType())) {
+
+					// Set field -> get existing set from object record and new set from field
+					Set<?> oldSet = (Set<?>) objectRecord.computeIfAbsent(entryTableName, s -> new HashSet<>());
+					Set<?> newSet = (Set<?>) fieldChangesMap.get(complexField);
+
+					// Ignore unchanged set
+					if (objectsEqual(oldSet, newSet)) {
+						continue;
+					}
+
+					// Determine elements which do not exist anymore
+					Set<Object> elementsToRemove = new HashSet<>();
+					boolean hasNullElement = false;
+					for (Object oldElement : oldSet) {
+
+						if (!newSet.contains(oldElement)) {
+							if (oldElement == null) {
+								hasNullElement = true;
+							}
+							else {
+								elementsToRemove.add(oldElement);
+							}
+						}
+					}
+
+					// DELETE entry records for non-existing elements
+					if (!elementsToRemove.isEmpty()) {
+						SqlDb.deleteFrom(cn, entryTableName, refIdColumnName + "=" + object.getId() + " AND ELEMENT IN " + Helpers.buildElementList(elementsToRemove));
+					}
+					if (hasNullElement) {
+						SqlDb.deleteFrom(cn, entryTableName, refIdColumnName + "=" + object.getId() + " AND ELEMENT IS NULL");
+					}
+
+					// Determine new elements (null element is no exception from default handling on insertInto())
+					Set<Object> elementsToInsert = new HashSet<>();
+					for (Object newElement : newSet) {
+						if (!oldSet.contains(newElement)) {
+							elementsToInsert.add(newElement);
+						}
+					}
+
+					// INSERT new records for new elements
+					if (!elementsToInsert.isEmpty()) {
+						SqlDomainController.sqlDb.insertInto(cn, entryTableName, Helpers.collection2EntryRecords(refIdColumnName, object.getId(), elementsToInsert));
+					}
+
+					// Update object record - store set itself instead of entry records
+					objectRecord.put(entryTableName, newSet);
+				}
+				else {
+					// List field -> get existing list from object record and new list from field
+					List<?> oldList = (List<?>) objectRecord.computeIfAbsent(entryTableName, l -> new ArrayList<>());
+					List<?> newList = (List<?>) fieldChangesMap.get(complexField);
+
+					// Ignore unchanged list
+					if (objectsEqual(oldList, newList)) {
+						continue;
+					}
+
+					// DELETE old entry records and INSERT new ones (to simplify operation on list where order-only changes must be reflected too)
+					SqlDb.deleteFrom(cn, entryTableName, refIdColumnName + "=" + object.getId());
+					SqlDomainController.sqlDb.insertInto(cn, entryTableName, Helpers.collection2EntryRecords(refIdColumnName, object.getId(), newList));
+
+					// Update object record - store list itself instead of entry records
+					objectRecord.put(entryTableName, newList);
+				}
+			}
+			catch (SQLException sqlex) {
+
+				log.error("SDO: Exception on updating entry table '{}' for {} field '{}' of object '{}'", entryTableName, (isMap ? "map" : "collection"), complexField.getName(), object.name());
+				object.setFieldError(complexField, "Entries for this " + (isMap ? "map" : "collection") + " field could not be updated in database");
+
+				throw sqlex;
+			}
+		}
 	}
 
 	// -------------------------------------------------------------------------
@@ -316,15 +602,11 @@ public abstract class LoadHelpers extends Common {
 	}
 
 	// Check if object has unsaved changes in a collection or map
-	@SuppressWarnings("unchecked")
 	private static void checkUnsavedComplexFieldChanges(SqlDomainObject obj, Field complexField, String entryTableName, Object collectionOrMapFromObject, boolean isCollection) {
-
-		ParameterizedType genericFieldType = (ParameterizedType) complexField.getGenericType();
 
 		if (isCollection) { // Collection
 
-			Collection<?> colFromObjRecord = Helpers.entryRecords2Collection(genericFieldType,
-					(List<SortedMap<String, Object>>) SqlDomainController.recordMap.get(obj.getClass()).get(obj.getId()).get(entryTableName));
+			Collection<?> colFromObjRecord = (Collection<?>) SqlDomainController.recordMap.get(obj.getClass()).get(obj.getId()).get(entryTableName);
 
 			if (!objectsEqual(collectionOrMapFromObject, colFromObjRecord)) {
 
@@ -336,8 +618,7 @@ public abstract class LoadHelpers extends Common {
 			}
 		}
 		else { // Map
-			Map<?, ?> mapFromObjRecord = Helpers.entryRecords2Map(genericFieldType,
-					(List<SortedMap<String, Object>>) SqlDomainController.recordMap.get(obj.getClass()).get(obj.getId()).get(entryTableName));
+			Map<?, ?> mapFromObjRecord = (Map<?, ?>) SqlDomainController.recordMap.get(obj.getClass()).get(obj.getId()).get(entryTableName);
 
 			if (!objectsEqual(collectionOrMapFromObject, mapFromObjRecord)) {
 
@@ -431,7 +712,6 @@ public abstract class LoadHelpers extends Common {
 			for (Field complexField : Registry.getComplexFields(domainClass).stream().filter(hasEntriesChangedPredicate).collect(Collectors.toList())) {
 
 				String entryTableName = SqlRegistry.getEntryTableFor(complexField).name;
-				ParameterizedType genericFieldType = (ParameterizedType) complexField.getGenericType();
 				boolean isCollection = Collection.class.isAssignableFrom(complexField.getType());
 				Object collectionOrMapFromFieldValue = obj.getFieldValue(complexField);
 
@@ -441,14 +721,14 @@ public abstract class LoadHelpers extends Common {
 
 				if (isCollection) { // Collection
 
-					Collection<?> colFromDatabase = Helpers.entryRecords2Collection(genericFieldType, (List<SortedMap<String, Object>>) databaseChangesMap.get(entryTableName));
+					Collection<Object> colFromDatabase = (Collection<Object>) databaseChangesMap.get(entryTableName);
 					Collection<Object> colFromObject = (Collection<Object>) collectionOrMapFromFieldValue;
 
 					colFromObject.clear();
 					colFromObject.addAll(colFromDatabase);
 				}
 				else { // Map
-					Map<?, ?> mapFromDatabase = Helpers.entryRecords2Map(genericFieldType, (List<SortedMap<String, Object>>) databaseChangesMap.get(entryTableName));
+					Map<Object, Object> mapFromDatabase = (Map<Object, Object>) databaseChangesMap.get(entryTableName);
 					Map<Object, Object> mapFromObject = (Map<Object, Object>) collectionOrMapFromFieldValue;
 
 					mapFromObject.clear();
@@ -504,7 +784,7 @@ public abstract class LoadHelpers extends Common {
 					else {
 						obj.registerById(id);
 						obj.setIsStored();
-						obj.lastModifiedInDb = ((LocalDateTime) loadedRecord.get(SqlDomainObject.LAST_MODIFIED_COL));
+						obj.lastModifiedInDb = ((LocalDateTime) loadedRecord.get(Const.LAST_MODIFIED_COL));
 
 						// Assign loaded data to corresponding fields of domain object, collect unresolved references and objects where references were changed
 						assignDataToObject(obj, true, loadedRecord, objectsWhereReferencesChanged, unresolvedReferences);
@@ -529,7 +809,7 @@ public abstract class LoadHelpers extends Common {
 						Object value = loadedRecordEntry.getValue();
 
 						// Add column/value entry to changes map if current and loaded values differ - ignore last modified column; consider only logical changes
-						if (!objectsEqual(col, SqlDomainObject.LAST_MODIFIED_COL) && !logicallyEqual(value, objectRecord.get(col))) {
+						if (!objectsEqual(col, Const.LAST_MODIFIED_COL) && !logicallyEqual(value, objectRecord.get(col))) {
 
 							if (log.isDebugEnabled()) {
 								log.debug("SDC: Column {}: loaded value {} differs from current value {}", col, CLog.forSecretLogging(col, value), CLog.forSecretLogging(col, objectRecord.get(col)));
@@ -550,7 +830,7 @@ public abstract class LoadHelpers extends Common {
 						}
 
 						// Consider changed last modification date if any logical change was detected
-						databaseChangesMap.put(SqlDomainObject.LAST_MODIFIED_COL, loadedRecord.get(SqlDomainObject.LAST_MODIFIED_COL));
+						databaseChangesMap.put(Const.LAST_MODIFIED_COL, loadedRecord.get(Const.LAST_MODIFIED_COL));
 
 						// Assign changed data to corresponding fields of domain object, collect unresolved references and objects where references were changed
 						assignDataToObject(obj, false, databaseChangesMap, objectsWhereReferencesChanged, unresolvedReferences);
@@ -571,6 +851,32 @@ public abstract class LoadHelpers extends Common {
 	// -------------------------------------------------------------------------
 	// Unresolved references
 	// -------------------------------------------------------------------------
+
+	// Determine object domain class of (missing) object given by id and derived domain class by loading object record
+	@SuppressWarnings("unchecked")
+	private static <S extends SqlDomainObject> Class<S> determineObjectDomainClassOfMissingObject(Connection cn, Class<S> domainClass, long id) {
+
+		log.info("SDC: Domain class '{}' is not an object domain class -> determine object domain class for missing object(s).", domainClass.getSimpleName());
+
+		// Determine object domain class by retrieving domain class name from selected referenced object record
+		try {
+			String refTableName = SqlRegistry.getTableFor(domainClass).name;
+			List<SortedMap<String, Object>> records = SqlDomainController.sqlDb.selectFrom(cn, refTableName, Const.DOMAIN_CLASS_COL, "ID=" + id, null, CList.newList(String.class));
+			if (records.isEmpty()) {
+				log.error("No record found for object {}@{} which is referenced by child object and therefore should exist", domainClass.getSimpleName(), id);
+			}
+			else {
+				String objectDomainClassName = (String) records.get(0).get(Const.DOMAIN_CLASS_COL); // Assume JDBC type of column is String for String field
+				log.info("SDC: Object domain class for referenced domain class '{}' is: '{}'", domainClass.getSimpleName(), objectDomainClassName);
+				return (Class<S>) DomainController.getDomainClassByName(objectDomainClassName);
+			}
+		}
+		catch (SQLException | SqlDbException e) {
+			log.error("SDC: Exception determining object domain class for domain class '{}'", domainClass, e);
+		}
+
+		return null;
+	}
 
 	// Load records of objects which were not loaded initially (because they are out of data horizon) but which are referenced by initially loaded objects
 	static <S extends SqlDomainObject> Map<Class<S>, Map<Long, SortedMap<String, Object>>> loadMissingObjectRecords(Connection cn, Set<UnresolvedReference<S>> unresolvedReferences) {
@@ -619,7 +925,7 @@ public abstract class LoadHelpers extends Common {
 			Map<Long, SortedMap<String, Object>> collectedRecordMap = new HashMap<>();
 			List<String> idsLists = Helpers.buildMax1000IdsLists(entry.getValue());
 			for (String idsList : idsLists) {
-				collectedRecordMap.putAll(retrieveRecordsForObjectDomainClass(cn, 0, objectDomainClass, SqlRegistry.getTableFor(objectDomainClass).name + ".ID IN (" + idsList + ")"));
+				collectedRecordMap.putAll(retrieveRecordsFor(cn, 0, objectDomainClass, SqlRegistry.getTableFor(objectDomainClass).name + ".ID IN (" + idsList + ")"));
 			}
 
 			loadedMissingRecordsMap.put(objectDomainClass, collectedRecordMap);

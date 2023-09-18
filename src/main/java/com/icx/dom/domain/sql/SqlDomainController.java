@@ -27,7 +27,7 @@ import com.icx.dom.domain.DomainController;
 import com.icx.dom.domain.DomainException;
 import com.icx.dom.domain.DomainObject;
 import com.icx.dom.domain.Registry;
-import com.icx.dom.domain.sql.LoadHelpers.UnresolvedReference;
+import com.icx.dom.domain.sql.LoadAndSaveHelpers.UnresolvedReference;
 import com.icx.dom.jdbc.ConfigException;
 import com.icx.dom.jdbc.SqlConnection;
 import com.icx.dom.jdbc.SqlDb;
@@ -183,10 +183,10 @@ public abstract class SqlDomainController extends DomainController {
 			}
 
 			// For data horizon controlled object domain classes build WHERE clause for data horizon control
-			String whereClause = (Registry.isDataHorizonControlled(objectDomainClass) ? SqlDomainObject.LAST_MODIFIED_COL + ">=" + dataHorizon : null);
+			String whereClause = (Registry.isDataHorizonControlled(objectDomainClass) ? Const.LAST_MODIFIED_COL + ">=" + dataHorizon : null);
 
 			// SELECT objects
-			Map<Long, SortedMap<String, Object>> loadedObjectsMap = LoadHelpers.retrieveRecordsForObjectDomainClass(cn, 0, objectDomainClass, whereClause);
+			Map<Long, SortedMap<String, Object>> loadedObjectsMap = LoadAndSaveHelpers.retrieveRecordsFor(cn, 0, objectDomainClass, whereClause);
 
 			// Fill loaded records map
 			if (!CMap.isEmpty(loadedObjectsMap)) {
@@ -201,7 +201,7 @@ public abstract class SqlDomainController extends DomainController {
 	private static <S extends SqlDomainObject> Map<Class<S>, Map<Long, SortedMap<String, Object>>> select(Connection cn, Class<S> objectDomainClass, String whereClause, int maxCount) {
 
 		// Try to SELECT object records FOR UPDATE
-		Map<Long, SortedMap<String, Object>> loadedRecordsMap = LoadHelpers.retrieveRecordsForObjectDomainClass(cn, maxCount, objectDomainClass, whereClause);
+		Map<Long, SortedMap<String, Object>> loadedRecordsMap = LoadAndSaveHelpers.retrieveRecordsFor(cn, maxCount, objectDomainClass, whereClause);
 		if (CMap.isEmpty(loadedRecordsMap)) {
 			return Collections.emptyMap();
 		}
@@ -223,7 +223,7 @@ public abstract class SqlDomainController extends DomainController {
 		whereClause = (!isEmpty(whereClause) ? "(" + whereClause + ") AND " : "") + objectTableName + ".ID NOT IN (SELECT ID FROM " + inProgressTableName + ")";
 
 		// SELECT object records
-		Map<Long, SortedMap<String, Object>> rawRecordsMap = LoadHelpers.retrieveRecordsForObjectDomainClass(cn, maxCount, objectDomainClass, whereClause);
+		Map<Long, SortedMap<String, Object>> rawRecordsMap = LoadAndSaveHelpers.retrieveRecordsFor(cn, maxCount, objectDomainClass, whereClause);
 		if (CMap.isEmpty(rawRecordsMap)) {
 			return Collections.emptyMap();
 		}
@@ -271,7 +271,7 @@ public abstract class SqlDomainController extends DomainController {
 			Set<UnresolvedReference<S>> unresolvedReferences = new HashSet<>();
 
 			// Instantiate newly loaded objects, assign changed data and references to objects, collect initially unresolved references
-			boolean hasChanges = LoadHelpers.buildObjectsFromLoadedRecords(loadedRecordsMap, loadedObjects, objectsWhereReferencesChanged, unresolvedReferences);
+			boolean hasChanges = LoadAndSaveHelpers.buildObjectsFromLoadedRecords(loadedRecordsMap, loadedObjects, objectsWhereReferencesChanged, unresolvedReferences);
 
 			// Cyclicly load and instantiate missing (parent) objects and detect unresolved references on these objects
 			int c = 1;
@@ -282,7 +282,7 @@ public abstract class SqlDomainController extends DomainController {
 						unresolvedReferences.stream().map(ur -> ur.obj.getClass().getSimpleName()).distinct().collect(Collectors.toList()), c++);
 
 				// Load and instantiate missing objects of unresolved references and add loaded records to total loaded object records
-				Map<Class<S>, Map<Long, SortedMap<String, Object>>> loadedMissingObjectRecordMapByDomainClassMap = LoadHelpers.loadMissingObjectRecords(sqlcn.cn, unresolvedReferences);
+				Map<Class<S>, Map<Long, SortedMap<String, Object>>> loadedMissingObjectRecordMapByDomainClassMap = LoadAndSaveHelpers.loadMissingObjectRecords(sqlcn.cn, unresolvedReferences);
 				for (Entry<Class<S>, Map<Long, SortedMap<String, Object>>> entry : loadedMissingObjectRecordMapByDomainClassMap.entrySet()) {
 
 					Class<S> objectDomainClass = entry.getKey();
@@ -294,10 +294,10 @@ public abstract class SqlDomainController extends DomainController {
 
 				// Initialize missed objects and determine further unresolved references
 				Set<UnresolvedReference<S>> nextUnresolvedReferences = new HashSet<>();
-				hasChanges |= LoadHelpers.buildObjectsFromLoadedRecords(loadedMissingObjectRecordMapByDomainClassMap, loadedObjects, objectsWhereReferencesChanged, nextUnresolvedReferences);
+				hasChanges |= LoadAndSaveHelpers.buildObjectsFromLoadedRecords(loadedMissingObjectRecordMapByDomainClassMap, loadedObjects, objectsWhereReferencesChanged, nextUnresolvedReferences);
 
 				// Resolve unresolved references of last cycle after missing objects were instantiated
-				LoadHelpers.resolveUnresolvedReferences(unresolvedReferences);
+				LoadAndSaveHelpers.resolveUnresolvedReferences(unresolvedReferences);
 				unresolvedReferences = nextUnresolvedReferences;
 			}
 
@@ -313,15 +313,17 @@ public abstract class SqlDomainController extends DomainController {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Save potentially existing unsaved new objects to database, than load all currently relevant objects from database and unregister objects which were deleted in database or fell out of data
-	 * horizon but are not referenced by any other object.
+	 * Synchronize this domain controller instance with the database.
+	 * 
+	 * First saves potentially existing unsaved new objects to database, than load all currently relevant objects from database and after that unregister objects which were deleted in database or fell
+	 * out of data horizon (and which are not referenced by any other object).
 	 * <p>
-	 * Field values of existing local objects will generally be overridden by values retrieved from database on load. Unsaved field values which also changed in database will be discarded and
-	 * overridden by database values! Warn logs will be written and warnings will be assigned to affected objects in this case. It's recommended to ensure that all local changes are saved before
-	 * calling this method.
+	 * Field values of existing local objects will generally be overridden by values retrieved from database on load. Unsaved changed field values, which were changed in database too, will be
+	 * discarded and overridden by database values! Warn logs will be written and warnings will be assigned to affected objects in this case. It's recommended to ensure that all local changes are
+	 * saved before calling {@link #synchronize(Class...)}.
 	 * <p>
-	 * For data horizon controlled domain classes first load only objects within data horizon {@link @useDataHorizon}. But method ensures referential integrity by loading all referenced objects even
-	 * if they are out of data horizon.
+	 * For data horizon controlled domain classes this method first loads only objects within data horizon {@link @useDataHorizon}. But method ensures referential integrity by generally loading all
+	 * referenced objects even if they are out of data horizon (ensures referential integrity)..
 	 * 
 	 * @param domainClassesToExclude
 	 *            optional domain classes which objects shall not be loaded from database
@@ -359,107 +361,137 @@ public abstract class SqlDomainController extends DomainController {
 	}
 
 	// -------------------------------------------------------------------------
-	// Public load methods
+	// Load specific objects from database
 	// -------------------------------------------------------------------------
 
-	// Load objects of one domain class and recursively all referenced objects (assure referential integrity)
-	public static <S extends SqlDomainObject> boolean load(Class<S> objectDomainClass, String whereClause, int maxCount, Set<S> loadedObjects) throws SQLException {
+	/**
+	 * Load objects of only one (primary) object domain class (selected by WHERE clause if specified) and also objects directly or indirectly referenced by these primarily loaded objects (to assure
+	 * referential integrity).
+	 * 
+	 * @param objectDomainClass
+	 *            object domain class of primary objects to load
+	 * @param whereClause
+	 *            to further shrink amount of loaded objects
+	 * @param maxCount
+	 *            maximum number of primary objects to load
+	 * 
+	 * @return objects loaded from database potentially including referenced objects of other than the given object domain class
+	 * 
+	 * @throws SQLException
+	 *             on opening database connection or performing SELECT statements
+	 */
+	public static <S extends SqlDomainObject> Set<S> loadOnly(Class<S> objectDomainClass, String whereClause, int maxCount) throws SQLException {
 
 		log.info("SDC: Load {}'{}' objects{}", (maxCount > 0 ? "max " + maxCount + " " : ""), objectDomainClass.getSimpleName(), (!isEmpty(whereClause) ? " WHERE " + whereClause.toUpperCase() : ""));
 
-		return loadAssuringReferentialIntegrity(cn -> select(cn, objectDomainClass, whereClause, maxCount), loadedObjects);
+		Set<S> loadedObjects = new HashSet<>();
+		loadAssuringReferentialIntegrity(cn -> select(cn, objectDomainClass, whereClause, maxCount), loadedObjects);
+
+		return loadedObjects;
 	}
 
-	// Update objects exclusively
-	public static <S extends SqlDomainObject> Set<S> updateExclusively(Class<S> objectDomainClass, Class<? extends SqlDomainObject> inProgressClass, String whereClause, Consumer<? super S> update)
-			throws SQLException, SqlDbException {
+	// -------------------------------------------------------------------------
+	// Loading specific objects and allocating objects exclusively for domain controller instance
+	// -------------------------------------------------------------------------
 
-		log.info("SDC: Update '{}' objects{} exclusively for this domain controller instance", objectDomainClass.getSimpleName(), (!isEmpty(whereClause) ? " WHERE " + whereClause.toUpperCase() : ""));
-
-		try (SqlConnection sqlcn = SqlConnection.open(sqlDb.pool, false)) {
-
-			// Load objects related to given object domain class and filter objects of object domain class itself (because loaded objects may contain referenced objects of other domain classes too)
-			// Objects loaded here are typically always loaded (on initial load or synchronization); select exclusively means marking selected objects to avoid that concurrent exclusive selection
-			// calls find same objects by creating a shadow 'in-progress' record with same id as selected record relying on uniqueness of 'ID' field
-			Set<S> loadedObjects = new HashSet<>();
-			loadAssuringReferentialIntegrity(cn -> selectExclusively(cn, objectDomainClass, inProgressClass, whereClause, -1), loadedObjects);
-			loadedObjects = loadedObjects.stream().filter(o -> o.getClass().equals(objectDomainClass)).collect(Collectors.toSet());
-
-			log.info("SDC: {} '{}' objects exclusively selected", loadedObjects.size(), objectDomainClass.getSimpleName());
-
-			// If update is specified: change object as defined by update parameter and UPDATE record in database by saving object, release object from exclusive use if specified
-			if (update != null) {
-
-				log.info("SDC: Update status of exclusively allocated objects...");
-
-				for (S loadedObject : loadedObjects) {
-
-					update.accept(loadedObject);
-					loadedObject.save();
-
-					release(loadedObject, inProgressClass, null);
-				}
-			}
-
-			return loadedObjects;
-		}
-	}
-
-	// Allocate objects exclusively - must later be released from exclusive use
-	public static <S extends SqlDomainObject> Set<S> allocateExclusively(Class<S> objectDomainClass, Class<? extends SqlDomainObject> inProgressClass, String whereClause, Consumer<? super S> update,
-			int maxCount) throws SQLException, SqlDbException {
+	/**
+	 * Allocate objects of one domain class for exclusive use by this domain controller instance.
+	 * <p>
+	 * This method is intended to synchronize access if multiple domain controller instances concurrently operate on the same database.
+	 * <p>
+	 * Allocated objects must later be released from exclusive use to allow exclusive use by other instances.
+	 * <p>
+	 * Exclusive allocation of objects is realized by inserting a record in a 'shadow' table for every allocated object with the object id as record id. The UNIQUE constraint for ID ensures, that this
+	 * can be done only one time for an object.
+	 * <p>
+	 * Objects allocated here are typically already loaded by synchronization.
+	 * 
+	 * @param objectDomainClass
+	 *            object domain class of objects to allocate exclusively
+	 * @param inProgressClass
+	 *            class for shadow records to ensure exclusivity of this operation
+	 * @param whereClause
+	 *            WHERE clause to build SELECT statement for objects to allocate (e.g. STATUS='new')
+	 * @param maxCount
+	 *            maximum # of objects to allocate
+	 * @param update
+	 *            function to compute immediately on allocated objects or null - objects will be saved to database immediately after computing (e.g. o -> o.status = 'processing')
+	 * 
+	 * @return allocated objects
+	 * 
+	 * @throws SQLException
+	 *             exceptions thrown establishing connection or on executing SQL SELECT or UPDATE statement
+	 * @throws SqlDbException
+	 *             on internal errors
+	 */
+	public static <S extends SqlDomainObject> Set<S> allocateExclusively(Class<S> objectDomainClass, Class<? extends SqlDomainObject> inProgressClass, String whereClause, int maxCount,
+			Consumer<? super S> update) throws SQLException, SqlDbException {
 
 		log.info("SDC: Allocate {}'{}' objects{} exclusively for this domain controller instance", (maxCount > 0 ? "max " + maxCount + " " : ""), objectDomainClass.getSimpleName(),
 				(!isEmpty(whereClause) ? " WHERE " + whereClause.toUpperCase() : ""));
 
-		try (SqlConnection sqlcn = SqlConnection.open(sqlDb.pool, false)) {
+		// Load objects related to given object domain class
+		Set<S> allocatedObjects = new HashSet<>();
+		loadAssuringReferentialIntegrity(cn -> selectExclusively(cn, objectDomainClass, inProgressClass, whereClause, maxCount), allocatedObjects);
 
-			Set<S> allocatedObjects = new HashSet<>();
-			loadAssuringReferentialIntegrity(cn -> selectExclusively(cn, objectDomainClass, inProgressClass, whereClause, maxCount), allocatedObjects);
-			allocatedObjects = allocatedObjects.stream().filter(o -> o.getClass().equals(objectDomainClass)).collect(Collectors.toSet());
+		// Filter objects of object domain class itself (because loaded objects may contain referenced objects of other domain classes too)
+		allocatedObjects = allocatedObjects.stream().filter(o -> o.getClass().equals(objectDomainClass)).collect(Collectors.toSet());
+		if (!allocatedObjects.isEmpty()) {
 
-			if (!allocatedObjects.isEmpty()) {
+			log.info("SDC: {} '{}' objects exclusively allocated", allocatedObjects.size(), objectDomainClass.getSimpleName());
 
-				log.info("SDC: {} '{}' objects exclusively allocated", allocatedObjects.size(), objectDomainClass.getSimpleName());
+			// If update is specified: change object as defined by update parameter and UPDATE record in database by saving object, release object from exclusive use if specified
+			if (update != null) {
 
-				// If update is specified: change object as defined by update parameter and UPDATE record in database by saving object, release object from exclusive use if specified
-				if (update != null) {
+				log.info("SDC: Update exclusively allocated objects...");
 
-					log.info("SDC: Update status of exclusively allocated objects...");
-
-					for (S loadedObject : allocatedObjects) {
-						update.accept(loadedObject);
-						loadedObject.save();
-					}
+				for (S loadedObject : allocatedObjects) {
+					update.accept(loadedObject);
+					loadedObject.save();
 				}
 			}
-
-			return allocatedObjects;
-		}
-	}
-
-	// Released objects from exclusive use
-	public static <S extends SqlDomainObject> boolean release(S object, Class<? extends SqlDomainObject> inProgressClass, Consumer<? super S> update) throws SQLException, SqlDbException {
-
-		SqlDomainObject inProgressObject = DomainController.find(inProgressClass, object.getId());
-		if (inProgressObject == null) {
-			log.info("SDO: {} is currently not allocated for exclusive usage", object);
-			return false;
 		}
 		else {
-			log.info("SDO: Release {} from exclusive usage...", object);
-
-			// Change object as defined by update parameter and UPDATE record in database on saving object
-			if (update != null) {
-				update.accept(object);
-				object.save();
-			}
-
-			// Delete in-progress record
-			inProgressObject.delete();
-
-			return true;
+			log.info("SDC: No '{}' objects could exclusively be allocated", objectDomainClass.getSimpleName());
 		}
+
+		return allocatedObjects;
+	}
+
+	/**
+	 * Exclusively compute a function on objects of one domain class and save updated objects immediately.
+	 * <p>
+	 * Works like {@link #allocateExclusively(Class, Class, String, int, Consumer)} but releases objects immediately after computing update function. Releasing updated objects
+	 * ({@link SqlDomainObject#release(Class, Class, Consumer)} is not necessary.
+	 * 
+	 * @param objectDomainClass
+	 *            object domain class of objects to allocate exclusively
+	 * @param inProgressClass
+	 *            class for shadow records to ensure exclusivity of this operation
+	 * @param whereClause
+	 *            WHERE clause to build SELECT statement for objects to allocate (e.g. status='new')
+	 * @param update
+	 *            update function to compute immediately on selected objects or null - objects will be saved immediately after computing (e.g. o -> o.status = 'processed')
+	 * 
+	 * @return allocated objects
+	 * 
+	 * @throws SQLException
+	 *             exceptions thrown establishing connection or on executing SQL SELECT or UPDATE statement
+	 * @throws SqlDbException
+	 *             on internal errors
+	 */
+	public static <S extends SqlDomainObject> Set<S> computeExclusively(Class<S> objectDomainClass, Class<? extends SqlDomainObject> inProgressClass, String whereClause, Consumer<? super S> update)
+			throws SQLException, SqlDbException {
+
+		// Allocate objects exclusively and - if specified - performing 'update' for any allocated object
+		Set<S> loadedObjects = allocateExclusively(objectDomainClass, inProgressClass, whereClause, -1, update);
+
+		// Immediately release allocated objects from exclusive use
+		for (S object : loadedObjects) {
+			object.release(objectDomainClass, inProgressClass, null);
+		}
+
+		return loadedObjects;
 	}
 
 	// -------------------------------------------------------------------------
