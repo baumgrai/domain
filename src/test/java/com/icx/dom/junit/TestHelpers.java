@@ -8,7 +8,9 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class TestHelpers {
+import com.icx.dom.common.Common;
+
+public class TestHelpers extends Common {
 
 	protected static List<Field> fields(Class<?> c, String... fieldNames) throws NoSuchFieldException, SecurityException {
 

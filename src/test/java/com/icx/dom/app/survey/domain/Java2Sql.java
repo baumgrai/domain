@@ -21,6 +21,7 @@ import com.icx.dom.domain.DomainAnnotations.SqlColumn;
 import com.icx.dom.domain.DomainAnnotations.SqlTable;
 import com.icx.dom.domain.DomainObject;
 import com.icx.dom.domain.Registry;
+import com.icx.dom.domain.sql.Const;
 import com.icx.dom.domain.sql.SqlDomainObject;
 import com.icx.dom.domain.sql.tools.Column;
 import com.icx.dom.domain.sql.tools.FkConstraint;
@@ -108,18 +109,18 @@ public abstract class Java2Sql extends JdbcHelpers {
 		newTables.add(mainTable);
 
 		// Generate column definition for object class name (to know exact object type even on access to inherited record)
-		Column domainClassColumn = mainTable.addStandardColumn(SqlDomainObject.DOMAIN_CLASS_COL, String.class);
+		Column domainClassColumn = mainTable.addStandardColumn(Const.DOMAIN_CLASS_COL, String.class);
 		domainClassColumn.charsize = MAX_CLASSNAME_LENGTH;
 
 		// Generate ID column definition
-		Column idColumn = mainTable.addStandardColumn(SqlDomainObject.ID_COL, Long.class);
+		Column idColumn = mainTable.addStandardColumn(Const.ID_COL, Long.class);
 		idColumn.isPrimaryKey = true;
 
 		// Inheritance
 		if (Registry.isBaseDomainClass(domainClass)) {
 
 			// For base domain classes generate LAST_MODIFIED column definition and force building INDEX on this column for performance reasons
-			Column lastModifiedColumn = mainTable.addStandardColumn(SqlDomainObject.LAST_MODIFIED_COL, LocalDateTime.class);
+			Column lastModifiedColumn = mainTable.addStandardColumn(Const.LAST_MODIFIED_COL, LocalDateTime.class);
 			mainTable.addIndexFor(lastModifiedColumn);
 		}
 		else {

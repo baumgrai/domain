@@ -25,6 +25,7 @@ import com.icx.dom.common.Prop;
 import com.icx.dom.domain.DomainController;
 import com.icx.dom.domain.DomainObject;
 import com.icx.dom.domain.Registry;
+import com.icx.dom.domain.sql.Const;
 import com.icx.dom.domain.sql.SqlDomainController;
 import com.icx.dom.domain.sql.SqlDomainObject;
 import com.icx.dom.domain.sql.SqlRegistry;
@@ -86,8 +87,7 @@ class RegistryTest extends TestHelpers {
 
 		log.info("\tRegister by explicitly defined domain classes...");
 
-		assertDoesNotThrow(() -> SqlDomainController.registerDomainClasses(X.class, AA.class)); // AA as sub class of A must explicitly be defined because subclasses cannot be determined using
-																								// Reflection
+		assertDoesNotThrow(() -> SqlDomainController.registerDomainClasses(SqlDomainObject.class, X.class, AA.class)); // AA as sub class of A must explicitly be defined
 
 		assertEquals(O.class, DomainController.getDomainClassByName("O"), "register inherited domain class");
 		assertEquals(Z.class, DomainController.getDomainClassByName("Z"), "register referenced domain class");
@@ -232,7 +232,7 @@ class RegistryTest extends TestHelpers {
 		assertNull(SqlRegistry.getEntryTableFor(A.class.getDeclaredField("l")));
 		assertNull(SqlRegistry.getMainTableRefIdColumnFor(A.class.getDeclaredField("i")));
 		assertNull(SqlRegistry.getRequiredJdbcTypeFor(null));
-		Column domainClassColumn = SqlRegistry.getTableFor(A.class).columns.stream().filter(c -> SqlDomainObject.DOMAIN_CLASS_COL.equals(c.name)).findAny().orElse(null);
+		Column domainClassColumn = SqlRegistry.getTableFor(A.class).columns.stream().filter(c -> Const.DOMAIN_CLASS_COL.equals(c.name)).findAny().orElse(null);
 		assertNull(SqlRegistry.getFieldFor(domainClassColumn));
 	}
 }
