@@ -87,7 +87,7 @@ public abstract class LoadAndSaveHelpers extends Common {
 	}
 
 	// Build joined table expression for entry tables (storing collections and maps)
-	private static SelectDescription buildSelectDescriptionForEntriesOf(String baseTableExpression, SqlDbTable mainObjectTable, Field complexField) {
+	private static SelectDescription buildSelectDescriptionForEntriesOf(String baseTableExpression, String objectTableName, Field complexField) {
 
 		SelectDescription sde = new SelectDescription();
 
@@ -96,7 +96,7 @@ public abstract class LoadAndSaveHelpers extends Common {
 		String entryTableName = SqlRegistry.getEntryTableFor(complexField).name;
 		String refIdColumnName = SqlRegistry.getMainTableRefIdColumnFor(complexField).name;
 
-		sde.joinedTableExpression = entryTableName + " JOIN " + baseTableExpression + " ON " + entryTableName + "." + refIdColumnName + "=" + mainObjectTable.name + ".ID";
+		sde.joinedTableExpression = entryTableName + " JOIN " + baseTableExpression + " ON " + entryTableName + "." + refIdColumnName + "=" + objectTableName + ".ID";
 
 		// Build column clause for entry records
 
@@ -186,7 +186,7 @@ public abstract class LoadAndSaveHelpers extends Common {
 
 			// Second load entry records for all complex (table related) fields and assign them to main object records using entry table name as key
 
-			SqlDbTable objectTable = SqlRegistry.getTableFor(objectDomainClass);
+			String objectTableName = SqlRegistry.getTableFor(objectDomainClass).name;
 
 			for (Class<? extends DomainObject> domainClass : Registry.getInheritanceStack(objectDomainClass)) {
 
@@ -194,7 +194,7 @@ public abstract class LoadAndSaveHelpers extends Common {
 				for (Field complexField : Registry.getComplexFields(domainClass)) {
 
 					// Build table expression, column names and order by clause to SELECT entry records
-					SelectDescription sde = buildSelectDescriptionForEntriesOf(sd.joinedTableExpression, objectTable, complexField);
+					SelectDescription sde = buildSelectDescriptionForEntriesOf(sd.joinedTableExpression, objectTableName, complexField);
 
 					List<SortedMap<String, Object>> loadedEntryRecords = new ArrayList<>();
 					if (limit > 0) {
@@ -202,7 +202,7 @@ public abstract class LoadAndSaveHelpers extends Common {
 						// If # of loaded object records is limited SELECT only entry records for actually loaded object records
 						List<String> idsLists = Helpers.buildMax1000IdsLists(loadedRecordMap.keySet());
 						for (String idsList : idsLists) {
-							String limitWhereClause = (!isEmpty(whereClause) ? "(" + whereClause + ") AND " : "") + objectTable.name + ".ID IN (" + idsList + ")";
+							String limitWhereClause = (!isEmpty(whereClause) ? "(" + whereClause + ") AND " : "") + objectTableName + ".ID IN (" + idsList + ")";
 							loadedEntryRecords.addAll(SqlDomainController.sqlDb.selectFrom(cn, sde.joinedTableExpression, sde.allColumnNames, limitWhereClause, sde.orderByClause, sde.allFieldTypes));
 						}
 					}
@@ -371,7 +371,7 @@ public abstract class LoadAndSaveHelpers extends Common {
 					columnValue = ((String) fieldValue).substring(0, column.maxlen);
 				}
 				else {
-					columnValue = Helpers.field2ColumnValue(fieldValue); // Convert object field value to appropriate value to set in table column (enum,BigInteger, BigDecimal, File)
+					columnValue = Helpers.field2ColumnValue(fieldValue); // Convert object field value to appropriate value to set in table column (Enum, BigInteger, BigDecimal, File)
 				}
 
 				columnValueMap.put(column.name, columnValue);
