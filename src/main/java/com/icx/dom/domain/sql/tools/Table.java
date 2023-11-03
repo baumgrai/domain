@@ -8,7 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.icx.dom.domain.DomainAnnotations.SqlColumn;
-import com.icx.dom.domain.DomainObject;
+import com.icx.dom.domain.sql.SqlDomainObject;
 import com.icx.dom.domain.sql.SqlRegistry;
 import com.icx.dom.jdbc.SqlDb.DbType;
 
@@ -28,13 +28,13 @@ public class Table {
 	public List<UniqueConstraint> uniqueConstraints = new ArrayList<>();
 	public List<Index> indexes = new ArrayList<>();
 
-	public Class<? extends DomainObject> domainClass = null; // Not for entry tables
+	public Class<? extends SqlDomainObject> domainClass = null; // Not for entry tables
 
 	// Constructors
 
 	// Constructor for main table
 	public Table(
-			Class<? extends DomainObject> domainClass,
+			Class<? extends SqlDomainObject> domainClass,
 			DbType dbType) {
 
 		this.name = SqlRegistry.buildTableName(domainClass, dbType);
