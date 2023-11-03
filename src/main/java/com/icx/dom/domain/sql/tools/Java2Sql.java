@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
+import java.util.stream.Stream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,7 +20,6 @@ import com.icx.dom.common.Common;
 import com.icx.dom.domain.DomainAnnotations;
 import com.icx.dom.domain.DomainAnnotations.SqlColumn;
 import com.icx.dom.domain.DomainAnnotations.SqlTable;
-import com.icx.dom.domain.DomainObject;
 import com.icx.dom.domain.Registry;
 import com.icx.dom.domain.sql.Const;
 import com.icx.dom.domain.sql.SqlDomainObject;
@@ -51,6 +51,8 @@ public abstract class Java2Sql extends JdbcHelpers {
 	public static final int MAX_CHARSIZE = 2000;
 	public static final int MAX_ENUM_VALUE_LENGTH = 64;
 	public static final int MAX_CLASSNAME_LENGTH = 64;
+
+	private static Registry<SqlDomainObject> registry = new Registry<>();
 
 	// ----------------------------------------------------------------------
 	// Script helpers
@@ -91,7 +93,7 @@ public abstract class Java2Sql extends JdbcHelpers {
 	// ----------------------------------------------------------------------
 
 	// Build SQL statements to create main table and potentially existing entry tables (for collection and map fields) for given domain class
-	static List<Table> createTablesForDomainClass(StringBuilder script, String version, Class<? extends DomainObject> domainClass, DbType dbType) {
+	static List<Table> createTablesForDomainClass(StringBuilder script, String version, Class<? extends SqlDomainObject> domainClass, DbType dbType) {
 
 		// Initialize table object for domain class
 		Table mainTable = new Table(domainClass, dbType);
@@ -111,7 +113,7 @@ public abstract class Java2Sql extends JdbcHelpers {
 		idColumn.isPrimaryKey = true;
 
 		// Inheritance
-		if (Registry.isBaseDomainClass(domainClass)) {
+		if (registry.isBaseDomainClass(domainClass)) {
 
 			// For base domain classes generate LAST_MODIFIED column definition and force building INDEX on this column for performance reasons
 			Column lastModifiedColumn = mainTable.addStandardColumn(Const.LAST_MODIFIED_COL, LocalDateTime.class);
@@ -119,11 +121,11 @@ public abstract class Java2Sql extends JdbcHelpers {
 		}
 		else {
 			// For extended domain classes add foreign key constraint to reference ID of superclass record to reflect inheritance relation
-			idColumn.addFkConstraint(FkConstraint.ConstraintType.INHERITANCE, domainClass.getSuperclass());
+			idColumn.addFkConstraint(FkConstraint.ConstraintType.INHERITANCE, registry.getCastedSuperclass(domainClass));
 		}
 
 		// Generate column definitions and foreign key constraints for registered fields of domain class - include dropped fields here because 'registerAlsoDroppedFields' is true for Java2Sql
-		for (Field field : Registry.getRegisteredFields(domainClass)) {
+		for (Field field : registry.getRegisteredFields(domainClass)) {
 
 			if (version != null && Helpers.getCreatedVersion(field).compareTo(version) > 0) { // Table creation in incremental update script: ignore fields created in a newer version
 				log.info("J2S: \t\t\tField '{}' was created in version {} but incremental update script is for version {}", field.getName(), Helpers.getCreatedVersion(field), version);
@@ -131,7 +133,7 @@ public abstract class Java2Sql extends JdbcHelpers {
 			}
 
 			// Add tables or columns related to fields
-			if (Registry.isComplexField(field)) {
+			if (registry.isComplexField(field)) {
 
 				// Table related field: create entry table - use field type
 				newTables.add(Helpers.buildEntryTable(field, null, dbType));
@@ -140,7 +142,7 @@ public abstract class Java2Sql extends JdbcHelpers {
 				// Define column from field
 				Column column = mainTable.addColumnForRegisteredField(field);
 
-				if (Registry.isReferenceField(field)) { // Reference field
+				if (registry.isReferenceField(field)) { // Reference field
 
 					// Check if reference is part of circular reference cycle
 					String className = domainClass.getSimpleName();
@@ -158,12 +160,12 @@ public abstract class Java2Sql extends JdbcHelpers {
 					}
 
 					// Add FOREIGN KEY constraint for reference field if field type is a domain class
-					FkConstraint fkConstraint = column.addFkConstraint(FkConstraint.ConstraintType.REFERENCE, field.getType());
+					FkConstraint fkConstraint = column.addFkConstraint(FkConstraint.ConstraintType.REFERENCE, registry.getCastedReferencedDomainClass(field));
 
 					// Determine if ON DELETE CASCADE shall be set on foreign key constraint - do this if it is explicitly specified in column annotation or if class uses 'data horizon' mechanism
 					// to allow deleting parent objects even if children were not loaded
 					SqlColumn ca = field.getAnnotation(SqlColumn.class);
-					if (Registry.isDataHorizonControlled(domainClass) || ca != null && ca.onDeleteCascade()) {
+					if (registry.isDataHorizonControlled(domainClass) || ca != null && ca.onDeleteCascade()) {
 
 						if (isPartOfCircularReference && dbType == DbType.MS_SQL) {
 							log.warn("J2S:\t\t\tDo not set ON DELETE CASCADE for FOREIGN KEY constraint '{}' on SQL Server!", fkConstraint.name());
@@ -203,7 +205,7 @@ public abstract class Java2Sql extends JdbcHelpers {
 	// ----------------------------------------------------------------------
 
 	// Build SQL statements to alter main table and create or drop potentially existing entry tables (for collection and map fields) for given domain class for given version
-	static List<Table> alterTablesForDomainClass(StringBuilder script, String version, Class<? extends DomainObject> domainClass, DbType dbType) {
+	static List<Table> alterTablesForDomainClass(StringBuilder script, String version, Class<? extends SqlDomainObject> domainClass, DbType dbType) {
 
 		log.info("J2S:\t\tAlter table for: '{}' for version '{}'", domainClass.getSimpleName(), version);
 
@@ -212,7 +214,7 @@ public abstract class Java2Sql extends JdbcHelpers {
 
 		// Append ALTER TABLE statements for adding, modifying and dropping columns to script - check all relevant fields, not only registered ones
 		List<Table> createdEntryTables = new ArrayList<>();
-		for (Field field : Registry.getRelevantFields(domainClass)) {
+		for (Field field : registry.getRelevantFields(domainClass)) {
 
 			if (Helpers.wasCreatedInVersion(field, version)) {
 
@@ -221,7 +223,7 @@ public abstract class Java2Sql extends JdbcHelpers {
 				// Get attributes to override by information from @Created annotation if specified
 				Map<String, String> createInfoMap = Helpers.getCreateInfo(field);
 
-				if (Registry.isComplexField(field)) {
+				if (registry.isComplexField(field)) {
 
 					// Build entry table associated to collection/map field - use collection type if specified in create info or field type
 					Table entryTable = Helpers.buildEntryTable(field, createInfoMap.get(DomainAnnotations.COLLECTION_TYPE), dbType);
@@ -240,14 +242,14 @@ public abstract class Java2Sql extends JdbcHelpers {
 					// Add ALTER TABLE script to create column
 					script.append(column.alterTableAddColumnStatement());
 
-					if (Registry.isReferenceField(field)) { // Reference field
+					if (registry.isReferenceField(field)) { // Reference field
 
 						// Add FOREIGN KEY constraint for reference field if field type is a domain class
-						FkConstraint fkConstraint = column.addFkConstraint(FkConstraint.ConstraintType.REFERENCE, field.getType());
+						FkConstraint fkConstraint = column.addFkConstraint(FkConstraint.ConstraintType.REFERENCE, registry.getCastedReferencedDomainClass(field));
 
 						// Determine if ON DELETE CASCADE shall be set on foreign key constraint
 						SqlColumn ca = field.getAnnotation(SqlColumn.class);
-						fkConstraint.onDeleteCascade = (Registry.isDataHorizonControlled(domainClass) || ca != null && ca.onDeleteCascade());
+						fkConstraint.onDeleteCascade = (registry.isDataHorizonControlled(domainClass) || ca != null && ca.onDeleteCascade());
 
 						script.append(fkConstraint.alterTableAddForeignKeyStatement());
 					}
@@ -265,7 +267,7 @@ public abstract class Java2Sql extends JdbcHelpers {
 				// Get changes from version annotation
 				Map<String, String> changeInfoMap = Helpers.getChangeInfo(field, version);
 
-				if (Registry.isComplexField(field)) {
+				if (registry.isComplexField(field)) {
 
 					// Table related field: only change of collection type for Set or List fields are allowed
 
@@ -307,7 +309,7 @@ public abstract class Java2Sql extends JdbcHelpers {
 					if (changeInfoMap.containsKey(DomainAnnotations.UNIQUE)) {
 
 						// Add or drop UNIQUE constraint if unique value specified in changed info differs from value specified in @SqlColumn annotation
-						boolean isUnique = Boolean.valueOf(changeInfoMap.get(DomainAnnotations.UNIQUE));
+						boolean isUnique = Boolean.parseBoolean(changeInfoMap.get(DomainAnnotations.UNIQUE));
 						if (isUnique && !column.isUnique) {
 							script.append(new UniqueConstraint(table, column).alterTableAddConstraintStatement());
 						}
@@ -321,7 +323,7 @@ public abstract class Java2Sql extends JdbcHelpers {
 
 				// Removed fields
 
-				if (Registry.isComplexField(field)) {
+				if (registry.isComplexField(field)) {
 
 					// Drop entry table for removed field
 					script.append(Helpers.buildEntryTable(field, null, dbType).dropScript());
@@ -329,8 +331,8 @@ public abstract class Java2Sql extends JdbcHelpers {
 				else {
 					// Drop column (and foreign key constraint if exists) for removed field
 					Column column = table.addColumnForRegisteredField(field);
-					if (Registry.isReferenceField(field)) {
-						script.append(column.addFkConstraint(FkConstraint.ConstraintType.REFERENCE, column.fieldRelatedType).alterTableDropForeignKeyStatement());
+					if (registry.isReferenceField(field)) {
+						script.append(column.addFkConstraint(FkConstraint.ConstraintType.REFERENCE, registry.getCastedReferencedDomainClass(field)).alterTableDropForeignKeyStatement());
 					}
 
 					script.append(column.alterTableDropColumnStatement());
@@ -355,7 +357,7 @@ public abstract class Java2Sql extends JdbcHelpers {
 	}
 
 	// Change multi column unique constraints and indexes according to version infos for specific version
-	static void changeUniqueConstraintsAndIndexesForDomainClass(StringBuilder script, String version, Class<? extends DomainObject> domainClass, DbType dbType) {
+	static void changeUniqueConstraintsAndIndexesForDomainClass(StringBuilder script, String version, Class<? extends SqlDomainObject> domainClass, DbType dbType) {
 
 		log.info("J2S:\t\tChange multi column unique constraints and indexes of table '{}' for version '{}'", domainClass.getSimpleName(), version);
 
@@ -427,7 +429,7 @@ public abstract class Java2Sql extends JdbcHelpers {
 		log.info("J2S: Generate SQL scripts for {}...", dbType);
 
 		// Get all domain classes where tables are to create for
-		List<Class<? extends DomainObject>> domainClasses = Registry.getRegisteredDomainClasses();
+		List<Class<? extends SqlDomainObject>> domainClasses = registry.getRegisteredDomainClasses();
 
 		// DB create script
 
@@ -435,7 +437,7 @@ public abstract class Java2Sql extends JdbcHelpers {
 
 		// Create tables (do before dropping)
 		List<Table> createdTables = new ArrayList<>();
-		for (Class<? extends DomainObject> domainClass : domainClasses) {
+		for (Class<? extends SqlDomainObject> domainClass : domainClasses) {
 			createdTables.addAll(createTablesForDomainClass(createScript, null, domainClass, dbType));
 		}
 		createScript.append("\n");
@@ -464,7 +466,7 @@ public abstract class Java2Sql extends JdbcHelpers {
 			List<Table> createdTablesForVersion = new ArrayList<>();
 
 			// CREATE, DROP or ALTER tables for version... - consider also removed domain classes
-			for (Class<? extends DomainObject> domainClass : Registry.getRelevantDomainClasses()) {
+			for (Class<? extends SqlDomainObject> domainClass : registry.getRelevantDomainClasses()) {
 
 				if (Helpers.wasCreatedInVersion(domainClass, version)) {
 					createdTablesForVersion.addAll(createTablesForDomainClass(alterScriptForVersion, version, domainClass, dbType));
@@ -476,7 +478,7 @@ public abstract class Java2Sql extends JdbcHelpers {
 				}
 				else {
 					// Check version related annotations for all relevant (also removed) fields
-					if (Registry.getRelevantFields(domainClass).stream().anyMatch(f -> Helpers.isFieldAffected(f, version))) {
+					if (registry.getRelevantFields(domainClass).stream().anyMatch(f -> Helpers.isFieldAffected(f, version))) {
 						createdTablesForVersion.addAll(alterTablesForDomainClass(alterScriptForVersion, version, domainClass, dbType));
 					}
 
@@ -508,20 +510,21 @@ public abstract class Java2Sql extends JdbcHelpers {
 	public static void main(String[] args) throws Exception {
 
 		// Determine domain class package and supposed app name (second last part of package name)
-		Package pack = (args.length > 0 ? Package.getPackage(args[0]) : Java2Sql.class.getPackage());
-		String supposedAppName = Common.behindLast(Common.untilLast(pack.getName(), "."), ".");
+		String packageName = (args.length > 0 ? Stream.of(Package.getPackages()).map(Package::getName).filter(n -> objectsEqual(n, args[0])).findAny().orElse(null)
+				: Java2Sql.class.getPackage().getName());
+		String supposedAppName = Common.behindLast(Common.untilLast(packageName, "."), ".");
 
 		// Register domain classes
 		// Registry.register(SqlDomainObject.class, Xxx.class, Y.class, Z.class); // Only for test!
-		Registry.registerDomainClasses(SqlDomainObject.class, pack.getName());
+		registry.registerDomainClasses(SqlDomainObject.class, packageName);
 
 		// Determine circular references - to avoid setting ON DELETE CASCADE for foreign keys within circular references
-		circularReferences = Registry.determineCircularReferences();
-		log.info("J2S: Circular references: " + circularReferences);
+		circularReferences = registry.determineCircularReferences();
+		log.info("J2S: Circular references: {}", circularReferences);
 
 		// Generate SQL scripts for database generation and version specific updates for all supported database types
 		for (DbType dbType : DbType.values()) {
-			Java2Sql.generateSqlScripts(supposedAppName, dbType);
+			generateSqlScripts(supposedAppName, dbType);
 		}
 	}
 }
