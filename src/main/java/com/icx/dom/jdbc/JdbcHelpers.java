@@ -305,6 +305,10 @@ public abstract class JdbcHelpers extends Common {
 					// Attention: for numerical types (Integer, int, Long, long, ...) 0 will be returned on null value in database using getObject() with type specification! (at least using MySQL)
 					try {
 						value = rs.getObject(c + 1, requiredResultTypes.get(c));
+						if (log.isTraceEnabled()) {
+							log.trace("SQL: Column '{}': autoconverted value '{}' from column's JDBC type '{}'", rsmd.getColumnName(c + 1), CLog.forAnalyticLogging(value),
+									rsmd.getColumnClassName(c + 1));
+						}
 					}
 					catch (SQLException sqlex) {
 						value = rs.getObject(c + 1);
@@ -340,7 +344,7 @@ public abstract class JdbcHelpers extends Common {
 			orderedColumnNames.addAll(getOrderedResultColumnNames(rsmd));
 
 			if (log.isTraceEnabled()) {
-				log.trace("SQL: \tSQL and Java data types for results: ( jdbc type [ -> required type ] )");
+				log.trace("SQL: \tSQL and Java data types for results: ( SQL type: jdbc type [ -> required type ] )");
 				for (int c = 0; c < rsmd.getColumnCount(); c++) {
 					if (requiredTypeDiffers(rsmd, requiredResultTypes, c)) {
 						log.trace("SQL:\t\t{} {}: '{}' -> '{}'", rsmd.getColumnName(c + 1), rsmd.getColumnTypeName(c + 1), rsmd.getColumnClassName(c + 1), requiredResultTypes.get(c).getName());
