@@ -16,8 +16,6 @@ import org.slf4j.LoggerFactory;
 import com.icx.dom.common.CLog;
 import com.icx.dom.common.Common;
 import com.icx.dom.common.Reflection;
-import com.icx.dom.domain.DomainController;
-import com.icx.dom.domain.DomainObject;
 
 public abstract class Helpers extends Common {
 
@@ -113,22 +111,6 @@ public abstract class Helpers extends Common {
 		else {
 			return Reflection.getBoxingWrapperType(fieldClass);
 		}
-	}
-
-	// Create object with given id - only used for exclusive selection methods
-	static final synchronized <T extends DomainObject> T createWithId(final Class<T> domainObjectClass, long id) {
-
-		T obj = DomainController.instantiate(domainObjectClass);
-		if (obj != null) {
-
-			obj.registerById(id);
-
-			if (log.isDebugEnabled()) {
-				log.debug("DC: Created {}.", obj.name());
-			}
-		}
-
-		return obj;
 	}
 
 	// Count new and changed objects grouped by object domain classes (for logging only)
