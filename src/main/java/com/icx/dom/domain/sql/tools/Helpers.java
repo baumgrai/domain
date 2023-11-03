@@ -18,8 +18,9 @@ import com.icx.dom.domain.DomainAnnotations;
 import com.icx.dom.domain.DomainAnnotations.Changed;
 import com.icx.dom.domain.DomainAnnotations.Created;
 import com.icx.dom.domain.DomainAnnotations.Removed;
-import com.icx.dom.domain.DomainObject;
+import com.icx.dom.domain.Registry;
 import com.icx.dom.domain.sql.Const;
+import com.icx.dom.domain.sql.SqlDomainObject;
 import com.icx.dom.domain.sql.SqlRegistry;
 import com.icx.dom.domain.sql.tools.FkConstraint.ConstraintType;
 import com.icx.dom.jdbc.JdbcHelpers;
@@ -39,6 +40,8 @@ public class Helpers extends JdbcHelpers {
 
 		return "  \t\t\t\t\t\t\t\t".substring(len);
 	}
+
+	private static Registry<SqlDomainObject> registry = new Registry<>();
 
 	// Fields
 
@@ -195,7 +198,7 @@ public class Helpers extends JdbcHelpers {
 		// Create main table reference column and associated foreign key constraint
 		Column mainTableRefColumn = entryTable.addStandardColumn(SqlRegistry.buildMainTableRefColumnName(field, dbType), Long.class);
 		mainTableRefColumn.notNull = true;
-		mainTableRefColumn.addFkConstraint(ConstraintType.MAIN_TABLE, field.getDeclaringClass());
+		mainTableRefColumn.addFkConstraint(ConstraintType.MAIN_TABLE, registry.getCastedDeclaringDomainClass(field));
 
 		// Create entry columns
 		if (currentType == null || Collection.class.isAssignableFrom(currentType)) { // Collection field
@@ -263,11 +266,11 @@ public class Helpers extends JdbcHelpers {
 	// Versions
 
 	// Build ordered set of versions found in class or field annotations
-	public static SortedSet<String> findAllVersions(List<Class<? extends DomainObject>> domainClasses) {
+	public static SortedSet<String> findAllVersions(List<Class<? extends SqlDomainObject>> domainClasses) {
 
 		SortedSet<String> versions = new TreeSet<>();
 
-		for (Class<? extends DomainObject> cls : domainClasses) {
+		for (Class<? extends SqlDomainObject> cls : domainClasses) {
 
 			// Class
 			if (getCreatedVersion(cls).compareTo("1.0") > 0) {
