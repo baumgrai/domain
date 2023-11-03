@@ -8,9 +8,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -103,7 +100,7 @@ public class Column {
 		else if (fieldRelatedType == BigDecimal.class) {
 			type = (dbType == DbType.ORACLE ? "NUMBER" : dbType == DbType.MS_SQL ? "FLOAT" : dbType == DbType.MYSQL ? "DOUBLE" : "");
 		}
-		else if (fieldRelatedType == String.class || List.class.isAssignableFrom(fieldRelatedType) || Set.class.isAssignableFrom(fieldRelatedType) || Map.class.isAssignableFrom(fieldRelatedType)) {
+		else if (fieldRelatedType == String.class) {
 			if (isText) {
 				type = (dbType == DbType.ORACLE ? "CLOB" : dbType == DbType.MS_SQL ? "NVARCHAR(MAX)" : dbType == DbType.MYSQL ? "LONGTEXT CHARACTER SET UTF8MB4" : "");
 			}
@@ -160,7 +157,7 @@ public class Column {
 		return ("ALTER TABLE " + table.name + " DROP COLUMN " + name + ";\n");
 	}
 
-	public FkConstraint addFkConstraint(ConstraintType type, Class<?> referencedDomainClass) {
+	public FkConstraint addFkConstraint(ConstraintType type, Class<? extends SqlDomainObject> referencedDomainClass) {
 		return new FkConstraint(this, type, SqlRegistry.buildTableName(referencedDomainClass, table.dbType));
 	}
 
