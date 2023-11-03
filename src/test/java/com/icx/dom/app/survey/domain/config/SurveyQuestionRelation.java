@@ -6,6 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.icx.dom.domain.DomainAnnotations.SqlColumn;
+import com.icx.dom.app.survey.SurveyApp;
 import com.icx.dom.domain.DomainObject;
 import com.icx.dom.domain.sql.SqlDomainObject;
 import com.icx.dom.jdbc.SqlConnection;
@@ -39,7 +40,7 @@ public class SurveyQuestionRelation extends SqlDomainObject {
 
 	public void save(SqlConnection sqlcn) {
 		try {
-			super.save(sqlcn.cn);
+			SurveyApp.sdc.save(sqlcn.cn, this);
 		}
 		catch (SQLException | SqlDbException e) {
 			log.error("Exception on save occurred: ", e);

@@ -38,9 +38,8 @@ import com.icx.dom.common.CResource;
 import com.icx.dom.common.CSet;
 import com.icx.dom.common.Common;
 import com.icx.dom.common.Prop;
-import com.icx.dom.domain.DomainController;
-import com.icx.dom.domain.sql.FieldError;
 import com.icx.dom.domain.sql.SqlDomainController;
+import com.icx.dom.domain.sql.SqlDomainObject;
 import com.icx.dom.jdbc.SqlConnection;
 import com.icx.dom.jdbc.SqlDb;
 import com.icx.dom.jdbc.SqlDb.DbType;
@@ -48,6 +47,7 @@ import com.icx.dom.junit.TestHelpers;
 import com.icx.dom.junit.domain.A;
 import com.icx.dom.junit.domain.A.Type;
 import com.icx.dom.junit.domain.AA;
+import com.icx.dom.junit.domain.AB;
 import com.icx.dom.junit.domain.B;
 import com.icx.dom.junit.domain.C;
 import com.icx.dom.junit.domain.O;
@@ -60,21 +60,46 @@ class LoadAndSaveTest extends TestHelpers {
 
 	static final Logger log = LoggerFactory.getLogger(LoadAndSaveTest.class);
 
-	static DbType dbType = null;
+	static SqlDomainController sdc = new SqlDomainController();
 
-	private static String getLocal(DbType dbType) {
+	static void cleanup() throws Exception {
 
-		if (dbType == DbType.MYSQL) {
-			return "local/mysql/junit";
+		log.info("\tcleanup()");
+
+		sdc.synchronize();
+
+		for (Z z : sdc.all(Z.class)) {
+			sdc.delete(z);
 		}
-		else if (dbType == DbType.MS_SQL) {
-			return "local/ms_sql/junit";
+		for (Y y : sdc.all(Y.class)) {
+			sdc.delete(y);
 		}
-		else if (dbType == DbType.ORACLE) {
-			return "local/oracle/junit";
+		for (X x : sdc.all(X.class)) {
+			sdc.delete(x);
 		}
-		else {
-			return null;
+		for (X.InProgress xInProgress : sdc.all(X.InProgress.class)) {
+			sdc.delete(xInProgress);
+		}
+		for (AA aa : sdc.all(AA.class)) {
+			sdc.delete(aa);
+		}
+		for (B b : sdc.all(B.class)) {
+			sdc.delete(b);
+		}
+		for (O o : sdc.all(O.class)) {
+			sdc.delete(o);
+		}
+		for (C c : sdc.all(C.class)) {
+			sdc.delete(c);
+		}
+
+		try (SqlConnection sqlcn = SqlConnection.open(sdc.sqlDb.pool, true)) { // Data horizon controlled objects which were not be loaded
+			SqlDb.deleteFrom(sqlcn.cn, "DOM_Z", null);
+			SqlDb.deleteFrom(sqlcn.cn, "DOM_Y", null);
+			SqlDb.deleteFrom(sqlcn.cn, "DOM_X", null);
+			SqlDb.deleteFrom(sqlcn.cn, "DOM_B", null);
+			SqlDb.deleteFrom(sqlcn.cn, "DOM_A", null);
+			SqlDb.deleteFrom(sqlcn.cn, "DOM_AA", null);
 		}
 	}
 
@@ -85,27 +110,20 @@ class LoadAndSaveTest extends TestHelpers {
 
 		log.info("\tTEST 1: initialize()");
 
-		log.info("\tRegister only domain class AA...");
-
 		try {
-			SqlDomainController.registerDomainClasses(AA.class); // For coverage
+			log.info("\tRegister only domain class AA...");
 
-			assertEquals(A.class, DomainController.getDomainClassByName("A"));
+			sdc.registerDomainClasses(SqlDomainObject.class, AA.class); // For coverage
 
-			log.info("\tRegister all domain classes in package...");
+			assertEquals(A.class, sdc.getDomainClassByName("A"));
 
-			SqlDomainController.registerDomainClasses(A.class.getPackage().getName());
-
-			log.info("\tEstablish logical database connection...");
-
-			dbType = DbType.MYSQL;
-
-			Properties dbProps = Prop.readEnvironmentSpecificProperties(Prop.findPropertiesFile("db.properties"), getLocal(dbType), CList.newList("dbConnectionString", "dbUser"));
+			Helpers.dbType = DbType.MYSQL;
+			Properties dbProps = Prop.readEnvironmentSpecificProperties(Prop.findPropertiesFile("db.properties"), Helpers.getLocal(Helpers.dbType), CList.newList("dbConnectionString", "dbUser"));
 			Properties domainProps = Prop.readProperties(Prop.findPropertiesFile("domain.properties"));
 
-			log.info("\tInitialize Java <-> SQL association...");
+			log.info("\tRegister all domain classes in package, establish logical database connection and associate Java <-> SQL...");
 
-			SqlDomainController.associateDomainClassesAndDatabaseTables(dbProps, domainProps);
+			sdc.initialize(dbProps, domainProps, A.class.getPackage().getName());
 		}
 		catch (AssertionFailedError failed) {
 			throw failed;
@@ -113,47 +131,6 @@ class LoadAndSaveTest extends TestHelpers {
 		catch (Throwable ex) {
 			log.error(Common.exceptionStackToString(ex));
 			throw ex;
-		}
-	}
-
-	static void cleanup() throws Exception {
-
-		log.info("\tcleanup()");
-
-		SqlDomainController.synchronize();
-
-		for (Z z : DomainController.all(Z.class)) {
-			z.delete();
-		}
-		for (Y y : DomainController.all(Y.class)) {
-			y.delete();
-		}
-		for (X x : DomainController.all(X.class)) {
-			x.delete();
-		}
-		for (X.InProgress xInProgress : DomainController.all(X.InProgress.class)) {
-			xInProgress.delete();
-		}
-		for (AA aa : DomainController.all(AA.class)) {
-			aa.delete();
-		}
-		for (B b : DomainController.all(B.class)) {
-			b.delete();
-		}
-		for (O o : DomainController.all(O.class)) {
-			o.delete();
-		}
-		for (C c : DomainController.all(C.class)) {
-			c.delete();
-		}
-
-		try (SqlConnection sqlcn = SqlConnection.open(SqlDomainController.sqlDb.pool, true)) { // Data horizon controlled objects which were not be loaded
-			SqlDb.deleteFrom(sqlcn.cn, "DOM_Z", null);
-			SqlDb.deleteFrom(sqlcn.cn, "DOM_Y", null);
-			SqlDb.deleteFrom(sqlcn.cn, "DOM_X", null);
-			SqlDb.deleteFrom(sqlcn.cn, "DOM_B", null);
-			SqlDb.deleteFrom(sqlcn.cn, "DOM_A", null);
-			SqlDb.deleteFrom(sqlcn.cn, "DOM_AA", null);
 		}
 	}
 
@@ -175,9 +152,9 @@ class LoadAndSaveTest extends TestHelpers {
 
 			log.info("\tCreate and save objects...");
 
-			O o1 = SqlDomainController.createAndSave(O.class, null);
+			O o1 = sdc.createAndSave(O.class, null);
 
-			AA aa1 = SqlDomainController.createAndSave(AA.class, aa -> {
+			AA aa1 = sdc.createAndSave(AA.class, aa -> {
 
 				aa.bool = true;
 				aa.booleanValue = false;
@@ -195,7 +172,7 @@ class LoadAndSaveTest extends TestHelpers {
 				aa.bytes = Common.getBytesUTF8("ÄÖÜäöüß");
 				assertDoesNotThrow(() -> aa.picture = CFile.readBinary(new File("src/test/resources/bike.jpg")));
 
-				aa.strings = CList.newList("A", "B", "C", "D", (dbType == DbType.ORACLE ? null : ""), null); // Oracle does not allow empty string values (stored as NULL instead)
+				aa.strings = CList.newList("A", "B", "C", "D", (Helpers.dbType == DbType.ORACLE ? null : ""), null); // Oracle does not allow empty string values (stored as NULL instead)
 				aa.doubleSet = CSet.newSet(0.0, 0.1, 0.2, null);
 				aa.bigDecimalMap = CMap.newMap("a", BigDecimal.valueOf(1L), "b", BigDecimal.valueOf(2L), "c", BigDecimal.valueOf(3.1), "d", null, null, BigDecimal.valueOf(0L));
 
@@ -206,41 +183,41 @@ class LoadAndSaveTest extends TestHelpers {
 			});
 			aa1.file = CResource.findFirstJavaResourceFile("x.txt");
 			aa1.o = o1;
-			aa1.save();
+			sdc.save(aa1);
 
 			log.info("\tAssertions on saved objects...");
 
-			assertTrue(DomainController.hasAny(A.class));
-			assertTrue(DomainController.hasAny(A.class, a -> a.type == Type.A));
-			assertFalse(DomainController.hasAny(A.class, a -> a.type == Type.B));
-			assertNotNull(DomainController.findAny(A.class, a -> true));
-			assertEquals(1, DomainController.count(A.class, a -> a.type == Type.A));
+			assertTrue(sdc.hasAny(A.class));
+			assertTrue(sdc.hasAny(A.class, a -> a.type == Type.A));
+			assertFalse(sdc.hasAny(A.class, a -> a.type == Type.B));
+			assertNotNull(sdc.findAny(A.class, a -> true));
+			assertEquals(1, sdc.count(A.class, a -> a.type == Type.A));
 
 			log.info("\tReload object to check if no changes will be detected...");
 
-			assertFalse(aa1.reload());
+			assertFalse(sdc.reload(aa1));
 
 			log.info("\tUnregister objects to force reload...");
 
-			aa1.unregisterForTest();
-			o1.unregisterForTest();
+			sdc.unregisterOnlyForTest(aa1);
+			sdc.unregisterOnlyForTest(o1);
 
 			log.info("\tAssertions on unregistered objects...");
 
-			assertFalse(SqlDomainController.hasAny(AA.class));
-			assertFalse(SqlDomainController.hasAny(O.class));
+			assertFalse(sdc.hasAny(AA.class));
+			assertFalse(sdc.hasAny(O.class));
 
 			log.info("\tLoad objects from database...");
 
-			SqlDomainController.synchronize();
+			sdc.synchronize();
 
 			log.info("\tAssertions on loaded objects...");
 
-			assertNotSame(aa1, DomainController.findAny(AA.class, aa -> true));
-			assertNotSame(o1, DomainController.findAny(O.class, o -> true));
+			assertNotSame(aa1, sdc.findAny(AA.class, aa -> true));
+			assertNotSame(o1, sdc.findAny(O.class, o -> true));
 
-			aa1 = DomainController.findAny(AA.class, aa -> true);
-			o1 = DomainController.findAny(O.class, o -> true);
+			aa1 = sdc.findAny(AA.class, aa -> true);
+			o1 = sdc.findAny(O.class, o -> true);
 
 			// Check if loaded object equals object created before
 
@@ -262,7 +239,7 @@ class LoadAndSaveTest extends TestHelpers {
 			assertEquals(CResource.findFirstJavaResourceFile("x.txt"), aa1.file);
 			assertEquals(Type.A, aa1.type);
 
-			assertEquals(CList.newList("A", "B", "C", "D", (dbType == DbType.ORACLE ? null : ""), null), aa1.strings); // Oracle does not allow empty string values (stored as NULL instead)
+			assertEquals(CList.newList("A", "B", "C", "D", (Helpers.dbType == DbType.ORACLE ? null : ""), null), aa1.strings); // Oracle does not allow empty string values (stored as NULL instead)
 			assertEquals(CSet.newSet(0.0, 0.1, 0.2, null), aa1.doubleSet);
 			assertEquals(CMap.newMap("a", BigDecimal.valueOf(1L), "b", BigDecimal.valueOf(2L), "c", BigDecimal.valueOf(3.1), "d", null, null, BigDecimal.valueOf(0L)), aa1.bigDecimalMap);
 
@@ -292,7 +269,7 @@ class LoadAndSaveTest extends TestHelpers {
 		log.info("\tAssertions on loaded objects...");
 
 		try {
-			AA aa1 = DomainController.findAny(AA.class, aa -> true);
+			AA aa1 = sdc.findAny(AA.class, aa -> true);
 
 			aa1.strings.remove("A");
 			aa1.strings.add("E");
@@ -305,63 +282,63 @@ class LoadAndSaveTest extends TestHelpers {
 			aa1.bigDecimalMap.remove(null);
 			aa1.bigDecimalMap.put("e", BigDecimal.valueOf(5L));
 
-			aa1.save();
+			sdc.save(aa1);
 
 			log.info("\tCreate and save second object...");
 
-			O o2 = SqlDomainController.createAndSave(O.class, null);
+			O o2 = sdc.createAndSave(O.class, null);
 
-			assertEquals(2, DomainController.count(O.class, o -> true));
+			assertEquals(2, sdc.count(O.class, o -> true));
 
-			try (SqlConnection sqlcn = SqlConnection.open(SqlDomainController.sqlDb.pool, false)) {
+			try (SqlConnection sqlcn = SqlConnection.open(sdc.sqlDb.pool, false)) {
 
 				log.info("\tDelete second object...");
 
-				o2.delete(sqlcn.cn);
+				sdc.delete(sqlcn.cn, o2);
 
 				log.info("\tManipulate database externally...");
 
-				assertEquals(1, DomainController.count(O.class, o -> true));
+				assertEquals(1, sdc.count(O.class, o -> true));
 
-				SqlDomainController.sqlDb.update(sqlcn.cn, "DOM_A", CMap.newMap("I", 2, "BYTES", Common.getBytesUTF8("äöüßÄÖÜ"), "DOM_FILE", "y.txt", "DOM_TYPE", "B", "O_ID", null), "S='S'");
+				sdc.sqlDb.update(sqlcn.cn, "DOM_A", CMap.newMap("I", 2, "BYTES", Common.getBytesUTF8("äöüßÄÖÜ"), "DOM_FILE", "y.txt", "DOM_TYPE", "B", "O_ID", null), "S='S'");
 
-				SqlDomainController.sqlDb.update(sqlcn.cn, "DOM_A_STRINGS", CMap.newMap("ELEMENT_ORDER", 1), "ELEMENT='B'");
-				SqlDomainController.sqlDb.update(sqlcn.cn, "DOM_A_STRINGS", CMap.newMap("ELEMENT_ORDER", 0), "ELEMENT='C'");
+				sdc.sqlDb.update(sqlcn.cn, "DOM_A_STRINGS", CMap.newMap("ELEMENT_ORDER", 1), "ELEMENT='B'");
+				sdc.sqlDb.update(sqlcn.cn, "DOM_A_STRINGS", CMap.newMap("ELEMENT_ORDER", 0), "ELEMENT='C'");
 				SqlDb.deleteFrom(sqlcn.cn, "DOM_A_STRINGS", "ELEMENT='D'");
 
-				if (dbType == DbType.ORACLE) {
-					SqlDomainController.sqlDb.update(sqlcn.cn, "DOM_A_STRINGS", CMap.newMap("ELEMENT", "E"), "ELEMENT IS NULL");
+				if (Helpers.dbType == DbType.ORACLE) {
+					sdc.sqlDb.update(sqlcn.cn, "DOM_A_STRINGS", CMap.newMap("ELEMENT", "E"), "ELEMENT IS NULL");
 				}
 				else {
-					SqlDomainController.sqlDb.update(sqlcn.cn, "DOM_A_STRINGS", CMap.newMap("ELEMENT", "E"), "ELEMENT=''");
+					sdc.sqlDb.update(sqlcn.cn, "DOM_A_STRINGS", CMap.newMap("ELEMENT", "E"), "ELEMENT=''");
 				}
-				SqlDomainController.sqlDb.insertInto(sqlcn.cn, "DOM_A_STRINGS", CMap.newSortedMap("A_ID", aa1.getId(), "ELEMENT", "G", "ELEMENT_ORDER", 6));
+				sdc.sqlDb.insertInto(sqlcn.cn, "DOM_A_STRINGS", CMap.newSortedMap("A_ID", aa1.getId(), "ELEMENT", "G", "ELEMENT_ORDER", 6));
 
 				SqlDb.deleteFrom(sqlcn.cn, "DOM_A_DOUBLE_SET", "ELEMENT IS NULL");
-				SqlDomainController.sqlDb.insertInto(sqlcn.cn, "DOM_A_DOUBLE_SET", CMap.newSortedMap("A_ID", aa1.getId(), "ELEMENT", 0.4));
+				sdc.sqlDb.insertInto(sqlcn.cn, "DOM_A_DOUBLE_SET", CMap.newSortedMap("A_ID", aa1.getId(), "ELEMENT", 0.4));
 
 				SqlDb.deleteFrom(sqlcn.cn, "DOM_A_BIG_DECIMAL_MAP", "ENTRY_KEY='d'");
 				SqlDb.deleteFrom(sqlcn.cn, "DOM_A_BIG_DECIMAL_MAP", "ENTRY_KEY IS NULL");
-				SqlDomainController.sqlDb.insertInto(sqlcn.cn, "DOM_A_BIG_DECIMAL_MAP", CMap.newSortedMap("A_ID", aa1.getId(), "ENTRY_KEY", "f", "ENTRY_VALUE", 6L));
+				sdc.sqlDb.insertInto(sqlcn.cn, "DOM_A_BIG_DECIMAL_MAP", CMap.newSortedMap("A_ID", aa1.getId(), "ENTRY_KEY", "f", "ENTRY_VALUE", 6L));
 
 				SqlDb.deleteFrom(sqlcn.cn, "DOM_A_LIST_OF_LISTS", "ELEMENT IS NULL");
-				SqlDomainController.sqlDb.update(sqlcn.cn, "DOM_A_LIST_OF_LISTS", CMap.newMap("ELEMENT", "A,B,C"), "ELEMENT_ORDER=3");
+				sdc.sqlDb.update(sqlcn.cn, "DOM_A_LIST_OF_LISTS", CMap.newMap("ELEMENT", "A,B,C"), "ELEMENT_ORDER=3");
 
 				SqlDb.deleteFrom(sqlcn.cn, "DOM_A_LIST_OF_MAPS", "ELEMENT IS NULL");
-				SqlDomainController.sqlDb.update(sqlcn.cn, "DOM_A_LIST_OF_MAPS", CMap.newMap("ELEMENT", "A=2;B=1;C=3"), "ELEMENT_ORDER=3");
+				sdc.sqlDb.update(sqlcn.cn, "DOM_A_LIST_OF_MAPS", CMap.newMap("ELEMENT", "A=2;B=1;C=3"), "ELEMENT_ORDER=3");
 
 				SqlDb.deleteFrom(sqlcn.cn, "DOM_A_MAP_OF_LISTS", "ENTRY_KEY=0");
-				SqlDomainController.sqlDb.update(sqlcn.cn, "DOM_A_MAP_OF_LISTS", CMap.newMap("ENTRY_VALUE", "A,B,C"), "ENTRY_KEY=3");
+				sdc.sqlDb.update(sqlcn.cn, "DOM_A_MAP_OF_LISTS", CMap.newMap("ENTRY_VALUE", "A,B,C"), "ENTRY_KEY=3");
 
 				SqlDb.deleteFrom(sqlcn.cn, "DOM_A_MAP_OF_MAPS", "ENTRY_KEY=0");
-				SqlDomainController.sqlDb.update(sqlcn.cn, "DOM_A_MAP_OF_MAPS", CMap.newMap("ENTRY_VALUE", "A=true;B=false"), "ENTRY_KEY=2");
+				sdc.sqlDb.update(sqlcn.cn, "DOM_A_MAP_OF_MAPS", CMap.newMap("ENTRY_VALUE", "A=true;B=false"), "ENTRY_KEY=2");
 
 				sqlcn.cn.commit();
 			}
 
 			log.info("\tLoad changed object again from database...");
 
-			aa1.reload();
+			sdc.reload(aa1);
 
 			log.info("\tCheck if database changes are reflected by objects...");
 
@@ -371,7 +348,7 @@ class LoadAndSaveTest extends TestHelpers {
 			assertEquals(new File("y.txt"), aa1.file);
 			assertEquals(null, aa1.o);
 
-			if (dbType == DbType.ORACLE) {
+			if (Helpers.dbType == DbType.ORACLE) {
 				assertEquals(CList.newList("C", "B", "E", "E", "E", "G"), aa1.strings);
 			}
 			else {
@@ -404,8 +381,8 @@ class LoadAndSaveTest extends TestHelpers {
 		log.info("\tChange objects locally and save again...");
 
 		try {
-			O o1 = DomainController.findAny(O.class, o -> true);
-			AA aa1 = DomainController.findAny(AA.class, aa -> true);
+			O o1 = sdc.findAny(O.class, o -> true);
+			AA aa1 = sdc.findAny(AA.class, aa -> true);
 
 			aa1.i = 1;
 			aa1.integerValue = -1;
@@ -431,19 +408,19 @@ class LoadAndSaveTest extends TestHelpers {
 
 			aa1.o = o1;
 
-			aa1.save();
+			sdc.save(aa1);
 
 			log.info("\tUnregister changed objects to force reload...");
 
-			aa1.unregisterForTest();
-			o1.unregisterForTest();
+			sdc.unregisterOnlyForTest(aa1);
+			sdc.unregisterOnlyForTest(o1);
 
 			log.info("\tLoad objects from database...");
 
-			SqlDomainController.synchronize();
+			sdc.synchronize();
 
-			aa1 = DomainController.findAny(AA.class, aa -> true);
-			o1 = DomainController.findAny(O.class, o -> true);
+			aa1 = sdc.findAny(AA.class, aa -> true);
+			o1 = sdc.findAny(O.class, o -> true);
 
 			log.info("\tCheck if reloaded object equals object changed before...");
 
@@ -495,18 +472,18 @@ class LoadAndSaveTest extends TestHelpers {
 			log.info("\tTEST 5: dataHorizon()");
 
 			AA aa1 = null;
-			try (SqlConnection sqlcn = SqlConnection.open(SqlDomainController.sqlDb.pool, true)) {
+			try (SqlConnection sqlcn = SqlConnection.open(sdc.sqlDb.pool, true)) {
 
 				log.info("\tCreate and save data horizon controlled objects...");
 
-				aa1 = SqlDomainController.createAndSave(sqlcn.cn, AA.class, null); // Under data horizon control
+				aa1 = sdc.createAndSave(sqlcn.cn, AA.class, null); // Under data horizon control
 
 				Set<X> xs = new HashSet<>(); // Children of AA
 				for (int i = 0; i < 10; i++) {
-					X x = DomainController.create(X.class, null);
+					X x = sdc.create(X.class, null);
 					x.s = String.valueOf(i + 1);
 					x.a = aa1;
-					x.save(sqlcn.cn);
+					sdc.save(sqlcn.cn, x);
 					xs.add(x);
 				}
 
@@ -522,22 +499,22 @@ class LoadAndSaveTest extends TestHelpers {
 
 			log.info("\tSynchronize with database to recognize and unregister externally deleted objects...");
 
-			SqlDomainController.synchronize(); // Determine and unregister X objects meanwhile deleted in database
+			sdc.synchronize(); // Determine and unregister X objects meanwhile deleted in database
 
 			log.info("\tAssertions on unregistered objects...");
 
-			assertEquals(5, DomainController.count(X.class, x -> true));
+			assertEquals(5, sdc.count(X.class, x -> true));
 			assertEquals(5, aa1.xs.size()); // Accumulation after unregistering objects deleted in database
 
-			X x1 = DomainController.findAny(X.class, x -> "1".equals(x.s));
-			X x2 = DomainController.findAny(X.class, x -> "2".equals(x.s));
-			X x3 = DomainController.findAny(X.class, x -> "3".equals(x.s));
+			X x1 = sdc.findAny(X.class, x -> "1".equals(x.s));
+			X x2 = sdc.findAny(X.class, x -> "2".equals(x.s));
+			X x3 = sdc.findAny(X.class, x -> "3".equals(x.s));
 
 			log.info("\tCreate and save a child of a data horizon controlled object which itself is not under data horizon control...");
 
-			B b1 = SqlDomainController.create(B.class, null); // Child of A which is not under data horizon control
+			B b1 = sdc.create(B.class, null); // Child of A which is not under data horizon control
 			b1.aa = aa1;
-			b1.save();
+			sdc.save(b1);
 
 			log.info("\tWait until data horizon data horizon period is over...");
 
@@ -545,31 +522,31 @@ class LoadAndSaveTest extends TestHelpers {
 
 			log.info("\tSynchronize again with database to unregister objects out of data horizon...");
 
-			SqlDomainController.synchronize(); // Unregister x's and aa due to out-of-data-horizon condition (remove from heap)
+			sdc.synchronize(); // Unregister x's and aa due to out-of-data-horizon condition (remove from heap)
 
 			log.info("\tAssertions on unregistration...");
 
-			assertEquals(0, DomainController.count(X.class, x -> true));
+			assertEquals(0, sdc.count(X.class, x -> true));
 			assertEquals(0, aa1.xs.size()); // Accumulation after unregistering objects (due to out-of-data horizon condition)
-			assertEquals(1, DomainController.count(A.class, a -> true)); // Referenced by b1
+			assertEquals(1, sdc.count(A.class, a -> true)); // Referenced by b1
 
 			log.info("\tCreate and save objects which reference existing but out-of-data-horizon objects...");
 
-			SqlDomainController.createAndSave(Z.class, z -> z.x = x1); // Re-register referenced out-of-data-horizon objects which were unregistered during synchronization
-			SqlDomainController.createAndSave(Z.class, z -> z.x = x2);
-			SqlDomainController.createAndSave(Z.class, z -> z.x = x3);
+			sdc.createAndSave(Z.class, z -> z.x = x1); // Re-register referenced out-of-data-horizon objects which were unregistered during synchronization
+			sdc.createAndSave(Z.class, z -> z.x = x2);
+			sdc.createAndSave(Z.class, z -> z.x = x3);
 
 			log.info("\tSynchronize again with database to force (re)loading referenced but unregistered objects...");
 
-			SqlDomainController.synchronize();
+			sdc.synchronize();
 
 			log.info("\tAssert reloading of referneced objects...");
 
-			assertEquals(3, DomainController.count(X.class, x -> true)); // Re-registered X object which are referenced by Z objects
+			assertEquals(3, sdc.count(X.class, x -> true)); // Re-registered X object which are referenced by Z objects
 			assertEquals(3, aa1.xs.size()); // Accumulation after reloading out-of-data-horizon objects
 
-			assertEquals(aa1, DomainController.findAny(AA.class, aa -> true)); // A object which were not unregistered on synchronization because it was referenced by B object
-			assertEquals(1, DomainController.count(A.class, a -> true));
+			assertEquals(aa1, sdc.findAny(AA.class, aa -> true)); // A object which were not unregistered on synchronization because it was referenced by B object
+			assertEquals(1, sdc.count(A.class, a -> true));
 		}
 		catch (AssertionFailedError failed) {
 			throw failed;
@@ -592,17 +569,17 @@ class LoadAndSaveTest extends TestHelpers {
 
 			log.info("\tCreate objects with - also circular - references and save one object to force saving all others...");
 
-			AA aa1 = DomainController.create(AA.class, aa -> aa.s = "aa1");
-			Z z1 = DomainController.create(Z.class, null);
-			Y y1 = DomainController.create(Y.class, y -> y.z = z1);
+			AA aa1 = sdc.create(AA.class, aa -> aa.s = "aa1");
+			Z z1 = sdc.create(Z.class, null);
+			Y y1 = sdc.create(Y.class, y -> y.z = z1);
 			y1.y = y1;
-			X x1 = DomainController.create(X.class, x -> {
+			X x1 = sdc.create(X.class, x -> {
 				x.a = aa1;
 				x.y = y1;
 			});
 			z1.x = x1;
 
-			x1.save();
+			sdc.save(x1);
 
 			log.info("\tAssert saving...");
 
@@ -611,15 +588,15 @@ class LoadAndSaveTest extends TestHelpers {
 			assertTrue(z1.isStored());
 			assertTrue(x1.isStored());
 
-			AA aa2 = SqlDomainController.createAndSave(AA.class, aa -> {
+			AA aa2 = sdc.createAndSave(AA.class, aa -> {
 				aa.s = "aa2";
 				aa.integerValue = 2;
 			});
-			X x2 = SqlDomainController.createAndSave(X.class, null);
-			Z z2 = SqlDomainController.createAndSave(Z.class, null);
-			Y y2 = SqlDomainController.create(Y.class, null);
+			X x2 = sdc.createAndSave(X.class, null);
+			Z z2 = sdc.createAndSave(Z.class, null);
+			Y y2 = sdc.create(Y.class, null);
 			y2.z = z2;
-			y2.save();
+			sdc.save(y2);
 
 			log.info("\tChange objects locally without saving...");
 
@@ -631,27 +608,27 @@ class LoadAndSaveTest extends TestHelpers {
 
 			log.info("\tChange values in database externally...");
 
-			AA aa3 = SqlDomainController.createAndSave(AA.class, aa -> {
+			AA aa3 = sdc.createAndSave(AA.class, aa -> {
 				aa.s = "aa3";
 				aa.integerValue = 3;
 			});
-			X x3 = SqlDomainController.createAndSave(X.class, null);
-			Z z3 = SqlDomainController.createAndSave(Z.class, null);
-			Y y3 = SqlDomainController.create(Y.class, null);
+			X x3 = sdc.createAndSave(X.class, null);
+			Z z3 = sdc.createAndSave(Z.class, null);
+			Y y3 = sdc.create(Y.class, null);
 			y3.z = z3;
-			y3.save();
+			sdc.save(y3);
 
-			try (SqlConnection sqlcn = SqlConnection.open(SqlDomainController.sqlDb.pool, false)) {
-				SqlDomainController.sqlDb.update(sqlcn.cn, "DOM_Y", CMap.newMap("Z_ID", z3.getId()), "ID=" + y1.getId());
-				SqlDomainController.sqlDb.update(sqlcn.cn, "DOM_Y", CMap.newMap("Y_ID", y3.getId()), "ID=" + y1.getId());
-				SqlDomainController.sqlDb.update(sqlcn.cn, "DOM_X", CMap.newMap("A_ID", aa3.getId()), "ID=" + x1.getId());
-				SqlDomainController.sqlDb.update(sqlcn.cn, "DOM_X", CMap.newMap("Y_ID", y3.getId()), "ID=" + x1.getId());
-				SqlDomainController.sqlDb.update(sqlcn.cn, "DOM_Z", CMap.newMap("X_ID", x3.getId()), "ID=" + z1.getId());
+			try (SqlConnection sqlcn = SqlConnection.open(sdc.sqlDb.pool, false)) {
+				sdc.sqlDb.update(sqlcn.cn, "DOM_Y", CMap.newMap("Z_ID", z3.getId()), "ID=" + y1.getId());
+				sdc.sqlDb.update(sqlcn.cn, "DOM_Y", CMap.newMap("Y_ID", y3.getId()), "ID=" + y1.getId());
+				sdc.sqlDb.update(sqlcn.cn, "DOM_X", CMap.newMap("A_ID", aa3.getId()), "ID=" + x1.getId());
+				sdc.sqlDb.update(sqlcn.cn, "DOM_X", CMap.newMap("Y_ID", y3.getId()), "ID=" + x1.getId());
+				sdc.sqlDb.update(sqlcn.cn, "DOM_Z", CMap.newMap("X_ID", x3.getId()), "ID=" + z1.getId());
 			}
 
 			log.info("\tSynchronize again with database to recognize unsaved changes...");
 
-			SqlDomainController.synchronize();
+			sdc.synchronize();
 
 			log.info("\tAssert overriding unsaved local changes by reloading objects from database...");
 
@@ -682,36 +659,40 @@ class LoadAndSaveTest extends TestHelpers {
 
 			log.info("\tCreate and save objects with parent child relation...");
 
-			O o1 = SqlDomainController.createAndSave(O.class, null);
-			AA aa1 = SqlDomainController.createAndSave(AA.class, aa -> aa.o = o1);
-			X x1a = SqlDomainController.createAndSave(X.class, x -> {
+			O o1 = sdc.createAndSave(O.class, null);
+			AA aa1 = sdc.createAndSave(AA.class, aa -> aa.o = o1);
+			AB ab1 = sdc.createAndSave(AB.class, null);
+			X x1a = sdc.createAndSave(X.class, x -> {
 				x.a = aa1;
 				x.s = "available";
 			});
-			X x1b = SqlDomainController.createAndSave(X.class, x -> {
-				x.a = aa1;
+			X x1b = sdc.createAndSave(X.class, x -> {
+				x.a = ab1;
 				x.s = "available";
 			});
 
 			log.info("\tUnregister all objects to force reload of these objects...");
 
-			x1a.unregisterForTest();
-			x1b.unregisterForTest();
-			aa1.unregisterForTest();
-			o1.unregisterForTest();
+			sdc.unregisterOnlyForTest(x1a);
+			sdc.unregisterOnlyForTest(x1b);
+			sdc.unregisterOnlyForTest(aa1);
+			sdc.unregisterOnlyForTest(ab1);
+			sdc.unregisterOnlyForTest(o1);
 
-			assertFalse(DomainController.hasAny(X.class));
-			assertFalse(DomainController.hasAny(AA.class));
-			assertFalse(DomainController.hasAny(O.class));
+			assertFalse(sdc.hasAny(X.class));
+			assertFalse(sdc.hasAny(AA.class));
+			assertFalse(sdc.hasAny(AB.class));
+			assertFalse(sdc.hasAny(O.class));
 
 			log.info("\tLoad objects of one domain class and force loading referenced parent objects in separate load cycles...");
 
-			Set<X> xs = SqlDomainController.loadOnly(X.class, null, -1);
+			Set<SqlDomainObject> objects = sdc.loadOnly(X.class, null, -1);
 
-			assertEquals(4, xs.size());
-			assertEquals(2, DomainController.count(X.class, x -> true));
-			assertTrue(DomainController.hasAny(AA.class));
-			assertTrue(DomainController.hasAny(O.class));
+			assertEquals(5, objects.size());
+			assertEquals(2, sdc.count(X.class, x -> true));
+			assertTrue(sdc.hasAny(AA.class));
+			assertTrue(sdc.hasAny(AB.class));
+			assertTrue(sdc.hasAny(O.class));
 
 		}
 		catch (AssertionFailedError failed) {
@@ -735,15 +716,15 @@ class LoadAndSaveTest extends TestHelpers {
 
 			log.info("\tCreate and save objects...");
 
-			X x1a = SqlDomainController.createAndSave(X.class, x -> { x.s = "available"; });
-			X x1b = SqlDomainController.createAndSave(X.class, x -> { x.s = "available"; });
+			X x1a = sdc.createAndSave(X.class, x -> { x.s = "available"; });
+			X x1b = sdc.createAndSave(X.class, x -> { x.s = "available"; });
 
 			log.info("\tLoad objects of one domain class for excusive use");
 
-			Set<X> xs = SqlDomainController.allocateExclusively(X.class, X.InProgress.class, "S='available'", -1, x -> x.s = "in_use");
+			Set<X> xs = sdc.allocateExclusively(X.class, X.InProgress.class, "S='available'", -1, x -> x.s = "in_use");
 			assertEquals(2, xs.size());
-			assertEquals(2, DomainController.count(X.class, x -> true));
-			assertEquals(2, SqlDomainController.count(X.InProgress.class, s -> true));
+			assertEquals(2, sdc.count(X.class, x -> true));
+			assertEquals(2, sdc.count(X.InProgress.class, s -> true));
 
 			Iterator<X> it = xs.iterator();
 			X xTmp = it.next();
@@ -757,30 +738,30 @@ class LoadAndSaveTest extends TestHelpers {
 
 			log.info("\tTry to load another object excusively (but no object exists)...");
 
-			xs = SqlDomainController.allocateExclusively(X.class, X.InProgress.class, "s='available'", -1, null);
+			xs = sdc.allocateExclusively(X.class, X.InProgress.class, "s='available'", -1, null);
 			assertTrue(xs.isEmpty());
 
-			xs = SqlDomainController.allocateExclusively(X.class, X.InProgress.class, null, -1, null);
+			xs = sdc.allocateExclusively(X.class, X.InProgress.class, null, -1, null);
 			assertTrue(xs.isEmpty());
 
 			log.info("\tRelease one exclusively used object...");
 
-			assertTrue(x1b.release(X.class, X.InProgress.class, x -> x.s = "available"));
-			assertEquals(1, SqlDomainController.count(X.InProgress.class, s -> true));
+			assertTrue(sdc.release(x1b, X.InProgress.class, x -> x.s = "available"));
+			assertEquals(1, sdc.count(X.InProgress.class, s -> true));
 
 			log.info("\tTry to allocate another object excusively (now one object exists)...");
 
-			Set<X> xs2 = SqlDomainController.allocateExclusively(X.class, X.InProgress.class, null, 1, x -> x.s = "in_use");
+			Set<X> xs2 = sdc.allocateExclusively(X.class, X.InProgress.class, null, 1, x -> x.s = "in_use");
 			assertEquals(1, xs2.size());
-			assertEquals(2, SqlDomainController.count(X.InProgress.class, s -> true));
+			assertEquals(2, sdc.count(X.InProgress.class, s -> true));
 
-			x1a.release(X.class, X.InProgress.class, x -> x.s = "available");
-			x1b.release(X.class, X.InProgress.class, x -> x.s = "available");
-			assertEquals(0, SqlDomainController.count(X.InProgress.class, s -> true));
+			sdc.release(x1a, X.InProgress.class, x -> x.s = "available");
+			sdc.release(x1b, X.InProgress.class, x -> x.s = "available");
+			assertEquals(0, sdc.count(X.InProgress.class, s -> true));
 
-			assertTrue(x1a.allocateExclusively(X.class, X.InProgress.class, x -> x.s = "in_use"));
-			assertEquals(1, SqlDomainController.count(X.InProgress.class, s -> true));
-			x1a.release(X.class, X.InProgress.class, x -> x.s = "available");
+			assertTrue(sdc.allocateExclusively(x1a, X.InProgress.class, x -> x.s = "in_use"));
+			assertEquals(1, sdc.count(X.InProgress.class, s -> true));
+			sdc.release(x1a, X.InProgress.class, x -> x.s = "available");
 		}
 		catch (AssertionFailedError failed) {
 			throw failed;
@@ -801,64 +782,64 @@ class LoadAndSaveTest extends TestHelpers {
 		log.info("\tDelete objects with circular references...");
 
 		try {
-			C c1 = SqlDomainController.create(C.class, null);
+			C c1 = sdc.create(C.class, null);
 			c1.c = c1;
-			c1.save();
+			sdc.save(c1);
 
-			assertDoesNotThrow(() -> c1.delete());
+			assertDoesNotThrow(() -> sdc.delete(c1));
 
-			try (SqlConnection sqlcn = SqlConnection.open(SqlDomainController.sqlDb.pool, false)) {
-				assertEquals(0, SqlDomainController.sqlDb.selectCountFrom(sqlcn.cn, "DOM_C", null));
+			try (SqlConnection sqlcn = SqlConnection.open(sdc.sqlDb.pool, false)) {
+				assertEquals(0, sdc.sqlDb.selectCountFrom(sqlcn.cn, "DOM_C", null));
 			}
 
-			C c1a = SqlDomainController.createAndSave(C.class, null);
-			C c2 = SqlDomainController.create(C.class, c -> c.c = c1a);
-			c2.save();
+			C c1a = sdc.createAndSave(C.class, null);
+			C c2 = sdc.create(C.class, c -> c.c = c1a);
+			sdc.save(c2);
 			c1a.c = c2;
-			c1a.save();
+			sdc.save(c1a);
 
-			assertDoesNotThrow(() -> c2.delete());
+			assertDoesNotThrow(() -> sdc.delete(c2));
 
-			try (SqlConnection sqlcn = SqlConnection.open(SqlDomainController.sqlDb.pool, false)) {
-				assertEquals(0, SqlDomainController.sqlDb.selectCountFrom(sqlcn.cn, "DOM_C", null));
+			try (SqlConnection sqlcn = SqlConnection.open(sdc.sqlDb.pool, false)) {
+				assertEquals(0, sdc.sqlDb.selectCountFrom(sqlcn.cn, "DOM_C", null));
 			}
 
-			C c1b = SqlDomainController.create(C.class, null);
-			C c2a = SqlDomainController.create(C.class, c -> c.c = c1b);
-			C c3 = SqlDomainController.create(C.class, c -> c.c = c2a);
+			C c1b = sdc.create(C.class, null);
+			C c2a = sdc.create(C.class, c -> c.c = c1b);
+			C c3 = sdc.create(C.class, c -> c.c = c2a);
 			c1b.c = c3;
-			c3.save();
+			sdc.save(c3);
 
-			assertDoesNotThrow(() -> c1b.delete());
+			assertDoesNotThrow(() -> sdc.delete(c1b));
 
-			try (SqlConnection sqlcn = SqlConnection.open(SqlDomainController.sqlDb.pool, false)) {
-				assertEquals(0, SqlDomainController.sqlDb.selectCountFrom(sqlcn.cn, "DOM_C", null));
+			try (SqlConnection sqlcn = SqlConnection.open(sdc.sqlDb.pool, false)) {
+				assertEquals(0, sdc.sqlDb.selectCountFrom(sqlcn.cn, "DOM_C", null));
 			}
 
 			log.info("\tError case exception on deletion...");
 
-			C ce1 = SqlDomainController.create(C.class, null);
-			C ce2 = SqlDomainController.create(C.class, c -> c.c = ce1);
+			C ce1 = sdc.create(C.class, null);
+			C ce2 = sdc.create(C.class, c -> c.c = ce1);
 			ce1.c = ce2;
-			ce1.save();
+			sdc.save(ce1);
 
-			ce2.unregisterForTest();
+			sdc.unregisterOnlyForTest(ce2);
 
-			assertThrows(SQLException.class, () -> ce1.delete());
+			assertThrows(SQLException.class, () -> sdc.delete(ce1));
 
-			try (SqlConnection sqlcn = SqlConnection.open(SqlDomainController.sqlDb.pool, false)) {
-				assertEquals(2, SqlDomainController.sqlDb.selectCountFrom(sqlcn.cn, "DOM_C", null));
+			try (SqlConnection sqlcn = SqlConnection.open(sdc.sqlDb.pool, false)) {
+				assertEquals(2, sdc.sqlDb.selectCountFrom(sqlcn.cn, "DOM_C", null));
 			}
 
-			ce2.reregisterForTest();
+			sdc.reregisterOnlyForTest(ce2);
 
-			assertEquals(2, SqlDomainController.count(C.class, c -> true));
-			assertDoesNotThrow(() -> ce1.delete());
+			assertEquals(2, sdc.count(C.class, c -> true));
+			assertDoesNotThrow(() -> sdc.delete(ce1));
 
-			try (SqlConnection sqlcn = SqlConnection.open(SqlDomainController.sqlDb.pool, false)) {
-				assertEquals(0, SqlDomainController.sqlDb.selectCountFrom(sqlcn.cn, "DOM_C", null));
+			try (SqlConnection sqlcn = SqlConnection.open(sdc.sqlDb.pool, false)) {
+				assertEquals(0, sdc.sqlDb.selectCountFrom(sqlcn.cn, "DOM_C", null));
 			}
-			assertEquals(0, SqlDomainController.count(C.class, c -> true));
+			assertEquals(0, sdc.count(C.class, c -> true));
 		}
 		catch (AssertionFailedError failed) {
 			throw failed;
@@ -882,39 +863,39 @@ class LoadAndSaveTest extends TestHelpers {
 			log.info("\tCheck default object order (id containes creation time)...");
 
 			X b1 = new X();
-			b1.register();
+			sdc.register(b1);
 			Thread.sleep(1);
 			X b2 = new X();
-			b2.register();
+			sdc.register(b2);
 			assertTrue(b2.compareTo(b1) > 0);
 
 			log.info("\tCheck object order on overridden compareTo()...");
 
-			O o1 = DomainController.create(O.class, null);
+			O o1 = sdc.create(O.class, null);
 
 			AA aaa = new AA(o1, "A");
 			aaa.bool = false;
-			aaa.register();
+			sdc.register(aaa);
 			AA aab = new AA(o1, "B");
 			aab.bool = true;
-			aab.register();
+			sdc.register(aab);
 			AA aac = new AA(o1, "C");
 			aac.bool = false;
-			aac.register();
+			sdc.register(aac);
 			AA aad = new AA(o1, "D");
 			aad.bool = true;
-			aad.register();
+			sdc.register(aad);
 
-			assertEquals(CList.newList(aaa, aab, aac, aad), DomainController.sort(CList.newList(aad, aab, aac, aaa)));
+			assertEquals(CList.newList(aaa, aab, aac, aad), sdc.sort(CList.newList(aad, aab, aac, aaa)));
 
-			assertEquals(CMap.newMap("A", CSet.newSet(aaa), "B", CSet.newSet(aab), "C", CSet.newSet(aac), "D", CSet.newSet(aad)), DomainController.groupBy(o1.as, a -> a.s));
-			assertEquals(CMap.newMap(false, CSet.newSet(aaa, aac), true, CSet.newSet(aab, aad)), DomainController.groupBy(o1.as, a -> a.bool));
-			assertEquals(2, DomainController.countBy(o1.as, a -> a.bool).get(true));
+			assertEquals(CMap.newMap("A", CSet.newSet(aaa), "B", CSet.newSet(aab), "C", CSet.newSet(aac), "D", CSet.newSet(aad)), sdc.groupBy(o1.as, a -> a.s));
+			assertEquals(CMap.newMap(false, CSet.newSet(aaa, aac), true, CSet.newSet(aab, aad)), sdc.groupBy(o1.as, a -> a.bool));
+			assertEquals(2, sdc.countBy(o1.as, a -> a.bool).get(true));
 
-			aaa.delete();
-			aab.delete();
-			aac.delete();
-			aad.delete();
+			sdc.delete(aaa);
+			sdc.delete(aab);
+			sdc.delete(aac);
+			sdc.delete(aad);
 		}
 		catch (AssertionFailedError failed) {
 			throw failed;
@@ -935,7 +916,7 @@ class LoadAndSaveTest extends TestHelpers {
 
 			log.info("\tTEST 11: errorCases()");
 
-			AA aa1 = DomainController.create(AA.class, a -> a.s = "aa1");
+			AA aa1 = sdc.create(AA.class, a -> a.s = "aa1");
 
 			log.info("\tGetting and setting inexistent fields...");
 
@@ -946,56 +927,56 @@ class LoadAndSaveTest extends TestHelpers {
 
 			aa1.type = null;
 
-			assertTrue(FieldError.hasConstraintViolations(aa1));
+			assertTrue(sdc.hasConstraintViolations(aa1));
 			assertTrue(aa1.hasErrorsOrWarnings());
 			assertEquals(1, aa1.getErrorsAndWarnings().size());
 			assertFalse(aa1.getErrorOrWarning(aa1.getInvalidFields().iterator().next()).toString().isEmpty());
 
-			assertThrows(SQLException.class, () -> aa1.save());
+			assertThrows(SQLException.class, () -> sdc.save(aa1));
 
 			aa1.type = Type.A;
 
-			assertFalse(FieldError.hasConstraintViolations(aa1));
+			assertFalse(sdc.hasConstraintViolations(aa1));
 
 			log.info("\tUNIQUE constraint violation...");
 
 			aa1.i = 0;
 			aa1.integerValue = 1;
-			AA aa2 = DomainController.create(AA.class, a -> a.s = "aa2");
+			AA aa2 = sdc.create(AA.class, a -> a.s = "aa2");
 			aa2.i = 0;
 			aa2.integerValue = 1;
 
-			assertTrue(FieldError.hasConstraintViolations(aa1));
-			assertTrue(FieldError.hasConstraintViolations(aa2));
+			assertTrue(sdc.hasConstraintViolations(aa1));
+			assertTrue(sdc.hasConstraintViolations(aa2));
 
-			aa1.save();
-			assertThrows(SQLException.class, () -> aa2.save());
+			sdc.save(aa1);
+			assertThrows(SQLException.class, () -> sdc.save(aa2));
 
 			aa2.integerValue = 2;
 			aa2.s = "s";
 
-			assertFalse(FieldError.hasConstraintViolations(aa1));
-			assertFalse(FieldError.hasConstraintViolations(aa2));
+			assertFalse(sdc.hasConstraintViolations(aa1));
+			assertFalse(sdc.hasConstraintViolations(aa2));
 
-			aa2.save();
+			sdc.save(aa2);
 
 			assertFalse(aa1.hasErrorsOrWarnings());
-			assertEquals(2, SqlDomainController.allValid(AA.class).size());
+			assertEquals(2, sdc.allValid(AA.class).size());
 
 			log.info("\tcolumn size violation...");
 
 			aa1.s = "abcdefghijklmnopqrstuvwxyz"; // Column size
 
-			assertTrue(FieldError.hasConstraintViolations(aa1));
+			assertTrue(sdc.hasConstraintViolations(aa1));
 
-			aa1.save(); // Save with truncated value
+			sdc.save(aa1); // Save with truncated value
 
 			assertTrue(aa1.hasErrorsOrWarnings());
 			assertTrue(aa1.isValid());
 
 			aa1.type = null; // Analytical update
 
-			aa1.save(); // Save all but invalid fields
+			sdc.save(aa1); // Save all but invalid fields
 			assertFalse(aa1.isValid());
 			assertEquals(2, aa1.getErrorsAndWarnings().size());
 

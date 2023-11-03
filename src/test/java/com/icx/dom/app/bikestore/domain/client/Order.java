@@ -1,6 +1,5 @@
 package com.icx.dom.app.bikestore.domain.client;
 
-import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Map;
@@ -9,6 +8,7 @@ import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.icx.dom.app.bikestore.BikeStoreApp;
 import com.icx.dom.app.bikestore.domain.bike.Bike;
 import com.icx.dom.common.CDateTime;
 import com.icx.dom.common.CMap;
@@ -16,9 +16,7 @@ import com.icx.dom.common.Common;
 import com.icx.dom.domain.DomainAnnotations.SqlColumn;
 import com.icx.dom.domain.DomainAnnotations.UseDataHorizon;
 import com.icx.dom.domain.DomainObject;
-import com.icx.dom.domain.sql.SqlDomainController;
 import com.icx.dom.domain.sql.SqlDomainObject;
-import com.icx.dom.jdbc.SqlDbException;
 
 @UseDataHorizon
 // This means that older orders which were processed before data horizon (last modification date is before database synchronization time minus 'data horizon period') will not be loaded from database
@@ -142,7 +140,7 @@ public class Order extends SqlDomainObject {
 
 			while (true) {
 				try {
-					Set<Order> orders = SqlDomainController.computeExclusively(Order.class, Order.InProgress.class, "INVOICE_DATE IS NULL", o -> o.sendInvoice());
+					Set<Order> orders = BikeStoreApp.sdc.computeExclusively(Order.class, Order.InProgress.class, "INVOICE_DATE IS NULL", o -> o.sendInvoice());
 					for (Order order : orders) {
 
 						log.info("Invoice for order {} was sent", order);
@@ -152,7 +150,7 @@ public class Order extends SqlDomainObject {
 						}
 					}
 				}
-				catch (SQLException | SqlDbException e) {
+				catch (Exception e) {
 					log.error(" {} exception occured sending invoices!", e.getClass().getSimpleName());
 				}
 
@@ -180,7 +178,7 @@ public class Order extends SqlDomainObject {
 			while (true) {
 
 				try {
-					Set<Order> orders = SqlDomainController.computeExclusively(Order.class, Order.InProgress.class, "PAY_DATE IS NOT NULL AND DELIVERY_DATE IS NULL", o -> o.deliverBike());
+					Set<Order> orders = BikeStoreApp.sdc.computeExclusively(Order.class, Order.InProgress.class, "PAY_DATE IS NOT NULL AND DELIVERY_DATE IS NULL", o -> o.deliverBike());
 					for (Order order : orders) {
 
 						log.info("Bike for order {} was delivered", order);
@@ -190,7 +188,7 @@ public class Order extends SqlDomainObject {
 						}
 					}
 				}
-				catch (SQLException | SqlDbException e) {
+				catch (Exception e) {
 					log.error(" {} exception occured sending delivery notes!", e.getClass().getSimpleName());
 				}
 

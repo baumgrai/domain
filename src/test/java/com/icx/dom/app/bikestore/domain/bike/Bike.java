@@ -1,7 +1,6 @@
 package com.icx.dom.app.bikestore.domain.bike;
 
 import java.math.BigDecimal;
-import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -9,6 +8,7 @@ import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.icx.dom.app.bikestore.BikeStoreApp;
 import com.icx.dom.app.bikestore.domain.Manufacturer;
 import com.icx.dom.app.bikestore.domain.client.Order;
 import com.icx.dom.common.CList;
@@ -18,7 +18,6 @@ import com.icx.dom.domain.DomainAnnotations.SqlColumn;
 import com.icx.dom.domain.DomainAnnotations.SqlTable;
 import com.icx.dom.domain.DomainObject;
 import com.icx.dom.domain.sql.SqlDomainObject;
-import com.icx.dom.jdbc.SqlDbException;
 
 /**
  * Bike model with properties and availability by size.
@@ -118,7 +117,7 @@ public abstract class Bike extends SqlDomainObject {
 		this.price = BigDecimal.valueOf(price);
 		this.picture = picture;
 
-		register();
+		BikeStoreApp.sdc.register(this);
 	}
 
 	// Methods
@@ -158,8 +157,8 @@ public abstract class Bike extends SqlDomainObject {
 		return this;
 	}
 
-	public synchronized void incrementAvailableCount(Bike.Size bikeSize) throws SQLException, SqlDbException {
-		computeExclusively(Bike.class, Bike.InProgress.class, b -> ((Bike) b).availabilityMap.put(bikeSize, ((Bike) b).availabilityMap.get(bikeSize) + 1));
+	public synchronized void incrementAvailableCount(Bike.Size bikeSize) throws Exception {
+		BikeStoreApp.sdc.computeExclusively(this, Bike.InProgress.class, b -> ((Bike) b).availabilityMap.put(bikeSize, ((Bike) b).availabilityMap.get(bikeSize) + 1));
 	}
 
 }

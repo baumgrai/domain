@@ -29,8 +29,6 @@ import com.icx.dom.common.Common;
 import com.icx.dom.domain.DomainAnnotations.Accumulation;
 import com.icx.dom.domain.DomainAnnotations.SqlColumn;
 import com.icx.dom.domain.DomainAnnotations.SqlTable;
-import com.icx.dom.domain.DomainController;
-import com.icx.dom.domain.sql.SqlDomainController;
 import com.icx.dom.domain.sql.SqlDomainObject;
 
 /**
@@ -194,7 +192,7 @@ public class Client extends SqlDomainObject {
 
 	// For internationalization (i18n) of country names - see 'messages_en.properties'
 	static String language = "en";
-	public static ResourceBundle bundle = ResourceBundle.getBundle("messages", new Locale(language));
+	public static ResourceBundle bundle = ResourceBundle.getBundle("messages", Locale.forLanguageTag(language));
 
 	protected static List<Client> clients = new ArrayList<>(); // You may use static members without any restrictions; they won't be saved in database
 
@@ -255,7 +253,7 @@ public class Client extends SqlDomainObject {
 	}
 
 	public boolean alreadyOrdered(String bikeClassName) {
-		return (DomainController.hasAny(Order.class, o -> o.client == this && Common.objectsEqual(bikeClassName, o.bike.getClass().getSimpleName())));
+		return (BikeStoreApp.sdc.hasAny(Order.class, o -> o.client == this && Common.objectsEqual(bikeClassName, o.bike.getClass().getSimpleName())));
 	}
 
 	// Client thread
@@ -285,7 +283,7 @@ public class Client extends SqlDomainObject {
 				whereClause += " AND DOM_BIKE.IS_FOR_WOMAN = 'FALSE'";
 			}
 
-			Set<T> bikes = SqlDomainController.allocateExclusively(bikeType, Bike.InProgress.class, whereClause, 1, null);
+			Set<T> bikes = BikeStoreApp.sdc.allocateExclusively(bikeType, Bike.InProgress.class, whereClause, 1, null);
 			if (CCollection.isEmpty(bikes)) {
 				return null;
 			}
@@ -299,7 +297,7 @@ public class Client extends SqlDomainObject {
 					log.info("'{}' orders bike '{}' ({})", client, bike, bikeSize);
 				}
 
-				bike.release(Bike.class, Bike.InProgress.class, null);
+				BikeStoreApp.sdc.release(bike, Bike.InProgress.class, null);
 			}
 
 			if (orderedBike == null) {
@@ -311,8 +309,8 @@ public class Client extends SqlDomainObject {
 			// Note: Using constructor here allows deferred registration which is necessary to ensure that order cannot be found by order processing thread before synchronized block is left here
 			Order order = new Order(orderedBike, client);
 			synchronized (order) {
-				order.register();
-				order.save();
+				BikeStoreApp.sdc.register(order);
+				BikeStoreApp.sdc.save(order);
 				order.waitFor(Operation.ORDER_PROCESSING);
 			}
 
@@ -326,7 +324,7 @@ public class Client extends SqlDomainObject {
 
 				log.warn("No invoice was received during waiting for processing order '{}'! Cancel order", order);
 				order.bike.incrementAvailableCount(bikeSize); // Timeout processing order
-				order.delete();
+				BikeStoreApp.sdc.delete(order);
 				counters.numberOfOrdersCanceledByProcessingTimeout++;
 
 				return;
@@ -336,14 +334,14 @@ public class Client extends SqlDomainObject {
 
 				log.info("Pay price for order '{}' ({}$). (resting disposable money: {}$)", order, order.bike.price, disposableMoney);
 				order.payDate = LocalDateTime.now();
-				order.save();
+				BikeStoreApp.sdc.save(order);
 				order.waitFor(Operation.BIKE_DELIVERY);
 				disposableMoney -= order.bike.price.doubleValue();
 			}
 			else {
 				log.info("Cancel order '{}' because client is not able to pay the price of {}$. (disposable money is only: {}$)", order, order.bike.price, disposableMoney);
 				order.bike.incrementAvailableCount(bikeSize); // Unable to pay
-				order.delete();
+				BikeStoreApp.sdc.delete(order);
 				counters.numberOfOrdersCanceledByInabilityToPay++;
 			}
 		}

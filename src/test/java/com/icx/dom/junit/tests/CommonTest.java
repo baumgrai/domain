@@ -151,7 +151,7 @@ class CommonTest extends TestHelpers {
 
 		assertFalse(Common.exceptionStackToString(new Exception()).isEmpty());
 
-		ResourceBundle bundle = ResourceBundle.getBundle("messages", new Locale("en"));
+		ResourceBundle bundle = ResourceBundle.getBundle("messages", Locale.forLanguageTag("en"));
 		assertEquals("", CResource.i18n(bundle, null));
 		assertEquals("germany", CResource.i18n(null, "germany"));
 		assertEquals("Germany", CResource.i18n(bundle, "germany"));

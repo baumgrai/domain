@@ -9,13 +9,12 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.icx.dom.app.survey.SurveyApp;
 import com.icx.dom.app.survey.domain.call.Call;
 import com.icx.dom.app.survey.domain.config.Question.QuestionType;
 import com.icx.dom.common.CRandom;
 import com.icx.dom.domain.DomainAnnotations.Accumulation;
 import com.icx.dom.domain.DomainAnnotations.SqlColumn;
-import com.icx.dom.domain.DomainController;
-import com.icx.dom.domain.sql.SqlDomainController;
 import com.icx.dom.domain.sql.SqlDomainObject;
 import com.icx.dom.jdbc.SqlConnection;
 
@@ -59,7 +58,7 @@ public class Survey extends SqlDomainObject {
 	// Methods
 
 	public synchronized List<SurveyQuestionRelation> getOrderedQuestionRelations() {
-		return DomainController.sort(DomainController.findAll(SurveyQuestionRelation.class, sqr -> sqr.survey == this));
+		return SurveyApp.sdc.sort(SurveyApp.sdc.findAll(SurveyQuestionRelation.class, sqr -> sqr.survey == this));
 	}
 
 	public synchronized List<Question> getQuestions() {
@@ -67,7 +66,7 @@ public class Survey extends SqlDomainObject {
 	}
 
 	public synchronized int getQuestionCount() {
-		return (int) DomainController.count(SurveyQuestionRelation.class, sqr -> sqr.survey == this);
+		return (int) SurveyApp.sdc.count(SurveyQuestionRelation.class, sqr -> sqr.survey == this);
 	}
 
 	private Question getAndCheckQuestionOnPos(int pos, String op) {
@@ -82,8 +81,8 @@ public class Survey extends SqlDomainObject {
 			return null;
 		}
 
-		Collection<SurveyQuestionRelation> sqrs = DomainController.findAll(SurveyQuestionRelation.class, sqr -> sqr.survey == this && sqr.position == pos);
-		int count = (int) DomainController.count(SurveyQuestionRelation.class, sqr -> sqr.survey == this);
+		Collection<SurveyQuestionRelation> sqrs = SurveyApp.sdc.findAll(SurveyQuestionRelation.class, sqr -> sqr.survey == this && sqr.position == pos);
+		int count = (int) SurveyApp.sdc.count(SurveyQuestionRelation.class, sqr -> sqr.survey == this);
 		if (sqrs.isEmpty()) {
 			log.error("No question at position {} in survey '{}' (question count: {})", pos, this, count);
 			return null;
@@ -105,18 +104,18 @@ public class Survey extends SqlDomainObject {
 
 		getAndCheckQuestionOnPos(pos, "Insert");
 
-		DomainController.findAll(SurveyQuestionRelation.class, sqr -> sqr.survey == this && sqr.position >= pos).forEach(sqr -> {
+		SurveyApp.sdc.findAll(SurveyQuestionRelation.class, sqr -> sqr.survey == this && sqr.position >= pos).forEach(sqr -> {
 			sqr.position++;
 			sqr.save(sqlcn);
 		});
 
-		SqlDomainController.createAndSave(sqlcn.cn, SurveyQuestionRelation.class, sqr -> {
+		SurveyApp.sdc.createAndSave(sqlcn.cn, SurveyQuestionRelation.class, sqr -> {
 			sqr.survey = this;
 			sqr.question = question;
 			sqr.position = pos;
 		});
 
-		log.debug("Inserted question on position {} (question count: {})", pos, DomainController.count(SurveyQuestionRelation.class, sqr -> sqr.survey == this));
+		log.debug("Inserted question on position {} (question count: {})", pos, SurveyApp.sdc.count(SurveyQuestionRelation.class, sqr -> sqr.survey == this));
 	}
 
 	public synchronized void appendQuestion(SqlConnection sqlcn, Question question) throws Exception {
@@ -130,9 +129,9 @@ public class Survey extends SqlDomainObject {
 			return null;
 		}
 
-		DomainController.findAny(SurveyQuestionRelation.class, sqr -> sqr.survey == this && sqr.position == pos).delete();
+		SurveyApp.sdc.delete(SurveyApp.sdc.findAny(SurveyQuestionRelation.class, sqr -> sqr.survey == this && sqr.position == pos));
 
-		DomainController.findAll(SurveyQuestionRelation.class, sqr -> sqr.survey == this && sqr.position > pos).forEach(sqr -> {
+		SurveyApp.sdc.findAll(SurveyQuestionRelation.class, sqr -> sqr.survey == this && sqr.position > pos).forEach(sqr -> {
 			sqr.position--;
 			sqr.save(sqlcn);
 		});
@@ -155,7 +154,7 @@ public class Survey extends SqlDomainObject {
 	// Test admin thread
 
 	private boolean hasQuestionOfType(QuestionType type) {
-		return (DomainController.count(SurveyQuestionRelation.class, sqr -> sqr.survey == this && sqr.question.type == type) > 0);
+		return (SurveyApp.sdc.count(SurveyQuestionRelation.class, sqr -> sqr.survey == this && sqr.question.type == type) > 0);
 	}
 
 	public void addQuestionRandomly(SqlConnection sqlcn, int questionCount) throws Exception {

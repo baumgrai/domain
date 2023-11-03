@@ -7,12 +7,10 @@ import com.icx.dom.app.survey.domain.config.Question;
 import com.icx.dom.app.survey.domain.config.Scale;
 import com.icx.dom.app.survey.domain.config.Survey;
 import com.icx.dom.app.survey.domain.message.VoiceMessage;
-import com.icx.dom.common.Common;
 import com.icx.dom.common.CFile;
 import com.icx.dom.common.CRandom;
+import com.icx.dom.common.Common;
 import com.icx.dom.domain.DomainAnnotations.UseDataHorizon;
-import com.icx.dom.domain.DomainController;
-import com.icx.dom.domain.sql.SqlDomainController;
 
 @UseDataHorizon
 public class PhoneCall extends Call {
@@ -32,9 +30,9 @@ public class PhoneCall extends Call {
 
 			try {
 				// Create call object - call randomly selected survey
-				PhoneCall phoneCall = SqlDomainController.createAndSave(PhoneCall.class, c -> {
-					int i = CRandom.randomInt((int) SurveyApp.count(Survey.class, s -> true));
-					c.survey = DomainController.findAny(Survey.class, s -> s.number == i);
+				PhoneCall phoneCall = SurveyApp.sdc.createAndSave(PhoneCall.class, c -> {
+					int i = CRandom.randomInt((int) SurveyApp.sdc.count(Survey.class, s -> true));
+					c.survey = SurveyApp.sdc.findAny(Survey.class, s -> s.number == i);
 					c.fromPhone = "+" + String.format("%08d", CRandom.randomInt(100000000));
 				});
 
@@ -60,7 +58,7 @@ public class PhoneCall extends Call {
 						answerString = "" + (CRandom.randomInt(11));
 					}
 
-					SqlDomainController.createAndSave(Answer.class, a -> {
+					SurveyApp.sdc.createAndSave(Answer.class, a -> {
 						a.answerText = answerString;
 						a.questionText = question.text;
 						a.call = phoneCall;
@@ -79,7 +77,7 @@ public class PhoneCall extends Call {
 
 				if (CRandom.randomInt(10) == 0) {
 
-					SqlDomainController.createAndSave(VoiceMessage.class, v -> {
+					SurveyApp.sdc.createAndSave(VoiceMessage.class, v -> {
 						v.call = phoneCall;
 						v.audioFile = SurveyApp.AUDIOFILE;
 						try {
@@ -93,7 +91,7 @@ public class PhoneCall extends Call {
 					log.info("Audio message created");
 				}
 
-				phoneCall.save();
+				SurveyApp.sdc.save(phoneCall);
 			}
 			catch (Exception ex) {
 				log.error(Common.exceptionStackToString(ex));

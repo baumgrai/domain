@@ -22,9 +22,7 @@ import com.icx.dom.app.bikestore.domain.bike.RaceBike.Rim;
 import com.icx.dom.app.bikestore.domain.client.Client;
 import com.icx.dom.app.bikestore.domain.client.Client.Country;
 import com.icx.dom.common.CFile;
-import com.icx.dom.domain.DomainController;
 import com.icx.dom.domain.sql.FieldError;
-import com.icx.dom.domain.sql.SqlDomainController;
 import com.icx.dom.jdbc.ConfigException;
 import com.icx.dom.jdbc.SqlConnection;
 import com.icx.dom.jdbc.SqlDbException;
@@ -40,15 +38,15 @@ public class Initialize {
 
 		// Note: To speed up initialization use one transaction to delete all existing objects. So possible exceptions on DELETE will stop test
 
-		try (SqlConnection sqlcn = SqlConnection.open(SqlDomainController.sqlDb.pool, false)) {
+		try (SqlConnection sqlcn = SqlConnection.open(BikeStoreApp.sdc.sqlDb.pool, false)) {
 
 			// Delete means: remove Java object from object store and DELETE object records in database, and do so for all children too (behaves like ON DELETE CASCADE)!
-			for (Client client : DomainController.all(Client.class)) {
-				client.delete(sqlcn.cn);
+			for (Client client : BikeStoreApp.sdc.all(Client.class)) {
+				BikeStoreApp.sdc.delete(sqlcn.cn, client);
 			}
 
-			for (Manufacturer manufacturer : DomainController.all(Manufacturer.class)) {
-				manufacturer.delete(sqlcn.cn);
+			for (Manufacturer manufacturer : BikeStoreApp.sdc.all(Manufacturer.class)) {
+				BikeStoreApp.sdc.delete(sqlcn.cn, manufacturer);
 			}
 
 			// Note: deleting bikes explicitly is not necessary because Bike references Manufacturer with NOT NULL constraint and so all bikes will be deleted by deleting manufacturers
@@ -72,30 +70,30 @@ public class Initialize {
 		// Note: If you define individual constructors you have to define the parameterless default constructor too, which is used by domain controller to instantiate objects loaded from database
 
 		// Create and register manufacturers - explicit registration
-		Manufacturer bianchi = new Manufacturer("Bianchi", Country.ITALY).register();
-		Manufacturer colnago = new Manufacturer("Colnago", Country.ITALY).register();
-		Manufacturer cervelo = new Manufacturer("Cervélo", Country.ITALY).register();
-		Manufacturer derosa = new Manufacturer("De Rosa", Country.ITALY).register();
-		Manufacturer peugeot = new Manufacturer("Peugeot", Country.FRANCE).register();
-		Manufacturer lapierre = new Manufacturer("Lapierre", Country.FRANCE).register();
-		Manufacturer canyon = new Manufacturer("Canyon", Country.GERMANY).register();
-		Manufacturer cannondale = new Manufacturer("Cannondale", Country.UNITED_STATES).register();
-		Manufacturer trek = new Manufacturer("Trek", Country.UNITED_STATES).register();
-		Manufacturer specialized = new Manufacturer("Specialized", Country.UNITED_STATES).register();
-		Manufacturer marin = new Manufacturer("Marin", Country.UNITED_STATES).register();
-		Manufacturer santacruz = new Manufacturer("Santa Cruz", Country.UNITED_STATES).register();
-		Manufacturer scott = new Manufacturer("Scott", Country.SWITZERLAND).register();
-		Manufacturer koga = new Manufacturer("Koga", Country.NETHERLANDS).register();
-		Manufacturer rockymountain = new Manufacturer("Rocky Mountain", Country.CANADA).register();
-		Manufacturer bmc = new Manufacturer("BMC", Country.SWITZERLAND).register();
+		Manufacturer bianchi = BikeStoreApp.sdc.register(new Manufacturer("Bianchi", Country.ITALY));
+		Manufacturer colnago = BikeStoreApp.sdc.register(new Manufacturer("Colnago", Country.ITALY));
+		Manufacturer cervelo = BikeStoreApp.sdc.register(new Manufacturer("Cervélo", Country.ITALY));
+		Manufacturer derosa = BikeStoreApp.sdc.register(new Manufacturer("De Rosa", Country.ITALY));
+		Manufacturer peugeot = BikeStoreApp.sdc.register(new Manufacturer("Peugeot", Country.FRANCE));
+		Manufacturer lapierre = BikeStoreApp.sdc.register(new Manufacturer("Lapierre", Country.FRANCE));
+		Manufacturer canyon = BikeStoreApp.sdc.register(new Manufacturer("Canyon", Country.GERMANY));
+		Manufacturer cannondale = BikeStoreApp.sdc.register(new Manufacturer("Cannondale", Country.UNITED_STATES));
+		Manufacturer trek = BikeStoreApp.sdc.register(new Manufacturer("Trek", Country.UNITED_STATES));
+		Manufacturer specialized = BikeStoreApp.sdc.register(new Manufacturer("Specialized", Country.UNITED_STATES));
+		Manufacturer marin = BikeStoreApp.sdc.register(new Manufacturer("Marin", Country.UNITED_STATES));
+		Manufacturer santacruz = BikeStoreApp.sdc.register(new Manufacturer("Santa Cruz", Country.UNITED_STATES));
+		Manufacturer scott = BikeStoreApp.sdc.register(new Manufacturer("Scott", Country.SWITZERLAND));
+		Manufacturer koga = BikeStoreApp.sdc.register(new Manufacturer("Koga", Country.NETHERLANDS));
+		Manufacturer rockymountain = BikeStoreApp.sdc.register(new Manufacturer("Rocky Mountain", Country.CANADA));
+		Manufacturer bmc = BikeStoreApp.sdc.register(new Manufacturer("BMC", Country.SWITZERLAND));
 
 		// Save manufacturers - INSERTs are performed here
 
 		// Note: To speed up initialization use one transaction to save multiple new objects. Transaction will automatically be committed on closing connection
-		try (SqlConnection sqlcn = SqlConnection.open(SqlDomainController.sqlDb.pool, false)) {
+		try (SqlConnection sqlcn = SqlConnection.open(BikeStoreApp.sdc.sqlDb.pool, false)) {
 
-			for (Manufacturer manufacturer : DomainController.all(Manufacturer.class)) {
-				manufacturer.save(sqlcn.cn);
+			for (Manufacturer manufacturer : BikeStoreApp.sdc.all(Manufacturer.class)) {
+				BikeStoreApp.sdc.save(sqlcn.cn, manufacturer);
 			}
 		}
 
@@ -133,7 +131,7 @@ public class Initialize {
 
 		// Assign # of bikes available for sizes
 		n = 0;
-		for (Bike bike : DomainController.all(Bike.class)) {
+		for (Bike bike : BikeStoreApp.sdc.all(Bike.class)) {
 
 			for (Size size : bike.sizes) {
 				bike.availabilityMap.put(size, 10 + n % 10);
@@ -146,16 +144,16 @@ public class Initialize {
 		// Note: it's generally recommended to save new and changed objects as soon as possible to avoid unsaved invalid objects in object store
 		// Note: if an object is saved which has an unsaved parent object this parent object is saved automatically before saving object itself
 
-		try (SqlConnection sqlcn = SqlConnection.open(SqlDomainController.sqlDb.pool, false)) {
+		try (SqlConnection sqlcn = SqlConnection.open(BikeStoreApp.sdc.sqlDb.pool, false)) {
 
-			for (Bike bike : DomainController.all(Bike.class)) {
-				bike.save(sqlcn.cn);
+			for (Bike bike : BikeStoreApp.sdc.all(Bike.class)) {
+				BikeStoreApp.sdc.save(sqlcn.cn, bike);
 			}
 		}
 
 		// Check object validity
-		if (DomainController.all(Bike.class).stream().anyMatch(b -> !b.isValid())) {
-			List<FieldError> fieldErrors = DomainController.all(Bike.class).stream().filter(b -> !b.isValid()).flatMap(b -> b.getErrorsAndWarnings().stream()).collect(Collectors.toList());
+		if (BikeStoreApp.sdc.all(Bike.class).stream().anyMatch(b -> !b.isValid())) {
+			List<FieldError> fieldErrors = BikeStoreApp.sdc.all(Bike.class).stream().filter(b -> !b.isValid()).flatMap(b -> b.getErrorsAndWarnings().stream()).collect(Collectors.toList());
 			throw new ConfigException("Not all bikes could be saved! (" + fieldErrors + ")");
 		}
 

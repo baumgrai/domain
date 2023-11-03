@@ -6,6 +6,7 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.icx.dom.app.survey.SurveyApp;
 import com.icx.dom.domain.DomainAnnotations.SqlColumn;
 import com.icx.dom.domain.sql.SqlDomainObject;
 
@@ -43,7 +44,8 @@ public class Scale extends SqlDomainObject {
 			String name,
 			Object... answersAndMetrics) {
 
-		register(); // Register before accessing 'answers' and 'answerMetricMap' to have these fields initialized (alternatively initialize fields on declaration and register scale object later)
+		// Register before accessing 'answers' and 'answerMetricMap' to have these fields initialized (alternatively initialize fields on declaration and register scale object later)
+		SurveyApp.sdc.register(this);
 
 		this.name = name;
 

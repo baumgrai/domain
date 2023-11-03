@@ -6,7 +6,7 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.dom.domain.sql.SqlDomainController;
+import com.icx.dom.app.survey.SurveyApp;
 import com.icx.dom.domain.sql.SqlDomainObject;
 import com.icx.dom.jdbc.SqlConnection;
 
@@ -53,7 +53,7 @@ public class Question extends SqlDomainObject {
 
 	public static Question createQuestion(SqlConnection sqlcn, QuestionType questionType) throws Exception {
 
-		return SqlDomainController.createAndSave(sqlcn.cn, Question.class, q -> {
+		return SurveyApp.sdc.createAndSave(sqlcn.cn, Question.class, q -> {
 			q.type = questionType;
 			q.text = questionType.text();
 			q.answerScale = questionType.scale();

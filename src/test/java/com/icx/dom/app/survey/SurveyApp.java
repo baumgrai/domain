@@ -36,38 +36,38 @@ public class SurveyApp extends SqlDomainController {
 	public static final File AUDIOFILE = new File("src/test/resources/1234567890.wav");
 	public static final File AUDIOFILE_FROM_DATABASE = new File("src/test/resources/1234567890_from_db.wav");
 
+	// Domain controller
+	public static SqlDomainController sdc = new SqlDomainController();
+
 	// Main
 	public static void main(String[] args) throws Exception {
-
-		// Register domain classes (which reside in domain package)
-		registerDomainClasses(com.icx.dom.app.survey.SurveyApp.class.getPackage().getName() + ".domain" /* any class related to 'domain' package - to find all domain classes */);
 
 		// Read JDBC and Domain properties. Note: you should not have multiple properties files with same name in your class path
 		Properties dbProps = Prop.readEnvironmentSpecificProperties(Prop.findPropertiesFile("db.properties"), "local/mysql/survey_test", null);
 		Properties domainProps = Prop.readProperties(Prop.findPropertiesFile("domain.properties"));
 
-		// Associate domain classes and database tables
-		associateDomainClassesAndDatabaseTables(dbProps, domainProps);
+		// Register domain classes and domain classes and database tables
+		sdc.initialize(dbProps, domainProps, com.icx.dom.app.survey.SurveyApp.class.getPackage().getName() + ".domain");
 
 		// Load objects from database
-		synchronize();
+		sdc.synchronize();
 
 		// Cleanup on start to have defined state (if wished)
 		boolean cleanupDatabaseOnStartup = false;
 		if (cleanupDatabaseOnStartup) {
-			for (Question question : all(Question.class)) {
-				question.delete();
+			for (Question question : sdc.all(Question.class)) {
+				sdc.delete(question);
 			}
-			for (Scale scale : all(Scale.class)) {
-				scale.delete();
+			for (Scale scale : sdc.all(Scale.class)) {
+				sdc.delete(scale);
 			}
-			for (Survey survey : all(Survey.class)) {
-				survey.delete();
+			for (Survey survey : sdc.all(Survey.class)) {
+				sdc.delete(survey);
 			}
 		}
 
 		// Create or load survey
-		if (!hasAny(Survey.class)) { // If no objects were loaded
+		if (!sdc.hasAny(Survey.class)) { // If no objects were loaded
 
 			// Create scales
 			Scale.yesNoScale = new Scale("yes_no", "yes", Metric.GOOD, "no", Metric.BAD);
@@ -75,9 +75,9 @@ public class SurveyApp extends SqlDomainController {
 			Scale.oneTwoThreeScale = new Scale("one_two_three", "1", Metric.GOOD, "2", Metric.NEUTRAL, "3", Metric.BAD);
 			Scale.npsScale = new Scale("nps", "0", Metric.BAD, "1", Metric.BAD, "2", Metric.BAD, "3", Metric.BAD, "4", Metric.BAD, "5", Metric.BAD, "6", Metric.BAD, "7", Metric.NEUTRAL, "8",
 					Metric.GOOD, "9", Metric.GOOD, "10", Metric.GOOD);
-			all(Scale.class).forEach(s -> {
+			sdc.all(Scale.class).forEach(s -> {
 				try {
-					s.save();
+					sdc.save(s);
 				}
 				catch (SQLException | SqlDbException e) {
 					log.error(" {} exception occured on save scale '{}'", e.getClass().getSimpleName(), s);
@@ -87,24 +87,24 @@ public class SurveyApp extends SqlDomainController {
 			// Create surveys
 			for (int i = 0; i < SURVEY_COUNT; i++) {
 
-				Survey survey = create(Survey.class, s -> {
+				Survey survey = sdc.create(Survey.class, s -> {
 					s.greeting = "Welcome to our customer satisfaction survey!";
 					s.leaveMessagePrompt = "If you want you can leave a message after the beep...";
 				});
 
 				survey.name = "Customer Satisfaction Survey " + (i + 1);
 				survey.number = i;
-				survey.save();
+				sdc.save(survey);
 			}
 
 			// Create questions and assign them to survey
-			try (SqlConnection sqlcn = SqlConnection.open(SqlDomainController.sqlDb.pool, false)) {
+			try (SqlConnection sqlcn = SqlConnection.open(sdc.sqlDb.pool, false)) {
 
 				for (QuestionType qt : QuestionType.values()) {
 					Question.questionMap.put(qt, Question.createQuestion(sqlcn, qt));
 				}
 
-				for (Survey survey : all(Survey.class)) {
+				for (Survey survey : sdc.all(Survey.class)) {
 					for (QuestionType qt : Question.questionMap.keySet()) {
 						survey.appendQuestion(sqlcn, Question.questionMap.get(qt));
 					}
@@ -113,10 +113,10 @@ public class SurveyApp extends SqlDomainController {
 		}
 		else {
 			// Retrieve base objects from database
-			Scale.yesNoScale = findAny(Scale.class, s -> s.size() == 2);
-			Scale.oneTwoThreeScale = findAny(Scale.class, s -> s.size() == 3);
-			Scale.gradesScale = findAny(Scale.class, s -> s.size() == 6);
-			Scale.npsScale = findAny(Scale.class, s -> s.size() == 11);
+			Scale.yesNoScale = sdc.findAny(Scale.class, s -> s.size() == 2);
+			Scale.oneTwoThreeScale = sdc.findAny(Scale.class, s -> s.size() == 3);
+			Scale.gradesScale = sdc.findAny(Scale.class, s -> s.size() == 6);
+			Scale.npsScale = sdc.findAny(Scale.class, s -> s.size() == 11);
 		}
 
 		// Check base objects
@@ -125,10 +125,10 @@ public class SurveyApp extends SqlDomainController {
 		objects.add(Scale.oneTwoThreeScale);
 		objects.add(Scale.yesNoScale);
 		objects.add(Scale.npsScale);
-		for (Question question : all(Question.class)) {
+		for (Question question : sdc.all(Question.class)) {
 			objects.add(question);
 		}
-		for (Survey survey : all(Survey.class)) {
+		for (Survey survey : sdc.all(Survey.class)) {
 			objects.add(survey);
 		}
 		if (objects.contains(null)) {
@@ -142,7 +142,7 @@ public class SurveyApp extends SqlDomainController {
 			return;
 		}
 
-		for (Survey survey : all(Survey.class)) {
+		for (Survey survey : sdc.all(Survey.class)) {
 			log.info("{}: {}", survey, survey.getQuestions());
 		}
 
@@ -191,9 +191,9 @@ public class SurveyApp extends SqlDomainController {
 		log.info("Admin threads ended");
 
 		// Load audio data from database and write new audio file
-		VoiceMessage voiceMessage = findAny(VoiceMessage.class, vm -> vm.audioData != null && vm.audioData.length > 0);
+		VoiceMessage voiceMessage = sdc.findAny(VoiceMessage.class, vm -> vm.audioData != null && vm.audioData.length > 0);
 		if (voiceMessage != null) {
-			voiceMessage.reload();
+			sdc.reload(voiceMessage);
 			CFile.writeBinary(AUDIOFILE_FROM_DATABASE, voiceMessage.audioData);
 		}
 	}
@@ -208,10 +208,10 @@ public class SurveyApp extends SqlDomainController {
 			for (int i = 0; i < 1000; i++) {
 
 				// Manipulate survey randomly
-				try (SqlConnection sqlcn = SqlConnection.open(SqlDomainController.sqlDb.pool, false)) {
+				try (SqlConnection sqlcn = SqlConnection.open(sdc.sqlDb.pool, false)) {
 
 					try {
-						Set<Survey> surveys = SqlDomainController.allocateExclusively(Survey.class, Survey.InProgress.class, "SEMAPHORE=GREEN", 1, s -> s.semaphore = Semaphore.RED);
+						Set<Survey> surveys = sdc.allocateExclusively(Survey.class, Survey.InProgress.class, "SEMAPHORE=GREEN", 1, s -> s.semaphore = Semaphore.RED);
 						if (!surveys.isEmpty()) {
 
 							Survey survey = surveys.iterator().next();
@@ -241,7 +241,7 @@ public class SurveyApp extends SqlDomainController {
 							}
 
 							survey.semaphore = Semaphore.GREEN;
-							survey.save();
+							sdc.save(survey);
 						}
 					}
 					catch (Exception e) {

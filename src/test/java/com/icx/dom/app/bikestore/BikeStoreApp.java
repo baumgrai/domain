@@ -31,7 +31,7 @@ import com.icx.dom.domain.sql.SqlDomainController;
  * 
  * @author RainerBaumgärtel
  */
-public class BikeStoreApp extends SqlDomainController {
+public class BikeStoreApp {
 
 	static final Logger log = LoggerFactory.getLogger(BikeStoreApp.class);
 
@@ -39,6 +39,9 @@ public class BikeStoreApp extends SqlDomainController {
 
 	// Delay time between client bike order requests. One client tries to order bikes of 3 different types. Acts also as delay time for start of client order threads.
 	public static final long ORDER_DELAY_TIME_MS = 100;
+
+	// Domain controller
+	public static SqlDomainController sdc = new SqlDomainController();
 
 	// List of bike models with availabilities for different sizes
 	protected static List<Bike> bikes = null;
@@ -59,29 +62,26 @@ public class BikeStoreApp extends SqlDomainController {
 
 		Counters counters = new Counters();
 
-		// Register domain classes (which reside in domain package)
-		registerDomainClasses(Manufacturer.class.getPackage().getName() /* use any class directly in 'domain' package to find all domain classes */);
-
 		// Read JDBC and Domain properties. Note: you should not have multiple properties files with same name in your class path
 		Properties dbProps = Prop.readEnvironmentSpecificProperties(Prop.findPropertiesFile("db.properties"), "local/mssql/bikes", null);
 		Properties domainProps = Prop.readProperties(Prop.findPropertiesFile("domain.properties"));
 
 		// Associate domain classes and database tables
-		associateDomainClassesAndDatabaseTables(dbProps, domainProps);
+		sdc.initialize(dbProps, domainProps, Manufacturer.class.getPackage().getName() /* use any class directly in 'domain' package to find all domain classes */);
 
 		// Initially load existing domain objects from database - exclude historical data from loading (SELECT statements are performed here)
-		synchronize(Order.class);
+		sdc.synchronize(Order.class);
 
 		// Force deleting bikes, clients, etc. on first instance (first region)
 		boolean cleanupDatabaseOnStartup = false;
-		if (!hasAny(RegionInUse.class, r -> true)) {
+		if (!sdc.hasAny(RegionInUse.class, r -> true)) {
 			cleanupDatabaseOnStartup = true;
 		}
 
 		// Select and reserve world region for this instance
 		for (Region reg : Region.values()) {
-			if (!hasAny(RegionInUse.class, r -> r.region == reg)) {
-				regionInUse = createAndSave(RegionInUse.class, r -> r.region = reg);
+			if (!sdc.hasAny(RegionInUse.class, r -> r.region == reg)) {
+				regionInUse = sdc.createAndSave(RegionInUse.class, r -> r.region = reg);
 				break;
 			}
 		}
@@ -101,11 +101,11 @@ public class BikeStoreApp extends SqlDomainController {
 
 		// Sort bikes by manufacturer and model using overridden compareTo() method
 		// Note: No difference between all() and allValid() here - but generally, if domain objects exist which are not savable (by database constraint violation), they are marked as invalid
-		bikes = sort(allValid(Bike.class));
+		bikes = sdc.sort(sdc.allValid(Bike.class));
 
 		// Log bike store before ordering/buying bikes...
 		// Note: use groupBy() to group accumulated children by classifier or countBy() to get # of accumulated children grouped by classifier
-		bikes.forEach(b -> log.info("'{}': price: {}€, sizes: {}, availability: {}, orders: {}'", b, b.price, b.sizes, b.availabilityMap, countBy(b.orders, o -> o.client.bikeSize)));
+		bikes.forEach(b -> log.info("'{}': price: {}€, sizes: {}, availability: {}, orders: {}'", b, b.price, b.sizes, b.availabilityMap, sdc.countBy(b.orders, o -> o.client.bikeSize)));
 
 		// Start order processing and bike delivery thread
 		Thread orderProcessingThread = new Thread(new Order.SendInvoices());
@@ -126,11 +126,11 @@ public class BikeStoreApp extends SqlDomainController {
 				// Note: Alternatively you may use specific constructors for object creation and register and save objects there or after creation explicitly - see examples in Initialize.java
 
 				// Create client
-				Client client = create(Client.class, c -> c.init(clientName, (n < 5 ? Gender.MALE : Gender.FEMALE), country, Size.values()[n % 5], 1000.0 * (1 + n % 20)));
+				Client client = sdc.create(Client.class, c -> c.init(clientName, (n < 5 ? Gender.MALE : Gender.FEMALE), country, Size.values()[n % 5], 1000.0 * (1 + n % 20)));
 				n++;
 
 				// Save client
-				client.save();
+				sdc.save(client);
 
 				// Create client thread to order bikes
 				Thread clientThread = new Thread(client.new OrderBikes(client, counters));
@@ -158,10 +158,10 @@ public class BikeStoreApp extends SqlDomainController {
 		bikeDeliveryThread.join();
 
 		// Log results
-		int numberOfPendingOrders = (int) count(Order.class, o -> RegionInUse.getRegion(o.client.country) == regionInUse.region && o.payDate != null && o.deliveryDate == null);
-		int numberOfInvoicesSent = (int) count(Order.class, o -> RegionInUse.getRegion(o.client.country) == regionInUse.region && o.invoiceDate != null);
-		int numberOfDeliveryNotesSent = (int) count(Order.class, o -> RegionInUse.getRegion(o.client.country) == regionInUse.region && o.deliveryDate != null);
-		log.info("Order processing and bike delivery completed for {} clients of region {}. Total # of orders generated: {}", count(Client.class, c -> true), regionInUse.region,
+		int numberOfPendingOrders = (int) sdc.count(Order.class, o -> RegionInUse.getRegion(o.client.country) == regionInUse.region && o.payDate != null && o.deliveryDate == null);
+		int numberOfInvoicesSent = (int) sdc.count(Order.class, o -> RegionInUse.getRegion(o.client.country) == regionInUse.region && o.invoiceDate != null);
+		int numberOfDeliveryNotesSent = (int) sdc.count(Order.class, o -> RegionInUse.getRegion(o.client.country) == regionInUse.region && o.deliveryDate != null);
+		log.info("Order processing and bike delivery completed for {} clients of region {}. Total # of orders generated: {}", sdc.count(Client.class, c -> true), regionInUse.region,
 				counters.numberOfOrdersCreated);
 		log.info("# of invoices sent: {}", numberOfInvoicesSent);
 		log.info("# of bikes delivered: {}", numberOfDeliveryNotesSent);
@@ -180,9 +180,9 @@ public class BikeStoreApp extends SqlDomainController {
 		}
 
 		// // Free region in use (to allow re-run test with multiple parallel instances)
-		regionInUse.delete();
+		sdc.delete(regionInUse);
 
 		// Close open database connections
-		sqlDb.close();
+		sdc.sqlDb.close();
 	}
 }
