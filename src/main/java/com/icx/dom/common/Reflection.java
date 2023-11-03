@@ -33,7 +33,7 @@ import org.slf4j.LoggerFactory;
  * 
  * @author baumgrai
  */
-public abstract class Reflection {
+public abstract class Reflection extends Common {
 
 	static final Logger log = LoggerFactory.getLogger(Reflection.class);
 
@@ -195,7 +195,7 @@ public abstract class Reflection {
 	 * @return new collection or map
 	 */
 	@SuppressWarnings("unchecked")
-	public static Object newComplex(Class<?> type) {
+	public static Object newComplexObject(Class<?> type) {
 
 		if (Collection.class.isAssignableFrom(type)) {
 			return newCollection((Class<? extends Collection<Object>>) type);
