@@ -26,7 +26,6 @@ import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.dom.common.Common;
 import com.icx.dom.common.Reflection;
 import com.icx.dom.domain.DomainAnnotations.Accumulation;
 import com.icx.dom.domain.DomainAnnotations.Removed;
@@ -36,18 +35,22 @@ import com.icx.dom.domain.GuavaReplacements.ClassPath;
 import com.icx.dom.domain.sql.SqlDomainObject;
 
 /**
- * Singleton to find and register domain classes. Only used internally.
+ * Find and register domain classes. Only used internally.
  * 
  * @author RainerBaumgärtel
  */
-public abstract class Registry extends Reflection {
+public class Registry<T extends DomainObject> extends Reflection {
 
 	static final Logger log = LoggerFactory.getLogger(Registry.class);
 
-	// Registered entities for any domain class
-	static class DomainClassInfo {
+	// -------------------------------------------------------------------------
+	// Inner classes
+	// -------------------------------------------------------------------------
 
-		Constructor<? extends DomainObject> constructor;
+	// Registered entities for any domain class
+	class DomainClassInfo {
+
+		Constructor<T> constructor;
 
 		List<Field> dataFields = new ArrayList<>();
 		List<Field> referenceFields = new ArrayList<>();
@@ -55,104 +58,124 @@ public abstract class Registry extends Reflection {
 	}
 
 	// -------------------------------------------------------------------------
-	// Static members
+	// Members
 	// -------------------------------------------------------------------------
 
 	// Properties
-	public static Class<? extends DomainObject> baseClass = DomainObject.class; // Domain controller specific base class from which all domain objects must be derived
+	public Class<T> baseClass = null; // Domain controller specific base class from which all domain objects must be derived
 
 	// Domain classes
-	private static List<Class<? extends DomainObject>> orderedDomainClasses = new ArrayList<>(); // List of registered domain classes in order of dependencies (if no circular references exists)
-	private static Set<Class<? extends DomainObject>> removedDomainClasses = new HashSet<>(); // Set of domain classes which were removed in any version
+	private List<Class<? extends T>> orderedDomainClasses = new ArrayList<>(); // List of registered domain classes in (half) order of dependencies (if no circular references exists)
+	private Set<Class<? extends T>> removedDomainClasses = new HashSet<>(); // Set of domain classes which were removed in any version
 
 	// Registry maps
-	private static Map<Class<? extends DomainObject>, DomainClassInfo> domainClassInfoMap = new HashMap<>();
-	private static Map<Class<? extends DomainObject>, Map<String, Field>> fieldByNameMap = new HashMap<>();
-	private static Map<Field, Field> accumulationByReferenceFieldMap = new HashMap<>();
+	private Map<Class<? extends T>, DomainClassInfo> domainClassInfoMap = new HashMap<>();
+	private Map<Class<? extends T>, Map<String, Field>> fieldByNameMap = new HashMap<>();
+	private Map<Field, Field> accumulationByReferenceFieldMap = new HashMap<>();
 
 	// Temporarily used objects
-	private static List<Field> preregisteredAccumulations = new ArrayList<>();
-	private static List<Class<? extends DomainObject>> objectDomainClassesToRegister = new ArrayList<>(); // List of domain classes to register (including inherited classes)
-	private static Set<Class<? extends DomainObject>> domainClassesDuringRegistration = new HashSet<>();
+	private List<Field> preregisteredAccumulations = new ArrayList<>();
+	private List<Class<? extends T>> objectDomainClassesToRegister = new ArrayList<>(); // List of domain classes to register (including inherited classes)
+	private Set<Class<? extends T>> domainClassesDuringRegistration = new HashSet<>();
 
 	// -------------------------------------------------------------------------
 	// Domain classes (do not use these methods during Registration!)
 	// -------------------------------------------------------------------------
 
 	// Get registered domain classes
-	public static List<Class<? extends DomainObject>> getRegisteredDomainClasses() { // Do not use duringRegistration!
-		return new ArrayList<>(orderedDomainClasses);
+	public final List<Class<? extends T>> getRegisteredDomainClasses() { // Do not use duringRegistration!
+		return orderedDomainClasses;
 	}
 
 	// Get loaded (non-abstract) object domain classes
-	public static List<Class<? extends DomainObject>> getRegisteredObjectDomainClasses() { // Do not use during Registration!
-		return orderedDomainClasses.stream().filter(c -> !Modifier.isAbstract(c.getModifiers())).collect(Collectors.toList());
+	public List<Class<? extends T>> getRegisteredObjectDomainClasses() { // Do not use during Registration!
+		return orderedDomainClasses.stream().filter(dc -> !Modifier.isAbstract(dc.getModifiers())).collect(Collectors.toList());
 	}
 
-	public static List<Class<? extends DomainObject>> getRelevantDomainClasses() {
+	public List<Class<? extends T>> getRelevantDomainClasses() {
 
-		List<Class<? extends DomainObject>> relevantDomainClasses = new ArrayList<>();
-		relevantDomainClasses.addAll(orderedDomainClasses);
-		relevantDomainClasses.addAll(removedDomainClasses);
+		List<Class<? extends T>> relevantDomainClasses = new ArrayList<>();
+		orderedDomainClasses.forEach(relevantDomainClasses::add);
+		removedDomainClasses.forEach(relevantDomainClasses::add);
 
 		return relevantDomainClasses;
 	}
 
 	// Check if class is domain class
-	public static boolean isRegisteredDomainClass(Class<?> cls) { // Do not use during Registration!
+	public boolean isRegisteredDomainClass(Class<?> cls) { // Do not use during Registration!
 		return orderedDomainClasses.contains(cls);
 	}
 
 	// Check if class is object domain class (top level of inheritance)
-	public static boolean isObjectDomainClass(Class<? extends DomainObject> domainClass) {
+	public boolean isObjectDomainClass(Class<? extends T> domainClass) {
 		return (!Modifier.isAbstract(domainClass.getModifiers()));
 	}
 
 	// Check if class is base (or only) domain class of objects
-	public static boolean isBaseDomainClass(Class<? extends DomainObject> domainClass) {
+	public boolean isBaseDomainClass(Class<? extends T> domainClass) {
 		return (domainClass.getSuperclass() == baseClass);
+	}
+
+	// -------------------------------------------------------------------------
+	// Unchecked casts
+	// -------------------------------------------------------------------------
+
+	// Cast class to domain class
+	@SuppressWarnings("unchecked")
+	public Class<? extends T> castDomainClass(Class<?> cls) {
+		return (Class<? extends T>) cls;
+	}
+
+	// Cast constructor to constructor of base class
+	@SuppressWarnings("unchecked")
+	public <S extends T> Constructor<T> castConstructor(Constructor<S> constructor) {
+		return (Constructor<T>) constructor;
+	}
+
+	// Get class of object
+	@SuppressWarnings("unchecked")
+	public <S extends T> Class<S> getCastedDomainClass(DomainObject obj) {
+		return (Class<S>) obj.getClass();
 	}
 
 	// Get declaring class of field
 	@SuppressWarnings("unchecked")
-	public static <T> T getDeclaringDomainClass(Field field) {
-		return (T) field.getDeclaringClass();
+	public <S extends T> Class<S> getCastedDeclaringDomainClass(Field field) {
+		return (Class<S>) field.getDeclaringClass();
 	}
 
 	// Get referenced domain class of reference field
 	@SuppressWarnings("unchecked")
-	public static <T> T getReferencedDomainClass(Field refField) {
-		return (T) refField.getType();
+	public <S extends T> Class<S> getCastedReferencedDomainClass(Field refField) {
+		return (Class<S>) refField.getType();
 	}
 
 	// Get superclass of domain class
 	@SuppressWarnings("unchecked")
-	public static <T> T getSuperclass(Class<? extends DomainObject> domainClass) {
-		return (T) domainClass.getSuperclass();
+	public <S extends T> Class<S> getCastedSuperclass(Class<S> domainClass) {
+		return (Class<S>) domainClass.getSuperclass();
 	}
 
 	// -------------------------------------------------------------------------
 	// Inheritance
 	// -------------------------------------------------------------------------
 
-	// Build stack of base domain classes inherited from object domain class including object domain class itself (e.g. Bianchi -> [ Bike, Racebike, Bianchi]
-	public static Stack<Class<? extends DomainObject>> getInheritanceStack(Class<? extends DomainObject> c) {
+	// Build stack of base domain classes where object domain class is inherited from including object domain class itself (e.g. Bianchi -> [ Bike, Racebike, Bianchi ]
+	public List<Class<? extends T>> getDomainClassesFor(Class<? extends T> c) {
 
-		Stack<Class<? extends DomainObject>> objectClasses = new Stack<>();
-
+		List<Class<? extends T>> domainClasses = new Stack<>();
 		do {
 			if (baseClass.isAssignableFrom(c)) {
-				objectClasses.add(0, c); // object domain class is top level in stack (retrieved by first call of pop(), iteration order in contrast is from bottom to top!)
-				c = getSuperclass(c);
+				domainClasses.add(0, c); // List starts with bottom-most domain class
+				c = getCastedSuperclass(c);
 			}
 		} while (c != baseClass && baseClass.isAssignableFrom(c));
-
-		return objectClasses;
+		return domainClasses;
 	}
 
 	// Check if domain class or any of its inherited domain classes is 'data horizon' controlled (has annotation @UseDataHorizon)
-	public static boolean isDataHorizonControlled(Class<? extends DomainObject> domainClass) {
-		return getInheritanceStack(domainClass).stream().anyMatch(c -> c.isAnnotationPresent(UseDataHorizon.class));
+	public boolean isDataHorizonControlled(Class<? extends T> domainClass) {
+		return getDomainClassesFor(domainClass).stream().anyMatch(c -> c.isAnnotationPresent(UseDataHorizon.class));
 	}
 
 	// -------------------------------------------------------------------------
@@ -181,12 +204,12 @@ public abstract class Registry extends Reflection {
 	}
 
 	// Reference field -> column with foreign key constraint
-	public static boolean isReferenceField(Field field) {
+	public boolean isReferenceField(Field field) {
 		return baseClass.isAssignableFrom(field.getType());
 	}
 
 	// Set, List or Map field -> entry table (check also for 'hidden' accumulations missing @Accumulation annotation)
-	public static boolean isComplexField(Field field) {
+	public boolean isComplexField(Field field) {
 
 		if (!(field.getGenericType() instanceof ParameterizedType)) {
 			return false;
@@ -204,81 +227,76 @@ public abstract class Registry extends Reflection {
 	}
 
 	// Get field by name without using Reflection - check base domain classes of given domain class
-	public static Field getFieldByName(Class<? extends DomainObject> domainClass, String fieldName) {
+	public <S extends T> Field getFieldByName(Class<S> domainClass, String fieldName) {
 
 		Field field = null;
-		for (Class<? extends DomainObject> dc : Registry.getInheritanceStack(domainClass)) {
-
+		for (Class<? extends T> dc : getDomainClassesFor(domainClass)) {
 			field = fieldByNameMap.get(dc).get(fieldName);
 			if (field != null) {
 				break;
 			}
 		}
-
 		return field;
 	}
 
 	// Get constructor for domain class
-	@SuppressWarnings("unchecked")
-	public static <T extends DomainObject> Constructor<T> getConstructor(Class<T> domainClass) {
-		return (Constructor<T>) domainClassInfoMap.get(domainClass).constructor;
+	public Constructor<T> getConstructor(Class<? extends T> domainClass) {
+		return domainClassInfoMap.get(domainClass).constructor;
 	}
 
 	// Get registered data fields for domain class in definition order
-	public static List<Field> getDataFields(Class<? extends DomainObject> domainClass) {
+	public List<Field> getDataFields(Class<? extends T> domainClass) {
 		return domainClassInfoMap.get(domainClass).dataFields;
 	}
 
 	// Get fields of domain class referencing objects of same or other domain class in definition order
-	public static List<Field> getReferenceFields(Class<? extends DomainObject> domainClass) {
+	public List<Field> getReferenceFields(Class<? extends T> domainClass) {
 		return domainClassInfoMap.get(domainClass).referenceFields;
 	}
 
 	// Get fields which are related to a table containing elements of a collection of entries of a key/value map
 	// Note: All Collection or Map fields which are are not annotated with @SaveAsString or @Accumulation are table related fields
-	public static List<Field> getComplexFields(Class<? extends DomainObject> domainClass) {
+	public List<Field> getComplexFields(Class<? extends T> domainClass) {
 		return domainClassInfoMap.get(domainClass).complexFields;
 	}
 
 	// Get data and reference fields of domain class
-	public static List<Field> getDataAndReferenceFields(Class<? extends DomainObject> domainClass) {
+	public List<Field> getDataAndReferenceFields(Class<? extends T> domainClass) {
 
 		List<Field> dataAndReferenceFields = new ArrayList<>();
 		dataAndReferenceFields.addAll(getDataFields(domainClass));
 		dataAndReferenceFields.addAll(getReferenceFields(domainClass));
-
 		return dataAndReferenceFields;
 	}
 
 	// Get all registered fields of domain class
-	public static List<Field> getRegisteredFields(Class<? extends DomainObject> domainClass) {
+	public List<Field> getRegisteredFields(Class<? extends T> domainClass) {
 
 		List<Field> allFields = new ArrayList<>();
 		allFields.addAll(getDataFields(domainClass));
 		allFields.addAll(getReferenceFields(domainClass));
 		allFields.addAll(getComplexFields(domainClass));
-
 		return allFields;
 	}
 
 	// Get fields relevant for registration of domain class
-	public static List<Field> getRelevantFields(Class<? extends DomainObject> domainClass) {
+	public List<Field> getRelevantFields(Class<? extends T> domainClass) {
 		return Stream.of(domainClass.getDeclaredFields()).filter(f -> !Modifier.isStatic(f.getModifiers()) && !Modifier.isTransient(f.getModifiers()) && !f.isAnnotationPresent(Accumulation.class))
 				.collect(Collectors.toList());
 	}
 
 	// Get accumulation fields of domain class
-	public static List<Field> getAccumulationFields(Class<? extends DomainObject> domainClass) {
+	public List<Field> getAccumulationFields(Class<? extends T> domainClass) {
 		return accumulationByReferenceFieldMap.values().stream().filter(f -> f.getDeclaringClass() == domainClass).collect(Collectors.toList());
 	}
 
 	// Get accumulation by reference field
-	public static Field getAccumulationFieldForReferenceField(Field referenceField) {
+	public Field getAccumulationFieldForReferenceField(Field referenceField) {
 		return accumulationByReferenceFieldMap.get(referenceField);
 	}
 
 	// Get reference fields of any domain classes referencing this object domain class or inherited domain classes
-	public static List<Field> getAllReferencingFields(Class<? extends DomainObject> domainObjectClass) {
+	public List<Field> getAllReferencingFields(Class<? extends T> domainObjectClass) {
 		return orderedDomainClasses.stream().flatMap(c -> getReferenceFields(c).stream()).filter(f -> f.getType().isAssignableFrom(domainObjectClass)).collect(Collectors.toList());
 	}
 
@@ -288,7 +306,7 @@ public abstract class Registry extends Reflection {
 
 	// Register data, reference and table related fields to serialize
 	// Do not use isDomainClass() and isObjectDomainClass() here because not all domain classes are already registered in this state!
-	private static void registerDomainClass(Class<? extends DomainObject> domainClass) throws DomainException {
+	private <S extends T> void registerDomainClass(Class<S> domainClass) throws DomainException {
 
 		String className = (domainClass.isMemberClass() ? domainClass.getDeclaringClass().getSimpleName() + "$" : "") + domainClass.getSimpleName();
 		String comment = (Modifier.isAbstract(domainClass.getModifiers()) ? " { \t// inherited class" : domainClass.isMemberClass() ? " { \t// inner object class" : " { \t// object class");
@@ -301,7 +319,7 @@ public abstract class Registry extends Reflection {
 
 		// Register default constructor
 		try {
-			domainClassInfoMap.get(domainClass).constructor = domainClass.getConstructor();
+			domainClassInfoMap.get(domainClass).constructor = castConstructor(domainClass.getConstructor());
 		}
 		catch (NoSuchMethodException nsmex) {
 			throw new DomainException("Parameterless default constructor does not exist for domain class '" + domainClass.getSimpleName()
@@ -395,25 +413,22 @@ public abstract class Registry extends Reflection {
 	}
 
 	// Remove field from registry
-	public static void unregisterField(Field field) {
+	public void unregisterField(Field field) {
 
-		Class<? extends DomainObject> domainClass = getDeclaringDomainClass(field);
+		Class<? extends T> domainClass = getCastedDeclaringDomainClass(field);
 		String fieldDeclaration = fieldDeclaration(field);
 
 		if (domainClassInfoMap.get(domainClass).dataFields.contains(field)) {
-
 			domainClassInfoMap.get(domainClass).dataFields.remove(field);
 			log.info("REG: Unregistered data field: {}", fieldDeclaration);
 		}
 		else if (domainClassInfoMap.get(domainClass).referenceFields.contains(field)) {
-
 			domainClassInfoMap.get(domainClass).referenceFields.remove(field);
 			log.info("REG: Unregistered reference field: {}", fieldDeclaration);
 		}
 		else if (domainClassInfoMap.get(domainClass).complexFields.contains(field)) {
-
 			domainClassInfoMap.get(domainClass).complexFields.remove(field);
-			log.info("REG: Unregistered element set or key/value map field: {}", fieldDeclaration);
+			log.info("REG: Unregistered collection/map field: {}", fieldDeclaration);
 		}
 		else {
 			log.error("REG: Field {} was not registered!", fieldDeclaration);
@@ -421,29 +436,27 @@ public abstract class Registry extends Reflection {
 	}
 
 	// Register accumulation fields for domain class
-	@SuppressWarnings("unchecked")
-	private static void registerAccumulationFields() throws DomainException {
+	private void registerAccumulationFields() throws DomainException {
 
 		log.info("REG: Register accumulations:");
 
 		for (Field accumulationField : preregisteredAccumulations) {
 
-			Class<? extends DomainObject> domainClassOfAccumulatedObjects = (Class<? extends DomainObject>) ((ParameterizedType) accumulationField.getGenericType()).getActualTypeArguments()[0];
+			Class<? extends T> domainClassOfAccumulatedObjects = castDomainClass((Class<?>) ((ParameterizedType) accumulationField.getGenericType()).getActualTypeArguments()[0]);
 			Field refFieldForAccumulation = null;
 
 			// Find reference field for accumulation
 			boolean fromAnnotation = false;
 			String refFieldName = (accumulationField.isAnnotationPresent(Accumulation.class) ? accumulationField.getAnnotation(Accumulation.class).refField() : "");
-			if (!Common.isEmpty(refFieldName)) {
+			if (!isEmpty(refFieldName)) {
 
 				// Get reference field from accumulation field annotation
-				Class<? extends DomainObject> domainClassWhereReferenceFieldIsDefined = null;
+				Class<? extends T> domainClassWhereReferenceFieldIsDefined = null;
 				if (refFieldName.contains(".")) {
 
 					// Domain class defining reference field is explicitly defined (typically cross reference class for many-to-many relation)
-					String domainClassName = Common.untilFirst(refFieldName, ".");
-					refFieldName = Common.behindFirst(refFieldName, ".");
-
+					String domainClassName = untilFirst(refFieldName, ".");
+					refFieldName = behindFirst(refFieldName, ".");
 					domainClassWhereReferenceFieldIsDefined = orderedDomainClasses.stream().filter(c -> c.getSimpleName().equals(domainClassName)).findFirst().orElse(null);
 					if (domainClassWhereReferenceFieldIsDefined == null) {
 						throw new DomainException("'" + domainClassName + "' got from annotation of accumulation field '" + qualifiedName(accumulationField) + "' a is not a registered domain class!");
@@ -460,7 +473,6 @@ public abstract class Registry extends Reflection {
 					throw new DomainException("Reference field '" + refFieldName + "' got from annotation of accumulation field '" + qualifiedName(accumulationField) + "' does not exist in '"
 							+ domainClassWhereReferenceFieldIsDefined.getSimpleName() + "'");
 				}
-
 				fromAnnotation = true;
 			}
 			else {
@@ -497,8 +509,7 @@ public abstract class Registry extends Reflection {
 	}
 
 	// Register domain class recursively considering dependencies
-	@SuppressWarnings("unchecked")
-	private static void registerDomainClassRecursive(Class<? extends DomainObject> domainClass) throws DomainException {
+	private void registerDomainClassRecursive(Class<? extends T> domainClass) throws DomainException {
 
 		// Avoid multiple registration of domain classes and infinite loops on circular references
 		if (domainClassesDuringRegistration.contains(domainClass)) {
@@ -515,21 +526,19 @@ public abstract class Registry extends Reflection {
 		}
 
 		// Register base domain class before domain class itself
-		if (getSuperclass(domainClass) != baseClass) {
-			registerDomainClassRecursive(getSuperclass(domainClass));
+		if (getCastedSuperclass(domainClass) != baseClass) {
+			registerDomainClassRecursive(getCastedSuperclass(domainClass));
 		}
 
 		// Register parent domain classes before child domain class
-		for (Field field : Stream.of(domainClass.getDeclaredFields()).filter(f -> isReferenceField(f)).collect(Collectors.toList())) {
+		for (Field field : Stream.of(domainClass.getDeclaredFields()).filter(this::isReferenceField).collect(Collectors.toList())) {
 
-			Class<? extends DomainObject> referencedDomainClass = getReferencedDomainClass(field);
-
-			if (Registry.isDataHorizonControlled(referencedDomainClass) && !Registry.isDataHorizonControlled(domainClass)) {
+			Class<? extends T> referencedDomainClass = getCastedReferencedDomainClass(field);
+			if (isDataHorizonControlled(referencedDomainClass) && !isDataHorizonControlled(domainClass)) {
 				log.warn(
 						"REG: Domain class '{}' is not data horizon controlled (annotation @UseDataHorizon) but parent class '{}' is! This suppresses unregistering '{}'-objects which are out of data horizon if they have '{}' childeren. Please check if this behaviour is intended!",
 						domainClass.getSimpleName(), referencedDomainClass.getSimpleName(), referencedDomainClass.getSimpleName(), domainClass.getSimpleName());
 			}
-
 			registerDomainClassRecursive(referencedDomainClass);
 		}
 
@@ -537,9 +546,8 @@ public abstract class Registry extends Reflection {
 		for (Class<?> innerClass : domainClass.getDeclaredClasses()) {
 
 			if (baseClass.isAssignableFrom(innerClass)) {
-
 				if (Modifier.isStatic(innerClass.getModifiers())) {
-					registerDomainClassRecursive((Class<? extends DomainObject>) innerClass);
+					registerDomainClassRecursive(castDomainClass(innerClass));
 				}
 				else {
 					throw new DomainException("Inner domain class '" + innerClass.getName() + "' must be declared as static!");
@@ -555,9 +563,9 @@ public abstract class Registry extends Reflection {
 	}
 
 	// Set base class and clear all registration related collections and maps
-	private static void init(Class<? extends DomainObject> baseClass) {
+	private void init(Class<T> baseClass) {
 
-		Registry.baseClass = baseClass;
+		this.baseClass = baseClass;
 
 		orderedDomainClasses.clear();
 		domainClassInfoMap.clear();
@@ -568,28 +576,20 @@ public abstract class Registry extends Reflection {
 		domainClassesDuringRegistration.clear();
 	}
 
-	// Check if all domain classes which are no object domain classes are not instantiable (abstract)
-	private static void checkObjectDomainClasses() throws DomainException {
+	private void checkObjectDomainClass(Class<? extends T> objectDomainClass) throws DomainException {
 
-		for (Class<? extends DomainObject> objectDomainClass : objectDomainClassesToRegister) {
+		List<Class<? extends T>> domainClasses = getDomainClassesFor(objectDomainClass);
 
-			Stack<Class<? extends DomainObject>> baseDomainClasses = getInheritanceStack(objectDomainClass);
-			baseDomainClasses.pop();
-
-			for (Class<? extends DomainObject> baseDomainClass : baseDomainClasses) {
-
-				if (objectDomainClassesToRegister.contains(baseDomainClass)) {
-					throw new DomainException("Domain class '" + baseDomainClass.getName()
-							+ "' is base class of one of the object domain classes and therefore cannot be an 'object' domain class itself and must be declared as 'abstract' (instantiable 'object' domain classes must be top level of inheritance hirarchie)");
-				}
+		for (Class<? extends T> domainClass : domainClasses) {
+			if (domainClass != objectDomainClass && objectDomainClassesToRegister.contains(domainClass)) {
+				throw new DomainException("Domain class '" + ((Class<?>) domainClass).getName()
+						+ "' is base class of one of the object domain classes and therefore cannot be an 'object' domain class itself and must be declared as 'abstract' (instantiable 'object' domain classes must be top level of inheritance hirarchie)");
 			}
 		}
-
 	}
 
 	// Register domain classes in specified package
-	@SuppressWarnings("unchecked")
-	public static void registerDomainClasses(Class<? extends DomainObject> baseClass, String domainPackageName) throws DomainException {
+	public void registerDomainClasses(Class<T> baseClass, String domainPackageName) throws DomainException {
 
 		// Reset all lists and maps for registration
 		init(baseClass);
@@ -597,10 +597,9 @@ public abstract class Registry extends Reflection {
 		// Find all object domain classes in given package and sub packages
 		for (ClassInfo classinfo : ClassPath.from(Thread.currentThread().getContextClassLoader()).getTopLevelClassesRecursive(domainPackageName)) {
 			try {
-				Class<?> cls = Class.forName(classinfo.getName());
-
-				if (baseClass.isAssignableFrom(cls) && isObjectDomainClass((Class<? extends DomainObject>) cls)) {
-					objectDomainClassesToRegister.add((Class<? extends DomainObject>) cls);
+				Class<? extends T> cls = castDomainClass(Class.forName(classinfo.getName()));
+				if (baseClass.isAssignableFrom(cls) && isObjectDomainClass(cls)) {
+					objectDomainClassesToRegister.add(cls);
 				}
 			}
 			catch (ClassNotFoundException e) {
@@ -611,11 +610,13 @@ public abstract class Registry extends Reflection {
 		log.info("REG: Object domain classes in package {}: {}", domainPackageName, objectDomainClassesToRegister.stream().map(Class::getSimpleName).collect(Collectors.toList()));
 
 		// Check if all domain classes which are no object domain classes are not instantiable (abstract)
-		checkObjectDomainClasses();
+		for (Class<? extends T> objectDomainClass : objectDomainClassesToRegister) {
+			checkObjectDomainClass(objectDomainClass);
+		}
 
 		// Register all domain classes (recursively in order of dependencies)
 		log.info("REG: Register domain classes:");
-		for (Class<? extends DomainObject> objectDomainClass : objectDomainClassesToRegister) {
+		for (Class<? extends T> objectDomainClass : objectDomainClassesToRegister) {
 			registerDomainClassRecursive(objectDomainClass);
 		}
 
@@ -625,22 +626,23 @@ public abstract class Registry extends Reflection {
 
 	// Register specified domain classes
 	@SafeVarargs
-	public static final void registerDomainClasses(Class<? extends DomainObject> baseClass, Class<? extends DomainObject>... domainClasses) throws DomainException {
+	public final void registerDomainClasses(Class<T> baseClass, Class<? extends T>... domainClasses) throws DomainException {
 
 		// Reset all lists and maps for registration
 		init(baseClass);
 
 		// Select object domain classes from given domain classes
-		objectDomainClassesToRegister.addAll(Stream.of(domainClasses).filter(Registry::isObjectDomainClass).collect(Collectors.toList()));
-
+		objectDomainClassesToRegister.addAll(Stream.of(domainClasses).filter(this::isObjectDomainClass).collect(Collectors.toList()));
 		log.info("REG: Object domain classes to register: {}", objectDomainClassesToRegister.stream().map(Class::getSimpleName).collect(Collectors.toList()));
 
 		// Check if all domain classes which are no object domain classes are not instantiable (abstract)
-		checkObjectDomainClasses();
+		for (Class<? extends T> objectDomainClass : objectDomainClassesToRegister) {
+			checkObjectDomainClass(objectDomainClass);
+		}
 
 		// Register all domain classes (recursively in order of dependencies)
 		log.info("REG: Register domain classes:");
-		for (Class<? extends DomainObject> objectDomainClass : objectDomainClassesToRegister) {
+		for (Class<? extends T> objectDomainClass : objectDomainClassesToRegister) {
 			registerDomainClassRecursive(objectDomainClass);
 		}
 
@@ -648,52 +650,44 @@ public abstract class Registry extends Reflection {
 		registerAccumulationFields();
 	}
 
-	@SuppressWarnings("unchecked")
-	private static boolean determineCircularReferences(Class<? extends DomainObject> domainClass, Set<List<String>> circularReferences, Stack<Class<? extends DomainObject>> stack) {
+	// Check for circular references involving given domain class
+	private void determineCircularReferences(Class<? extends T> domainClass, Set<List<String>> circularReferences, Stack<Class<? extends T>> stack) {
 
 		if (stack.contains(domainClass)) {
-
 			List<String> circularReference = stack.subList(stack.indexOf(domainClass), stack.size()).stream().map(Class::getSimpleName).collect(Collectors.toList());
 			circularReferences.add(circularReference);
-
-			return true;
+			return;
 		}
-
 		stack.push(domainClass);
 
-		for (Field field : Stream.of(domainClass.getDeclaredFields()).filter(f -> isReferenceField(f)).collect(Collectors.toList())) {
-
-			Class<? extends DomainObject> referencedDomainClass = (Class<? extends DomainObject>) field.getType();
-
+		for (Field field : Stream.of(domainClass.getDeclaredFields()).filter(this::isReferenceField).collect(Collectors.toList())) {
+			Class<? extends T> referencedDomainClass = getCastedReferencedDomainClass(field);
 			determineCircularReferences(referencedDomainClass, circularReferences, stack);
 		}
-
 		stack.pop();
-
-		return false;
 	}
 
+	// Check if lists equal ignoring order of elements
 	private static boolean listsEqualIgnoreOrder(List<String> l1, List<String> l2) {
 		return (l1 == null && l2 == null || l1 != null && l2 != null && l1.size() == l2.size() && l1.containsAll(l2) && l2.containsAll(l1));
 	}
 
-	public static Set<List<String>> determineCircularReferences() {
+	// Check for circular references within registered domain classes
+	public Set<List<String>> determineCircularReferences() {
 
+		// Determine circular references
 		Set<List<String>> rawCircularReferences = new HashSet<>();
-
-		for (Class<? extends DomainObject> domainClass : objectDomainClassesToRegister) {
+		for (Class<? extends T> domainClass : objectDomainClassesToRegister) {
 			determineCircularReferences(domainClass, rawCircularReferences, new Stack<>());
 		}
 
+		// Remove doublets circular references from found
 		Set<List<String>> circularReferences = new HashSet<>();
-
 		for (List<String> circularReference : rawCircularReferences) {
 			if (circularReferences.stream().noneMatch(cr -> listsEqualIgnoreOrder(cr, circularReference))) {
 				circularReferences.add(circularReference);
 			}
 		}
-
 		return circularReferences;
 	}
-
 }
