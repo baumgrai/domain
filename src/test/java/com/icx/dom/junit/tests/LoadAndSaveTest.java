@@ -721,7 +721,7 @@ class LoadAndSaveTest extends TestHelpers {
 
 			log.info("\tLoad objects of one domain class for excusive use");
 
-			Set<X> xs = sdc.allocateExclusively(X.class, X.InProgress.class, "S='available'", -1, x -> x.s = "in_use");
+			Set<X> xs = sdc.allocateObjectsExclusively(X.class, X.InProgress.class, "S='available'", -1, x -> x.s = "in_use");
 			assertEquals(2, xs.size());
 			assertEquals(2, sdc.count(X.class, x -> true));
 			assertEquals(2, sdc.count(X.InProgress.class, s -> true));
@@ -738,30 +738,30 @@ class LoadAndSaveTest extends TestHelpers {
 
 			log.info("\tTry to load another object excusively (but no object exists)...");
 
-			xs = sdc.allocateExclusively(X.class, X.InProgress.class, "s='available'", -1, null);
+			xs = sdc.allocateObjectsExclusively(X.class, X.InProgress.class, "s='available'", -1, null);
 			assertTrue(xs.isEmpty());
 
-			xs = sdc.allocateExclusively(X.class, X.InProgress.class, null, -1, null);
+			xs = sdc.allocateObjectsExclusively(X.class, X.InProgress.class, null, -1, null);
 			assertTrue(xs.isEmpty());
 
 			log.info("\tRelease one exclusively used object...");
 
-			assertTrue(sdc.release(x1b, X.InProgress.class, x -> x.s = "available"));
+			assertTrue(sdc.releaseObject(x1b, X.InProgress.class, x -> x.s = "available"));
 			assertEquals(1, sdc.count(X.InProgress.class, s -> true));
 
 			log.info("\tTry to allocate another object excusively (now one object exists)...");
 
-			Set<X> xs2 = sdc.allocateExclusively(X.class, X.InProgress.class, null, 1, x -> x.s = "in_use");
+			Set<X> xs2 = sdc.allocateObjectsExclusively(X.class, X.InProgress.class, null, 1, x -> x.s = "in_use");
 			assertEquals(1, xs2.size());
 			assertEquals(2, sdc.count(X.InProgress.class, s -> true));
 
-			sdc.release(x1a, X.InProgress.class, x -> x.s = "available");
-			sdc.release(x1b, X.InProgress.class, x -> x.s = "available");
+			sdc.releaseObject(x1a, X.InProgress.class, x -> x.s = "available");
+			sdc.releaseObject(x1b, X.InProgress.class, x -> x.s = "available");
 			assertEquals(0, sdc.count(X.InProgress.class, s -> true));
 
-			assertTrue(sdc.allocateExclusively(x1a, X.InProgress.class, x -> x.s = "in_use"));
+			assertTrue(sdc.allocateObjectExclusively(x1a, X.InProgress.class, x -> x.s = "in_use"));
 			assertEquals(1, sdc.count(X.InProgress.class, s -> true));
-			sdc.release(x1a, X.InProgress.class, x -> x.s = "available");
+			sdc.releaseObject(x1a, X.InProgress.class, x -> x.s = "available");
 		}
 		catch (AssertionFailedError failed) {
 			throw failed;

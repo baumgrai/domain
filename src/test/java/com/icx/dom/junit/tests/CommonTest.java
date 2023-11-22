@@ -35,7 +35,7 @@ import org.slf4j.LoggerFactory;
 
 import com.icx.dom.app.bikestore.BikeStoreApp;
 import com.icx.dom.app.bikestore.domain.client.Client;
-import com.icx.dom.app.bikestore.domain.client.Client.RegionInUse;
+import com.icx.dom.app.bikestore.domain.client.Client.RegionInProgress;
 import com.icx.dom.common.CCollection;
 import com.icx.dom.common.CFile;
 import com.icx.dom.common.CList;
@@ -219,7 +219,7 @@ class CommonTest extends TestHelpers {
 
 		assertEquals(Client.class, Reflection.loadClass("com.icx.dom.app.bikestore.domain.client.Client"), "load class");
 		assertEquals(Client.class, Reflection.loadClass("Client"), "load class");
-		assertEquals(RegionInUse.class, Reflection.loadInnerClass("RegionInUse", Client.class), "load inner class");
+		assertEquals(RegionInProgress.class, Reflection.loadInnerClass("RegionInProgress", Client.class), "load inner class");
 
 		Reflection.retrieveLoadedPackageNames();
 		assertTrue(Reflection.getLoadedPackageNames().size() > 100, "loaded packages");
