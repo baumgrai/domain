@@ -152,8 +152,7 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 	 * @throws IllegalAccessException
 	 * @throws InstantiationException
 	 */
-	public final synchronized <S extends T> S create(final Class<S> domainObjectClass, Consumer<S> init)
-			throws InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException {
+	public final <S extends T> S create(final Class<S> domainObjectClass, Consumer<S> init) throws InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException {
 
 		S obj = instantiate(domainObjectClass);
 		if (init != null) {
@@ -173,7 +172,7 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 	/**
 	 * Update accumulations (if exist) of parent objects reflecting any reference change of this object.
 	 */
-	public synchronized void updateAccumulationsOfParentObjects(T obj) {
+	public void updateAccumulationsOfParentObjects(T obj) {
 
 		if (obj.refForAccuShadowMap == null) {
 			return;
@@ -202,7 +201,7 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 	}
 
 	// Remove object from accumulations (if exist) of parent objects
-	protected synchronized void removeFromAccumulationsOfParentObjects(T obj) {
+	protected void removeFromAccumulationsOfParentObjects(T obj) {
 
 		if (obj.refForAccuShadowMap == null) {
 			return;
@@ -241,19 +240,27 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 			registry.getComplexFields(domainClass).stream().filter(f -> obj.getFieldValue(f) == null).forEach(f -> obj.setFieldValue(f, Reflection.newComplexObject(f.getType())));
 
 			// Initialize own accumulation fields
-			registry.getAccumulationFields(domainClass).stream().filter(f -> obj.getFieldValue(f) == null).forEach(f -> obj.setFieldValue(f, new HashSet<>()));
+			registry.getAccumulationFields(domainClass).stream().filter(f -> obj.getFieldValue(f) == null).forEach(f -> obj.setFieldValue(f, ConcurrentHashMap.newKeySet()));
 		}
 	}
 
 	// Register domain object by given id for object domain class and all inherited domain classes
-	public final void registerById(T obj, long id) {
+	public final boolean registerById(T obj, long id) {
+
+		Class<? extends T> objectDomainClass = registry.getCastedDomainClass(obj);
+		if (objectMap.get(objectDomainClass).containsKey(id)) {
+			log.info("{} is an already registered object", obj);
+			return false;
+		}
 
 		obj.id = id;
-		registry.getDomainClassesFor(registry.getCastedDomainClass(obj)).forEach(c -> objectMap.get(c).put(id, obj));
+		registry.getDomainClassesFor(objectDomainClass).forEach(c -> objectMap.get(c).put(id, obj));
 		updateAccumulationsOfParentObjects(obj);
 		if (log.isTraceEnabled()) {
 			log.trace("DC: Registered: {}", obj.name());
 		}
+
+		return true;
 	}
 
 	// Unregister domain object and remove it from all accumulations
