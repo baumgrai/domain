@@ -1,6 +1,6 @@
 Manifest-Version: 1.0
 Implementation-Title: domain
-Implementation-Version: 1.0.0.20231102.150240
+Implementation-Version: 1.0.0.20231115.154255
 Implementation-Vendor: infinIT.cx GmbH
 Built-By: raine
 
