@@ -8,6 +8,7 @@ import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -255,111 +256,6 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	}
 
 	/**
-	 * Allocate objects of one domain class for exclusive use by this domain controller instance.
-	 * <p>
-	 * This method is intended to synchronize access if multiple domain controller instances concurrently operate on the same database.
-	 * <p>
-	 * Allocated objects must later be released from exclusive use to allow exclusive use by other instances.
-	 * <p>
-	 * Exclusive allocation of objects is realized by inserting a record in a 'shadow' table for every allocated object with the object id as record id. The UNIQUE constraint for ID ensures, that this
-	 * can be done only one time for an object.
-	 * <p>
-	 * Objects allocated here are typically already loaded by synchronization.
-	 * 
-	 * @param objectDomainClass
-	 *            object domain class of objects to allocate exclusively
-	 * @param inProgressClass
-	 *            class for shadow records to ensure exclusivity of this operation
-	 * @param whereClause
-	 *            WHERE clause to build SELECT statement for objects to allocate (e.g. STATUS='new')
-	 * @param maxCount
-	 *            maximum # of objects to allocate
-	 * @param update
-	 *            function to compute immediately on allocated objects or null - objects will be saved to database immediately after computing (e.g. o -> o.status = 'processing')
-	 * 
-	 * @return allocated objects
-	 * 
-	 * @throws SQLException
-	 *             exceptions thrown establishing connection or on executing SQL SELECT or UPDATE statement
-	 * @throws SqlDbException
-	 *             on internal errors
-	 * @throws InvocationTargetException
-	 * @throws IllegalArgumentException
-	 * @throws IllegalAccessException
-	 * @throws InstantiationException
-	 */
-	@SuppressWarnings("unchecked")
-	public <S extends SqlDomainObject> Set<S> allocateExclusively(Class<S> objectDomainClass, Class<? extends SqlDomainObject> inProgressClass, String whereClause, int maxCount,
-			Consumer<? super S> update) throws SQLException, SqlDbException, InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException {
-
-		log.info("SDC: Allocate {}'{}' objects{} exclusively for this domain controller instance", (maxCount > 0 ? "max " + maxCount + " " : ""), objectDomainClass.getSimpleName(),
-				(!isEmpty(whereClause) ? " WHERE " + whereClause.toUpperCase() : ""));
-
-		// Load objects related to given object domain class
-		Set<S> allocatedObjects = new HashSet<>();
-		LoadHelpers.loadAssuringReferentialIntegrity(this, cn -> LoadHelpers.selectExclusively(cn, this, objectDomainClass, inProgressClass, whereClause, maxCount),
-				(Set<SqlDomainObject>) allocatedObjects);
-
-		// Filter objects of object domain class itself (because loaded objects may contain referenced objects of other domain classes too)
-		allocatedObjects = allocatedObjects.stream().filter(o -> o.getClass().equals(objectDomainClass)).collect(Collectors.toSet());
-		if (!allocatedObjects.isEmpty()) {
-			log.info("SDC: {} '{}' objects exclusively allocated", allocatedObjects.size(), objectDomainClass.getSimpleName());
-
-			// If update is specified: change object as defined by update parameter and UPDATE record in database by saving object, release object from exclusive use if specified
-			if (update != null) {
-				log.info("SDC: Update exclusively allocated objects...");
-				for (S loadedObject : allocatedObjects) {
-					update.accept(loadedObject);
-					save(loadedObject);
-				}
-			}
-		}
-		else {
-			log.info("SDC: No '{}' objects could exclusively be allocated", objectDomainClass.getSimpleName());
-		}
-		return allocatedObjects;
-	}
-
-	/**
-	 * Exclusively compute a function on objects of one domain class and save updated objects immediately.
-	 * <p>
-	 * Works like {@link #allocateExclusively(Class, Class, String, int, Consumer)} but releases objects immediately after computing update function. Releasing updated objects
-	 * ({@link SqlDomainObject#release(Class, Class, Consumer)} is not necessary.
-	 * 
-	 * @param objectDomainClass
-	 *            object domain class of objects to allocate exclusively
-	 * @param inProgressClass
-	 *            class for shadow records to ensure exclusivity of this operation
-	 * @param whereClause
-	 *            WHERE clause to build SELECT statement for objects to allocate (e.g. status='new')
-	 * @param update
-	 *            update function to compute immediately on selected objects or null - objects will be saved immediately after computing (e.g. o -> o.status = 'processed')
-	 * 
-	 * @return allocated objects
-	 * 
-	 * @throws SQLException
-	 *             exceptions thrown establishing connection or on executing SQL SELECT or UPDATE statement
-	 * @throws SqlDbException
-	 *             on internal errors
-	 * @throws InvocationTargetException
-	 * @throws IllegalArgumentException
-	 * @throws IllegalAccessException
-	 * @throws InstantiationException
-	 */
-	public <S extends SqlDomainObject> Set<S> computeExclusively(Class<S> objectDomainClass, Class<? extends SqlDomainObject> inProgressClass, String whereClause, Consumer<? super S> update)
-			throws SQLException, SqlDbException, InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException {
-
-		// Allocate objects exclusively and - if specified - performing 'update' for any allocated object
-		Set<S> loadedObjects = allocateExclusively(objectDomainClass, inProgressClass, whereClause, -1, update);
-
-		// Immediately release allocated objects from exclusive use
-		for (SqlDomainObject obj : loadedObjects) {
-			release(obj, inProgressClass, null);
-		}
-		return loadedObjects;
-	}
-
-	/**
 	 * (Re)load object from database.
 	 * <p>
 	 * If object is not initially saved or is not registered this method does nothing.
@@ -395,6 +291,73 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	}
 
 	/**
+	 * Allocate objects of one domain class for exclusive use by this domain controller instance.
+	 * <p>
+	 * This method is intended to synchronize access if multiple domain controller instances concurrently operate on the same database.
+	 * <p>
+	 * Allocated objects must later be released from exclusive use to allow exclusive use by other instances.
+	 * <p>
+	 * Exclusive allocation of objects is realized by inserting a record in a 'shadow' table for every allocated object with the object id as record id. The UNIQUE constraint for ID ensures, that this
+	 * can be done only one time for an object.
+	 * <p>
+	 * Objects allocated here are typically already loaded by synchronization.
+	 * 
+	 * @param objectDomainClass
+	 *            object domain class of objects to allocate exclusively
+	 * @param inProgressClass
+	 *            class for shadow records to ensure exclusivity of this operation
+	 * @param whereClause
+	 *            WHERE clause to build SELECT statement for objects to allocate (e.g. STATUS='new')
+	 * @param maxCount
+	 *            maximum # of objects to allocate
+	 * @param update
+	 *            function to compute immediately on allocated objects or null - objects will be saved to database immediately after computing (e.g. o -> o.status = 'processing')
+	 * 
+	 * @return allocated objects
+	 * 
+	 * @throws SQLException
+	 *             exceptions thrown establishing connection or on executing SQL SELECT or UPDATE statement
+	 * @throws SqlDbException
+	 *             on internal errors
+	 * @throws InvocationTargetException
+	 * @throws IllegalArgumentException
+	 * @throws IllegalAccessException
+	 * @throws InstantiationException
+	 */
+	@SuppressWarnings("unchecked")
+	public <S extends SqlDomainObject> Set<S> allocateObjectsExclusively(Class<S> objectDomainClass, Class<? extends SqlDomainObject> inProgressClass, String whereClause, int maxCount,
+			Consumer<? super S> update) throws SQLException, SqlDbException, InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException {
+
+		log.info("SDC: Allocate {}'{}' objects{} exclusively for this domain controller instance", (maxCount > 0 ? "max " + maxCount + " " : ""), objectDomainClass.getSimpleName(),
+				(!isEmpty(whereClause) ? " WHERE " + whereClause.toUpperCase() : ""));
+
+		// Load objects related to given object domain class
+		Set<S> allocatedObjects = new HashSet<>();
+		LoadHelpers.loadAssuringReferentialIntegrity(this, cn -> LoadHelpers.selectExclusively(cn, this, objectDomainClass, inProgressClass, whereClause, maxCount),
+				(Set<SqlDomainObject>) allocatedObjects);
+
+		// Filter objects of object domain class itself (because loaded objects may contain referenced objects of other domain classes too)
+		allocatedObjects = allocatedObjects.stream().filter(o -> o.getClass().equals(objectDomainClass)).collect(Collectors.toSet());
+		if (!allocatedObjects.isEmpty()) {
+			log.info("SDC: {} '{}' objects exclusively allocated", allocatedObjects.size(), objectDomainClass.getSimpleName());
+
+			// If update is specified: change object as defined by update parameter and UPDATE record in database by saving object, release object from exclusive use if specified
+			if (update != null) {
+				log.info("SDC: Update exclusively allocated objects...");
+				for (S loadedObject : allocatedObjects) {
+					update.accept(loadedObject);
+					save(loadedObject);
+				}
+			}
+		}
+		else {
+			log.info("SDC: No '{}' objects could exclusively be allocated", objectDomainClass.getSimpleName());
+		}
+
+		return allocatedObjects;
+	}
+
+	/**
 	 * Allocate this object exclusively, compute an update function on this object and save changed object immediately.
 	 * 
 	 * @param domainObjectClass
@@ -416,11 +379,11 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	 * @throws InstantiationException
 	 */
 	@SuppressWarnings("unchecked")
-	public <S extends SqlDomainObject> boolean allocateExclusively(S obj, Class<? extends SqlDomainObject> inProgressClass, Consumer<? super S> update)
+	public <S extends SqlDomainObject> boolean allocateObjectExclusively(S obj, Class<? extends SqlDomainObject> inProgressClass, Consumer<? super S> update)
 			throws SQLException, SqlDbException, InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException {
 
 		String whereClause = ((SqlRegistry) registry).getTableFor(obj.getClass()).name + ".ID=" + obj.getId();
-		Set<S> allocatedObjects = allocateExclusively((Class<S>) obj.getClass(), inProgressClass, whereClause, -1, update);
+		Set<S> allocatedObjects = allocateObjectsExclusively((Class<S>) obj.getClass(), inProgressClass, whereClause, -1, update);
 		return (!allocatedObjects.isEmpty());
 	}
 
@@ -441,17 +404,17 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	 * @throws SqlDbException
 	 *             on internal errors
 	 */
-	public <S extends SqlDomainObject> boolean release(S obj, Class<? extends SqlDomainObject> inProgressClass, Consumer<? super S> update) throws SQLException, SqlDbException {
+	public <S extends SqlDomainObject> boolean releaseObject(S obj, Class<? extends SqlDomainObject> inProgressClass, Consumer<? super S> update) throws SQLException, SqlDbException {
 
 		// Check if object is allocated for exclusive use
 		SqlDomainObject inProgressObject = find(inProgressClass, obj.getId());
 		if (inProgressObject == null) {
-			log.info("SDO: {} is currently not allocated for exclusive usage", obj);
+			log.warn("SDO: {} is currently not allocated for exclusive usage", obj);
 			return false;
 		}
 
 		// Change object as defined by update parameter and UPDATE record in database on saving object
-		log.info("SDO: Release {} from exclusive use", obj);
+		log.info("SDO: Release {} from exclusive use ({})", obj, update);
 		if (update != null) {
 			update.accept(obj);
 			save(obj);
@@ -459,7 +422,57 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 
 		// Delete in-progress record
 		delete(inProgressObject);
+
 		return true;
+	}
+
+	/**
+	 * Release multiple objects
+	 * 
+	 * @param <S>
+	 * @param objects
+	 * @param inProgressClass
+	 * @throws SQLException
+	 * @throws SqlDbException
+	 */
+	public <S extends SqlDomainObject> void releaseObjects(Collection<S> objects, Class<? extends SqlDomainObject> inProgressClass) throws SQLException, SqlDbException {
+		for (S obj : objects) {
+			releaseObject(obj, inProgressClass, null);
+		}
+	}
+
+	/**
+	 * Exclusively compute a function on objects of one domain class and save updated objects immediately.
+	 * <p>
+	 * Works like {@link #allocateObjectsExclusively(Class, Class, String, int, Consumer)} but releases objects immediately after computing update function. Releasing updated objects
+	 * ({@link SqlDomainObject#releaseObject(Class, Class, Consumer)} is not necessary.
+	 * 
+	 * @param objectDomainClass
+	 *            object domain class of objects to allocate exclusively
+	 * @param inProgressClass
+	 *            class for shadow records to ensure exclusivity of this operation
+	 * @param whereClause
+	 *            WHERE clause to build SELECT statement for objects to allocate (e.g. status='new')
+	 * @param update
+	 *            update function to compute immediately on selected objects or null - objects will be saved immediately after computing (e.g. o -> o.status = 'processed')
+	 * 
+	 * @return allocated objects
+	 * 
+	 * @throws SQLException
+	 *             exceptions thrown establishing connection or on executing SQL SELECT or UPDATE statement
+	 * @throws SqlDbException
+	 *             on internal errors
+	 * @throws InvocationTargetException
+	 * @throws IllegalArgumentException
+	 * @throws IllegalAccessException
+	 * @throws InstantiationException
+	 */
+	public <S extends SqlDomainObject> Set<S> computeExclusivelyOnObjects(Class<S> objectDomainClass, Class<? extends SqlDomainObject> inProgressClass, String whereClause, Consumer<? super S> update)
+			throws SQLException, SqlDbException, InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException {
+
+		Set<S> loadedObjects = allocateObjectsExclusively(objectDomainClass, inProgressClass, whereClause, -1, update);
+		releaseObjects(loadedObjects, inProgressClass);
+		return loadedObjects;
 	}
 
 	/**
@@ -483,11 +496,11 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	 * @throws IllegalAccessException
 	 * @throws InstantiationException
 	 */
-	public boolean computeExclusively(SqlDomainObject obj, Class<? extends SqlDomainObject> inProgressClass, Consumer<? super SqlDomainObject> update)
+	public boolean computeExclusivelyOnObject(SqlDomainObject obj, Class<? extends SqlDomainObject> inProgressClass, Consumer<? super SqlDomainObject> update)
 			throws SQLException, SqlDbException, InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException {
 
-		if (allocateExclusively(obj, inProgressClass, update)) {
-			release(obj, inProgressClass, update);
+		if (allocateObjectExclusively(obj, inProgressClass, update)) {
+			releaseObject(obj, inProgressClass, update);
 			return true;
 		}
 		else {
@@ -550,12 +563,6 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 		// Use one transaction for all INSERTs and UPDATEs to allow ROLL BACK of whole transaction on error - on success transaction will automatically be committed on closing connection
 		try (SqlConnection sqlcn = SqlConnection.open(sqlDb.pool, false)) {
 			save(sqlcn.cn, obj);
-		}
-		catch (SQLException sqlex) {
-			log.error("SDO: Object {} cannot be saved (database connection could not be established)", obj.name());
-			log.info("SDO: {}: {}", sqlex.getClass().getSimpleName(), sqlex.getMessage());
-
-			throw sqlex;
 		}
 	}
 
@@ -630,12 +637,14 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	}
 
 	// Create object with given id - only used for exclusive selection methods
-	final synchronized <S extends SqlDomainObject> S createWithId(final Class<S> domainObjectClass, long id)
+	final <S extends SqlDomainObject> S createWithId(final Class<S> domainObjectClass, long id)
 			throws InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException {
 
 		S obj = instantiate(domainObjectClass);
 		if (obj != null) {
-			registerById(obj, id);
+			if (!registerById(obj, id)) { // An object of this domain class already exists and is registered
+				return null;
+			}
 			if (log.isDebugEnabled()) {
 				log.debug("DC: Created {}.", obj.name());
 			}
@@ -800,7 +809,7 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	 * @throws SqlDbException
 	 *             on internal errors
 	 */
-	public synchronized void delete(Connection cn, SqlDomainObject obj) throws SQLException, SqlDbException {
+	public void delete(Connection cn, SqlDomainObject obj) throws SQLException, SqlDbException {
 
 		// Delete object and children
 		List<SqlDomainObject> unregisteredObjects = new ArrayList<>();
@@ -842,12 +851,13 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	 * @throws SqlDbException
 	 *             on internal errors
 	 */
-	public synchronized boolean delete(SqlDomainObject obj) throws SQLException, SqlDbException {
+	public boolean delete(SqlDomainObject obj) throws SQLException, SqlDbException {
 
 		LocalDateTime now = LocalDateTime.now();
 
 		// Recursively check if this object and all direct and indirect children can be deleted
 		if (!canBeDeletedRecursive(obj, new ArrayList<>())) {
+			log.info("SDO: {} cannot be deleted because overriden #canBeDeleted() of {} returned false!", obj.name(), obj.getClass().getSimpleName());
 			return false;
 		}
 
