@@ -439,7 +439,7 @@ public abstract class SaveHelpers extends Common {
 	// -------------------------------------------------------------------------
 
 	// Save object in one transaction to database
-	static synchronized void save(Connection cn, SqlDomainController sdc, SqlDomainObject obj, List<SqlDomainObject> objectsToCheckForCircularReference) throws SQLException, SqlDbException {
+	static void save(Connection cn, SqlDomainController sdc, SqlDomainObject obj, List<SqlDomainObject> objectsToCheckForCircularReference) throws SQLException, SqlDbException {
 
 		// Check if object was already stored within current (recursive) save operation
 		int stackSize = objectsToCheckForCircularReference.size();
@@ -501,23 +501,33 @@ public abstract class SaveHelpers extends Common {
 					sdc.sqlDb.insertInto(cn, table.name, columnValueMap);
 				}
 				catch (SQLException sqlex) {
-					log.error("SDO: {}INSERT failed by exception! Object {} cannot be saved in table '{}'", CLog.tabs(stackSize), obj.name(), table.name);
-					log.info("SDO: {}: {}", sqlex.getClass().getSimpleName(), sqlex.getMessage());
 
-					// Set exception and field errors on constraint violation(s) (check violations in ascending order of severity to have the most critical ones assigned to field(s)
-					obj.currentException = sqlex;
-					sdc.hasColumnSizeViolations(obj, domainClass);
-					sdc.hasUniqueConstraintViolations(obj, domainClass);
-					sdc.hasNotNullConstraintViolations(obj, domainClass);
+					if (obj.getClass().getSimpleName().contains("InProgress")) {
+						// On trying to insert temporary in-progress records assume duplicate key exception here and suppress error messages and error handling because this is not an error case
+						// (in-progress records protect associated objects from multiple parallel access)
+						log.info("SDO: {}@{} is currently in use by another thread/instance and therefore cannot be allocated excusively! (this is not an error case)",
+								(obj.getClass().getEnclosingClass() != null ? obj.getClass().getEnclosingClass().getSimpleName() : ""), obj.getId());
+					}
+					else {
+						log.error("SDO: {}INSERT failed by exception! Object {} cannot be saved in table '{}'", CLog.tabs(stackSize), obj.name(), table.name);
+						log.info("SDO: {}: {}", sqlex.getClass().getSimpleName(), sqlex.getMessage());
 
-					// Restore parent/child references which were reset before trying to save object
-					for (Field refField : collectedParentObjectMap.keySet()) {
-						obj.setFieldValue(refField, collectedParentObjectMap.get(refField));
+						// Set exception and field errors on constraint violation(s) (check violations in ascending order of severity to have the most critical ones assigned to field(s)
+						obj.currentException = sqlex;
+						sdc.hasColumnSizeViolations(obj, domainClass);
+						sdc.hasUniqueConstraintViolations(obj, domainClass);
+						sdc.hasNotNullConstraintViolations(obj, domainClass);
+
+						// Restore parent/child references which were reset before trying to save object
+						for (Field refField : collectedParentObjectMap.keySet()) {
+							obj.setFieldValue(refField, collectedParentObjectMap.get(refField));
+						}
+
+						// ROLL BACK whole transaction
+						cn.rollback();
+						log.warn("SDO: Whole save transaction rolled back!");
 					}
 
-					// ROLL BACK whole transaction
-					cn.rollback();
-					log.warn("SDO: Whole save transaction rolled back!");
 					throw sqlex;
 				}
 			}
@@ -540,11 +550,16 @@ public abstract class SaveHelpers extends Common {
 						// UPDATE <table> SET <names of changed columns>=<converted field values> WHERE ID=<objectid>
 						long count = sdc.sqlDb.update(cn, table.name, columnValueMap, Const.ID_COL + "=" + obj.getId());
 						if (count == 0) {
-							throw new SqlDbException("Object '" + obj + "' could not be saved because record for this object does not exist in table '" + table.name + "'");
+							log.warn("Object '{}' could not be saved because it was meanwhile deleted by another thread/instance (record for this object does not exist anymore in table '{}')", obj,
+									table.name);
+							if (sdc.isRegistered(obj)) {
+								sdc.unregister(obj);
+							}
+							return;
 						}
 					}
 					catch (SQLException sqlex) {
-						log.error("SDO: {}UPDATE failed by {}! Not all changed fields can be saved for object {}!\nTry to update columns separetely...", CLog.tabs(stackSize),
+						log.error("SDO: {}UPDATE failed by {}! Not all changed fields can be saved for object {}!\nTry to update columns separately...", CLog.tabs(stackSize),
 								sqlex.getClass().getSimpleName(), obj.name());
 						log.info("SDO: {}: {}", sqlex.getClass().getSimpleName(), sqlex.getMessage());
 
