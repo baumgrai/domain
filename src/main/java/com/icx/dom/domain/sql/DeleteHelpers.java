@@ -55,7 +55,7 @@ public class DeleteHelpers extends Common {
 	}
 
 	// DELETE object records from database
-	private static synchronized void deleteFromDatabase(Connection cn, SqlDomainController sdc, SqlDomainObject obj) throws SQLException, SqlDbException {
+	private static void deleteFromDatabase(Connection cn, SqlDomainController sdc, SqlDomainObject obj) throws SQLException, SqlDbException {
 
 		// Delete records belonging to this object: object records for domain class(es) and potentially existing entry records
 		for (Class<? extends SqlDomainObject> domainClass : CList.reverse(sdc.registry.getDomainClassesFor(obj.getClass()))) {
@@ -71,8 +71,8 @@ public class DeleteHelpers extends Common {
 	}
 
 	// Delete object and all of its children from database
-	static synchronized void deleteRecursiveFromDatabase(Connection cn, SqlDomainController sdc, SqlDomainObject obj, List<SqlDomainObject> unregisteredObjects, List<SqlDomainObject> objectsToCheck,
-			int stackSize) throws SQLException, SqlDbException {
+	static void deleteRecursiveFromDatabase(Connection cn, SqlDomainController sdc, SqlDomainObject obj, List<SqlDomainObject> unregisteredObjects, List<SqlDomainObject> objectsToCheck, int stackSize)
+			throws SQLException, SqlDbException {
 
 		if (objectsToCheck == null) {
 			objectsToCheck = new ArrayList<>();
