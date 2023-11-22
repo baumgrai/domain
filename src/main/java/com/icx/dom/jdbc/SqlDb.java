@@ -873,24 +873,22 @@ public class SqlDb extends Common {
 
 			// Execute INSERT statement and retrieve batch results
 			int[] results = null;
-			synchronized (this) {
 
-				// Execute insert statement
-				if (numberOfRecords > 1) {
+			// Execute insert statement
+			if (numberOfRecords > 1) {
 
-					// For multiple records insert as batch
-					results = pst.executeBatch();
+				// For multiple records insert as batch
+				results = pst.executeBatch();
 
-					for (int i = 0; i < results.length; i++) {
-						if (results[i] == Statement.EXECUTE_FAILED) {
-							log.warn("SQL: Batch execution failed on record {}", i);
-						}
+				for (int i = 0; i < results.length; i++) {
+					if (results[i] == Statement.EXECUTE_FAILED) {
+						log.warn("SQL: Batch execution failed on record {}", i);
 					}
 				}
-				else {
-					// Insert one record
-					results = new int[] { pst.executeUpdate() };
-				}
+			}
+			else {
+				// Insert one record
+				results = new int[] { pst.executeUpdate() };
 			}
 
 			if (numberOfRecords == 0) {
@@ -904,9 +902,14 @@ public class SqlDb extends Common {
 		}
 		catch (SQLException sqlex) {
 
-			log.error("SQL: {} '{}' on... ", sqlex.getClass().getSimpleName(), sqlex.getMessage()); // Log SQL statement(s) on exception
-			for (Map<String, Object> columnValueMap : columnValueMaps) {
-				log.error("SQL: '{}'", JdbcHelpers.forLoggingInsertUpdate(preparedStatementString, columnValueMap, columnsToInsert));
+			if (preparedStatementString.contains("IN_PROGRESS")) {
+				log.info("In-progress record used for access synchronization in Domain persistence system could not be inserted - associated object is currently used exclusivly by another thread!");
+			}
+			else {
+				log.error("SQL: {} '{}' on... ", sqlex.getClass().getSimpleName(), sqlex.getMessage()); // Log SQL statement(s) on exception
+				for (Map<String, Object> columnValueMap : columnValueMaps) {
+					log.error("SQL: '{}'", JdbcHelpers.forLoggingInsertUpdate(preparedStatementString, columnValueMap, columnsToInsert));
+				}
 			}
 
 			throw sqlex;
