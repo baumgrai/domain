@@ -2,16 +2,14 @@ package com.icx.dom.app.bikestore.domain.client;
 
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
-import java.util.Map;
-import java.util.Set;
+import java.util.SortedMap;
+import java.util.TreeMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.icx.dom.app.bikestore.BikeStoreApp;
 import com.icx.dom.app.bikestore.domain.bike.Bike;
-import com.icx.dom.common.CDateTime;
-import com.icx.dom.common.CMap;
 import com.icx.dom.common.Common;
 import com.icx.dom.domain.DomainAnnotations.SqlColumn;
 import com.icx.dom.domain.DomainAnnotations.UseDataHorizon;
@@ -78,35 +76,13 @@ public class Order extends SqlDomainObject {
 	}
 
 	// Only for runtime statistics
-	public static final Map<Integer, Integer> orderProcessingDurationMap = CMap.newMap(0, 0, 1, 0, 2, 0, 3, 0, 4, 0, 5, 0, 6, 0, 7, 0);
-	public static final Map<Integer, Integer> bikeDeliveryDurationMap = CMap.newMap(0, 0, 1, 0, 2, 0, 3, 0, 4, 0, 5, 0, 6, 0, 7, 0);
+	public static final SortedMap<Integer, Integer> orderProcessingDurationMap = new TreeMap<>();
+	public static int orderProcessingExceededCount = 0;
+	public static final SortedMap<Integer, Integer> bikeDeliveryDurationMap = new TreeMap<>();
+	public static int bikeDeliveryExceededCount = 0;
 
 	public enum Operation {
 		ORDER_PROCESSING, BIKE_DELIVERY
-	}
-
-	// For synchronization of order processing
-	void waitFor(Operation operation) throws InterruptedException {
-
-		LocalDateTime start = LocalDateTime.now();
-		long maxWaitTimeMs = 5000;
-
-		synchronized (this) {
-			wait(maxWaitTimeMs);
-		}
-
-		LocalDateTime end = LocalDateTime.now();
-		if (end.isAfter(CDateTime.add(start, "" + (maxWaitTimeMs) + "ms"))) {
-			log.warn("Waiting for {} timed out! ({}ms)", operation, maxWaitTimeMs);
-		}
-
-		Map<Integer, Integer> durationMap = (operation == Operation.ORDER_PROCESSING ? orderProcessingDurationMap : bikeDeliveryDurationMap);
-
-		int duration = (int) ChronoUnit.MILLIS.between(start, LocalDateTime.now()) / 10;
-		duration = (duration >= 7 ? 7 : duration);
-		synchronized (durationMap) {
-			durationMap.put(duration, durationMap.get(duration) + 1);
-		}
 	}
 
 	// A try to delete() an object will recursively check if this object and all of it's direct and indirect children can be deleted by using this canBeDeleted() method
@@ -120,11 +96,13 @@ public class Order extends SqlDomainObject {
 	// Send invoice
 	void sendInvoice() {
 		invoiceDate = LocalDateTime.now();
+		log.info("Invoice for order {} was sent", this);
 	}
 
 	// Deliver bike
 	void deliverBike() {
 		deliveryDate = LocalDateTime.now();
+		log.info("Bike was delivered for order {}", this);
 	}
 
 	// Thread
@@ -140,15 +118,7 @@ public class Order extends SqlDomainObject {
 
 			while (true) {
 				try {
-					Set<Order> orders = BikeStoreApp.sdc.computeExclusively(Order.class, Order.InProgress.class, "INVOICE_DATE IS NULL", o -> o.sendInvoice());
-					for (Order order : orders) {
-
-						log.info("Invoice for order {} was sent", order);
-
-						synchronized (order) {
-							order.notifyAll();
-						}
-					}
+					BikeStoreApp.sdc.computeExclusivelyOnObjects(Order.class, Order.InProgress.class, "INVOICE_DATE IS NULL", o -> o.sendInvoice());
 				}
 				catch (Exception e) {
 					log.error(" {} exception occured sending invoices!", e.getClass().getSimpleName());
@@ -159,7 +129,7 @@ public class Order extends SqlDomainObject {
 				}
 				catch (InterruptedException e) {
 					Thread.currentThread().interrupt();
-					log.info("Invoice thread ended {}s after start", ChronoUnit.SECONDS.between(start, LocalDateTime.now()));
+					log.info("Order processing thread ended {}s after start", ChronoUnit.SECONDS.between(start, LocalDateTime.now()));
 					return;
 				}
 			}
@@ -178,15 +148,7 @@ public class Order extends SqlDomainObject {
 			while (true) {
 
 				try {
-					Set<Order> orders = BikeStoreApp.sdc.computeExclusively(Order.class, Order.InProgress.class, "PAY_DATE IS NOT NULL AND DELIVERY_DATE IS NULL", o -> o.deliverBike());
-					for (Order order : orders) {
-
-						log.info("Bike for order {} was delivered", order);
-
-						synchronized (order) {
-							order.notifyAll();
-						}
-					}
+					BikeStoreApp.sdc.computeExclusivelyOnObjects(Order.class, Order.InProgress.class, "PAY_DATE IS NOT NULL AND DELIVERY_DATE IS NULL", o -> o.deliverBike());
 				}
 				catch (Exception e) {
 					log.error(" {} exception occured sending delivery notes!", e.getClass().getSimpleName());

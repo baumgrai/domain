@@ -1,6 +1,7 @@
 package com.icx.dom.app.bikestore;
 
 import java.io.File;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
@@ -15,7 +16,7 @@ import com.icx.dom.app.bikestore.domain.client.Client;
 import com.icx.dom.app.bikestore.domain.client.Client.Country;
 import com.icx.dom.app.bikestore.domain.client.Client.Gender;
 import com.icx.dom.app.bikestore.domain.client.Client.Region;
-import com.icx.dom.app.bikestore.domain.client.Client.RegionInUse;
+import com.icx.dom.app.bikestore.domain.client.Client.RegionInProgress;
 import com.icx.dom.app.bikestore.domain.client.Order;
 import com.icx.dom.common.Prop;
 import com.icx.dom.domain.sql.SqlDomainController;
@@ -26,8 +27,8 @@ import com.icx.dom.domain.sql.SqlDomainController;
  * Code demonstrates how to register domain classes and associate them with tables of (existing) persistence database, how to load and save domain objects and also most of the additional features
  * provided by Domain persistence mechanism. See comments in {@code Java2Sql.java} for how to create persistence database from domain classes.
  * 
- * One instance of this test program processes orders from clients of world regions ({@link Client#country}, {@link RegionInUse#region}). So one can run six parallel instances to cover whole world.
- * Parallel database operations are synchronized by database synchronization using unique shadow records for records to update exclusively.
+ * One instance of this test program processes orders from clients of world regions ({@link Client#country}, {@link RegionInProgress#region}). So one can run six parallel instances to cover whole
+ * world. Parallel database operations are synchronized by database synchronization using unique shadow records for records to update exclusively.
  * 
  * @author RainerBaumgärtel
  */
@@ -38,7 +39,7 @@ public class BikeStoreApp {
 	public static final File BIKE_PICTURE = new File("src/test/resources/bike.jpg");
 
 	// Delay time between client bike order requests. One client tries to order bikes of 3 different types. Acts also as delay time for start of client order threads.
-	public static final long ORDER_DELAY_TIME_MS = 100;
+	public static final long ORDER_DELAY_TIME_MS = 200;
 
 	// Domain controller
 	public static SqlDomainController sdc = new SqlDomainController();
@@ -47,13 +48,11 @@ public class BikeStoreApp {
 	protected static List<Bike> bikes = null;
 
 	static int n = 0;
-	static RegionInUse regionInUse = null;
+	static RegionInProgress regionInProgress = null;
 
 	// To check order processing
 	public static class Counters {
-
 		public int numberOfOrdersCreated = 0;
-		public int numberOfOrdersCanceledByProcessingTimeout = 0;
 		public int numberOfOrdersCanceledByInabilityToPay = 0;
 	}
 
@@ -63,7 +62,7 @@ public class BikeStoreApp {
 		Counters counters = new Counters();
 
 		// Read JDBC and Domain properties. Note: you should not have multiple properties files with same name in your class path
-		Properties dbProps = Prop.readEnvironmentSpecificProperties(Prop.findPropertiesFile("db.properties"), "local/mssql/bikes", null);
+		Properties dbProps = Prop.readEnvironmentSpecificProperties(Prop.findPropertiesFile("db.properties"), "local/ms_sql/bikes", null);
 		Properties domainProps = Prop.readProperties(Prop.findPropertiesFile("domain.properties"));
 
 		// Associate domain classes and database tables
@@ -72,29 +71,27 @@ public class BikeStoreApp {
 		// Initially load existing domain objects from database - exclude historical data from loading (SELECT statements are performed here)
 		sdc.synchronize(Order.class);
 
-		// Force deleting bikes, clients, etc. on first instance (first region)
-		boolean cleanupDatabaseOnStartup = false;
-		if (!sdc.hasAny(RegionInUse.class, r -> true)) {
-			cleanupDatabaseOnStartup = true;
-		}
-
 		// Select and reserve world region for this instance
 		for (Region reg : Region.values()) {
-			if (!sdc.hasAny(RegionInUse.class, r -> r.region == reg)) {
-				regionInUse = sdc.createAndSave(RegionInUse.class, r -> r.region = reg);
-				break;
+			if (!sdc.hasAny(RegionInProgress.class, r -> r.region == reg)) {
+				try {
+					regionInProgress = sdc.createAndSave(RegionInProgress.class, r -> r.region = reg);
+					break;
+				}
+				catch (SQLException sqlex) {
+					log.warn("Region {} already in use!", reg);
+				}
 			}
 		}
-		if (regionInUse == null) {
+		if (regionInProgress == null) {
 			log.warn("All regions already in use!");
 			return;
 		}
-		else {
-			log.info("Process orders for clients in region {}", regionInUse.region);
-		}
+
+		log.info("Process orders for clients in region {}", regionInProgress.region);
 
 		// Cleanup database on start of first instance
-		if (cleanupDatabaseOnStartup) {
+		if (regionInProgress.region == Region.values()[0]) {
 			Initialize.deleteExistingObjects();
 			Initialize.createObjects();
 		}
@@ -116,63 +113,73 @@ public class BikeStoreApp {
 		bikeDeliveryThread.setName("-DELIVER-");
 		bikeDeliveryThread.start();
 
-		// Create clients for region and start client threads to order bikes
 		List<Thread> clientThreads = new ArrayList<>();
-		for (Country country : RegionInUse.getRegionCountryMap().get(regionInUse.region)) {
-			for (String clientName : Client.getCountryNamesMap().get(country)) {
+		try {
+			// Create clients for region and start client threads to order bikes
+			for (Country country : RegionInProgress.getRegionCountryMap().get(regionInProgress.region)) {
+				for (String clientName : Client.getCountryNamesMap().get(country)) {
 
-				// Use create() method of domain controller to instantiate, initialize and register new object or createAndSave() to additionally save object immediately after registration.
-				// Logical initialization by init routine will be performed before object registration.
-				// Note: Alternatively you may use specific constructors for object creation and register and save objects there or after creation explicitly - see examples in Initialize.java
+					// Use create() method of domain controller to instantiate, initialize and register new object or createAndSave() to additionally save object immediately after registration.
+					// Logical initialization by init routine will be performed before object registration.
+					// Note: Alternatively you may use specific constructors for object creation and register and save objects there or after creation explicitly - see examples in Initialize.java
 
-				// Create client
-				Client client = sdc.create(Client.class, c -> c.init(clientName, (n < 5 ? Gender.MALE : Gender.FEMALE), country, Size.values()[n % 5], 1000.0 * (1 + n % 20)));
-				n++;
+					// Create client
+					Client client = sdc.create(Client.class, c -> c.init(clientName, ((n % 10) < 5 ? Gender.MALE : Gender.FEMALE), country, Size.values()[n % 5], 1000.0 * (1 + n % 20)));
+					n++;
 
-				// Save client
-				sdc.save(client);
+					// Save client
+					sdc.save(client);
 
-				// Create client thread to order bikes
-				Thread clientThread = new Thread(client.new OrderBikes(client, counters));
-				clientThread.setName(client.firstName);
-				clientThread.start();
-				clientThreads.add(clientThread);
+					// Create client thread to order bikes
+					Thread clientThread = new Thread(client.new OrderBikes(client, counters));
+					clientThread.setName(client.firstName);
+					clientThread.start();
+					clientThreads.add(clientThread);
 
-				Thread.sleep(ORDER_DELAY_TIME_MS);
+					Thread.sleep(ORDER_DELAY_TIME_MS);
+				}
 			}
 		}
+		finally {
+			log.info("{} client threads started.", clientThreads.size());
 
-		// Wait until ordering bikes is completed...
-		for (Thread thread : clientThreads) {
-			thread.join();
-			if (log.isDebugEnabled()) {
-				log.debug("Joined: '{}'", thread.getName());
+			// Wait until ordering bikes is completed...
+			for (Thread thread : clientThreads) {
+				thread.join(3000);
+				if (thread.isAlive()) {
+					log.warn("Timeout waiting for end of client thread ('{}')", thread.getName());
+				}
+				else {
+					log.info("Joined: '{}'", thread.getName());
+				}
 			}
+
+			log.info("{} client threads ended.", clientThreads.size());
+
+			// Force ending order threads
+			orderProcessingThread.interrupt();
+			orderProcessingThread.join(10000);
+
+			bikeDeliveryThread.interrupt();
+			bikeDeliveryThread.join(10000);
 		}
-
-		// Force ending order threads
-		orderProcessingThread.interrupt();
-		orderProcessingThread.join();
-
-		bikeDeliveryThread.interrupt();
-		bikeDeliveryThread.join();
 
 		// Log results
-		int numberOfPendingOrders = (int) sdc.count(Order.class, o -> RegionInUse.getRegion(o.client.country) == regionInUse.region && o.payDate != null && o.deliveryDate == null);
-		int numberOfInvoicesSent = (int) sdc.count(Order.class, o -> RegionInUse.getRegion(o.client.country) == regionInUse.region && o.invoiceDate != null);
-		int numberOfDeliveryNotesSent = (int) sdc.count(Order.class, o -> RegionInUse.getRegion(o.client.country) == regionInUse.region && o.deliveryDate != null);
-		log.info("Order processing and bike delivery completed for {} clients of region {}. Total # of orders generated: {}", sdc.count(Client.class, c -> true), regionInUse.region,
-				counters.numberOfOrdersCreated);
+		int numberOfPendingOrders = (int) sdc.count(Order.class, o -> RegionInProgress.getRegion(o.client.country) == regionInProgress.region && o.payDate != null && o.deliveryDate == null);
+		int numberOfInvoicesSent = (int) sdc.count(Order.class, o -> RegionInProgress.getRegion(o.client.country) == regionInProgress.region && o.invoiceDate != null);
+		int numberOfDeliveryNotesSent = (int) sdc.count(Order.class, o -> RegionInProgress.getRegion(o.client.country) == regionInProgress.region && o.deliveryDate != null);
+		log.info("{} clients of region '{}' created {} orders in total", sdc.count(Client.class, c -> true), regionInProgress.region, counters.numberOfOrdersCreated);
 		log.info("# of invoices sent: {}", numberOfInvoicesSent);
 		log.info("# of bikes delivered: {}", numberOfDeliveryNotesSent);
 		log.info("# of pending orders: {}", numberOfPendingOrders);
 		log.info("# of orders canceled by inability to pay: {}", counters.numberOfOrdersCanceledByInabilityToPay);
-		log.info("# of orders canceled by order processing timeout: {}", counters.numberOfOrdersCanceledByProcessingTimeout);
-		log.info("Order processing time statistic (# of order processing operations in less than 10, 20, 30, 40, 50, 60, 70 ms): {}", Order.orderProcessingDurationMap);
-		log.info("Bike delivery time statistic (# of bike delivery operations in less than 10, 20, 30, 40, 50, 60, 70 ms): {}", Order.bikeDeliveryDurationMap);
+		log.info("# of orders where order processing exceeded timeout: {}", Order.orderProcessingExceededCount);
+		log.info("# of orders where bike delivery exceeded timeout: {}", Order.bikeDeliveryExceededCount);
+		log.info("Order processing time statistic (# of order processing operations in less than ? ms): {}", Order.orderProcessingDurationMap);
+		log.info("Bike delivery time statistic (# of bike delivery operations in less than ? ms): {}", Order.bikeDeliveryDurationMap);
 
 		// Check results
-		int sumOfCounters = numberOfDeliveryNotesSent + counters.numberOfOrdersCanceledByInabilityToPay + counters.numberOfOrdersCanceledByProcessingTimeout + numberOfPendingOrders;
+		int sumOfCounters = numberOfDeliveryNotesSent + counters.numberOfOrdersCanceledByInabilityToPay + numberOfPendingOrders;
 		if (sumOfCounters != counters.numberOfOrdersCreated) {
 			log.error("");
 			log.error("Sum of # of delivered bikes, canceled and pending orders {} differs from total # of orders created {}!", sumOfCounters, counters.numberOfOrdersCreated);
@@ -180,7 +187,7 @@ public class BikeStoreApp {
 		}
 
 		// // Free region in use (to allow re-run test with multiple parallel instances)
-		sdc.delete(regionInUse);
+		sdc.delete(regionInProgress);
 
 		// Close open database connections
 		sdc.sqlDb.close();

@@ -157,8 +157,8 @@ public abstract class Bike extends SqlDomainObject {
 		return this;
 	}
 
-	public synchronized void incrementAvailableCount(Bike.Size bikeSize) throws Exception {
-		BikeStoreApp.sdc.computeExclusively(this, Bike.InProgress.class, b -> ((Bike) b).availabilityMap.put(bikeSize, ((Bike) b).availabilityMap.get(bikeSize) + 1));
+	public void incrementAvailableCount(Bike.Size bikeSize) throws Exception {
+		BikeStoreApp.sdc.computeExclusivelyOnObject(this, Bike.InProgress.class, b -> ((Bike) b).availabilityMap.put(bikeSize, ((Bike) b).availabilityMap.get(bikeSize) + 1));
 	}
 
 }

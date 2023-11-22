@@ -13,6 +13,7 @@ import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 
 import com.icx.dom.app.bikestore.BikeStoreApp;
 import com.icx.dom.app.bikestore.BikeStoreApp.Counters;
@@ -20,8 +21,6 @@ import com.icx.dom.app.bikestore.domain.bike.Bike;
 import com.icx.dom.app.bikestore.domain.bike.CityBike;
 import com.icx.dom.app.bikestore.domain.bike.MTB;
 import com.icx.dom.app.bikestore.domain.bike.RaceBike;
-import com.icx.dom.app.bikestore.domain.client.Order.Operation;
-import com.icx.dom.common.CCollection;
 import com.icx.dom.common.CList;
 import com.icx.dom.common.CMap;
 import com.icx.dom.common.CResource;
@@ -61,7 +60,7 @@ public class Client extends SqlDomainObject {
 
 	// Inner classes
 
-	public static class RegionInUse extends SqlDomainObject {
+	public static class RegionInProgress extends SqlDomainObject {
 
 		//@formatter:off
 		private static final Map<Region, List<Country>> regionCountryMap = CMap.newMap(
@@ -90,6 +89,7 @@ public class Client extends SqlDomainObject {
 
 		// Members
 
+		@SqlColumn(unique = true)
 		public Region region;
 
 		// Test...
@@ -119,7 +119,7 @@ public class Client extends SqlDomainObject {
 			Country.CHINA, CList.newList("Chen", "Wang", "Zhang", "Liu", "Xu", "Li", "Sun", "Yu", "Zhou", "Yan"), 
 			Country.COLOMBIA, CList.newList("Alejandro", "Jose", "Sergio", "Juán", "Andrés", "Angie", "Daniela", "Alejandra", "Karen", "Natalia"), 
 			Country.CUBA, CList.newList("Rafael", "Carlos", "Alberto", "Luis", "Julio", "Veronica", "Samantha", "Irma", "Teresa", "Melissa"), 
-			Country.DENMARK, CList.newList("Mads", "Frederik", "Asger", "Malthe", "Henrik", "Mille", "Rikke", "Lærke", "Astrid", "Mette"), 
+			Country.DENMARK, CList.newList("Mads", "Frederik", "Asger", "Malthe", "Henrik", "Mille", "Rikke", "Laerke", "Astrid", "Mette"), 
 			Country.ECUADOR, CList.newList("Santiago", "Edison", "Sebastián", "Antonio", "Darwin", "Jessica", "Viviana", "Cristina", "Lucía", "Adriana"), 
 			Country.EGYPT, CList.newList("Mahmoud", "Karim", "Omar", "Youssef", "Mustafa", "Nour", "Farah", "Zainab", "Heba", "Jomana"), 
 			Country.ENGLAND, CList.newList("William", "Tom", "Adam", "Joe", "Luke", "Jess", "Holly", "Lauren", "Caitlin", "Beth"), 
@@ -168,7 +168,7 @@ public class Client extends SqlDomainObject {
 			Country.SOUTH_AFRICA, CList.newList("Brendan", "Thuthuka", "Ethan", "Calvin", "Lawrence", "Megan", "Tallulah", "Ammaarah", "Haajarah", "Ruby"), 
 			Country.SPAIN, CList.newList("Álvaro", "Javier", "Ruben", "Iker", "Enrique", "Mònica", "Carmen", "Inés", "Raquel", "Angela"), 
 			Country.SUDAN, CList.newList("Malse", "Kariem", "Garang", "Macquei", "Alghaliy", "Roaa", "Ruba", "Doaa", "Esraa", "Abrar"), 
-			Country.SWEDEN, CList.newList("Lars", "Håkan", "Anders", "Johan", "Ingmar", "Ingrid", "Stina", "Elin", "Greta", "Tuva"), 
+			Country.SWEDEN, CList.newList("Lars", "Hakan", "Anders", "Johan", "Ingmar", "Ingrid", "Stina", "Elin", "Greta", "Tuva"), 
 			Country.SWITZERLAND, CList.newList("Beat", "Roger", "Urs", "Ueli", "Moritz", "Anneli", "Dorli", "Regula", "Fränzi", "Gritli"), 
 			Country.TAIWAN, CList.newList("Huang", "Eric", "Yang", "Leo", "Su", "Lin", "Judy", "Wu", "Hsu", "Chang"),
 			Country.TANZANIA, CList.newList("Uromi", "Mbonea", "Jossal", "Opiyo", "Tawfq", "Neema", "Jackline", "Rehema", "Oprahnash", "Latifa"), 
@@ -273,97 +273,135 @@ public class Client extends SqlDomainObject {
 		}
 
 		// Check if bike can be ordered, if yes order it and wait for order processing
-		private <T extends Bike> Order orderBikeAndWaitForProcessing(Class<T> bikeType) throws Exception {
+		private <T extends Bike> Order orderBike(Class<T> bikeType) throws Exception {
 
 			// Predicate<? super Bike> isBikeAvailableInSize = b -> !(gender == Gender.MALE && b.isForWoman) && b.price.doubleValue() <= wantedBikesMaxPriceMap.get(bikeType.getSimpleName())
 			// && b.sizes.contains(bikeSize) && b.availabilityMap.get(bikeSize) != null && b.availabilityMap.get(bikeSize) > 0;
 
+			// Allocate exclusively (pre-select) small as possible amount of bikes matching order condition where one of them then will be ordered
 			String whereClause = "DOM_BIKE.PRICE <= " + wantedBikesMaxPriceMap.get(bikeType.getSimpleName());
 			if (gender == Gender.MALE) {
-				whereClause += " AND DOM_BIKE.IS_FOR_WOMAN = 'FALSE'";
+				whereClause += " AND DOM_BIKE.IS_FOR_WOMAN = '0'";
 			}
 
-			Set<T> bikes = BikeStoreApp.sdc.allocateExclusively(bikeType, Bike.InProgress.class, whereClause, 1, null);
-			if (CCollection.isEmpty(bikes)) {
-				return null;
-			}
+			Set<T> bikes = BikeStoreApp.sdc.allocateObjectsExclusively(bikeType, Bike.InProgress.class, whereClause, 0, null);
+			Iterator<T> it = bikes.iterator();
 
+			// Check if one of the exclusively allocated bike can be ordered
 			Bike orderedBike = null;
-			for (T bike : bikes) {
-
-				if (orderedBike == null && bike.sizes.contains(bikeSize) && bike.availabilityMap.get(bikeSize) > 0) {
-					orderedBike = bike;
-					bike.availabilityMap.put(bikeSize, bike.availabilityMap.get(bikeSize) - 1);
-					log.info("'{}' orders bike '{}' ({})", client, bike, bikeSize);
+			while (it.hasNext()) {
+				Bike bike = it.next();
+				try {
+					synchronized (bike) {
+						if (orderedBike == null && bike.sizes.contains(bikeSize) && bike.availabilityMap.get(bikeSize) > 0) {
+							bike.availabilityMap.put(bikeSize, bike.availabilityMap.get(bikeSize) - 1); // Decrement availability count
+							orderedBike = bike;
+						}
+					}
 				}
-
-				BikeStoreApp.sdc.release(bike, Bike.InProgress.class, null);
+				catch (Exception ex) {
+					log.error("{} - Bike: {}, availability map: {}, bike size: {}", ex.getClass().getSimpleName(), bike, bike.availabilityMap, bikeSize);
+				}
+				finally {
+					BikeStoreApp.sdc.releaseObject(bike, Bike.InProgress.class, null);
+				}
 			}
-
 			if (orderedBike == null) {
 				return null;
 			}
 
-			counters.numberOfOrdersCreated++;
+			// Save ordered bike with decremented availability count
+			BikeStoreApp.sdc.save(orderedBike);
+			log.info("'{}' orders bike '{}' ({})", client, orderedBike, bikeSize);
 
-			// Note: Using constructor here allows deferred registration which is necessary to ensure that order cannot be found by order processing thread before synchronized block is left here
+			// Create order (using constructor)
 			Order order = new Order(orderedBike, client);
-			synchronized (order) {
-				BikeStoreApp.sdc.register(order);
-				BikeStoreApp.sdc.save(order);
-				order.waitFor(Operation.ORDER_PROCESSING);
-			}
+			BikeStoreApp.sdc.register(order);
+			BikeStoreApp.sdc.save(order);
+			counters.numberOfOrdersCreated++;
 
 			return order;
 		}
 
 		// Pay bike and wait for delivery or cancel order on less money
-		private void payBikeAndWaitForDeliveryOrCancelOrder(Order order) throws Exception {
-
-			if (order.invoiceDate == null) {
-
-				log.warn("No invoice was received during waiting for processing order '{}'! Cancel order", order);
-				order.bike.incrementAvailableCount(bikeSize); // Timeout processing order
-				BikeStoreApp.sdc.delete(order);
-				counters.numberOfOrdersCanceledByProcessingTimeout++;
-
-				return;
-			}
+		private boolean payBikeOrCancelOrder(Order order) throws Exception {
 
 			if (order.bike.price.doubleValue() <= disposableMoney) {
 
 				log.info("Pay price for order '{}' ({}$). (resting disposable money: {}$)", order, order.bike.price, disposableMoney);
 				order.payDate = LocalDateTime.now();
 				BikeStoreApp.sdc.save(order);
-				order.waitFor(Operation.BIKE_DELIVERY);
 				disposableMoney -= order.bike.price.doubleValue();
+				return true;
 			}
 			else {
 				log.info("Cancel order '{}' because client is not able to pay the price of {}$. (disposable money is only: {}$)", order, order.bike.price, disposableMoney);
-				order.bike.incrementAvailableCount(bikeSize); // Unable to pay
+				order.bike.incrementAvailableCount(bikeSize); // Give bike free again for ordering after client was unable to pay bike
+				order.wasCanceled = true;
+				// BikeStoreApp.sdc.save(order);
 				BikeStoreApp.sdc.delete(order);
 				counters.numberOfOrdersCanceledByInabilityToPay++;
+				return false;
 			}
 		}
 
+		private int LOOP_DELAY = 100;
+		private int LOOP_COUNT = 50;
+
 		@Override
 		public void run() {
+
+			MDC.put("name", firstName);
 
 			if (log.isDebugEnabled()) {
 				log.debug("Client thread for '{}' started", client);
 			}
 
 			try {
+				// Try to order one bike of any bike type...
 				Iterator<Class<? extends Bike>> it = bikeTypesStillNotOrdered.iterator();
 				while (it.hasNext()) {
 
 					// Try to find orderable bike of wanted type
-					Order order = orderBikeAndWaitForProcessing(it.next());
+					Order order = orderBike(it.next());
 					if (order != null) {
-						it.remove();
+						it.remove(); // Bike of this type now was ordered
 
-						// Pay bike and wait until delivery thread processed order - or cancel order
-						payBikeAndWaitForDeliveryOrCancelOrder(order);
+						// Wait until invoice was sent
+						int i;
+						for (i = 0; i < LOOP_COUNT && order.invoiceDate == null; i++) {
+							BikeStoreApp.sdc.reload(order);
+							Thread.sleep(LOOP_DELAY);
+						}
+						if (order.invoiceDate == null) {
+							log.warn("Order processing time exceeded ");
+							Order.orderProcessingExceededCount++;
+						}
+						else {
+							int delay = i * LOOP_DELAY;
+							synchronized (Order.orderProcessingDurationMap) {
+								Order.orderProcessingDurationMap.put(delay, Order.orderProcessingDurationMap.computeIfAbsent(delay, v -> 0) + 1);
+							}
+						}
+
+						// Pay bike (or cancel order) and wait until delivery
+						boolean bikeWasPayed = payBikeOrCancelOrder(order);
+						if (bikeWasPayed) {
+							for (i = 0; i < LOOP_COUNT && order.deliveryDate == null; i++) {
+								BikeStoreApp.sdc.reload(order);
+								Thread.sleep(LOOP_DELAY);
+							}
+							if (order.invoiceDate == null) {
+								log.warn("Bike delivery time exceeded ");
+								Order.bikeDeliveryExceededCount++;
+							}
+							else {
+								int delay = i * LOOP_DELAY;
+								synchronized (Order.bikeDeliveryDurationMap) {
+									Order.bikeDeliveryDurationMap.put(delay, Order.bikeDeliveryDurationMap.computeIfAbsent(delay, v -> 0) + 1);
+								}
+							}
+						}
 					}
 
 					Thread.sleep(BikeStoreApp.ORDER_DELAY_TIME_MS);
