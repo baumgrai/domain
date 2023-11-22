@@ -145,14 +145,20 @@ public abstract class LoadHelpers extends Common {
 
 	// Load object records for one object domain class - means one record per object, containing data of all tables associated with object domain class according inheritance
 	// e.g. class Racebike extends Bike -> tables [ DOM_BIKE, DOM_RACEBIKE ])
-	static Map<Long, SortedMap<String, Object>> retrieveRecordsFromDatabase(Connection cn, SqlDomainController sdc, int limit, Class<? extends SqlDomainObject> objectDomainClass, String whereClause) {
+	static Map<Long, SortedMap<String, Object>> retrieveRecordsFromDatabase(Connection cn, SqlDomainController sdc, int limit, Class<? extends SqlDomainObject> objectDomainClass, String whereClause,
+			String syncWhereClause) {
+
+		String whereClauseIncludingSyncCondition = whereClause;
+		if (!isEmpty(syncWhereClause)) {
+			whereClauseIncludingSyncCondition = (!isEmpty(whereClause) ? "(" + whereClause + ") AND " : "") + syncWhereClause;
+		}
 
 		Map<Long, SortedMap<String, Object>> loadedRecordMap = new HashMap<>();
 		try {
-
 			// Load (main) object records and build up loaded records by id map
 			SelectDescription sd = buildSelectDescriptionForMainObjectRecords(((SqlRegistry) sdc.registry), objectDomainClass);
-			List<SortedMap<String, Object>> loadedRecords = sdc.sqlDb.selectFrom(cn, sd.joinedTableExpression, sd.allColumnNames, whereClause, null, limit, null, sd.allFieldTypes);
+			List<SortedMap<String, Object>> loadedRecords = sdc.sqlDb.selectFrom(cn, sd.joinedTableExpression, sd.allColumnNames, whereClauseIncludingSyncCondition, null, limit, null,
+					sd.allFieldTypes);
 			if (CList.isEmpty(loadedRecords)) {
 				return loadedRecordMap;
 			}
@@ -167,10 +173,10 @@ public abstract class LoadHelpers extends Common {
 				// For all table related fields...
 				for (Field complexField : sdc.registry.getComplexFields(sdc.registry.castDomainClass(domainClass))) {
 
-					// Build table expression, column names and order by clause to SELECT entry records
+					// Build table expression, column names and order-by clause to SELECT entry records
 					SelectDescription sde = buildSelectDescriptionForEntryRecords(((SqlRegistry) sdc.registry), sd.joinedTableExpression, objectTableName, complexField);
 
-					// Load entry records
+					// Load entry records (do not include sync condition in this secondary WHERE clause to ensure correct data loading even if another thread allocated object exclusively)
 					List<SortedMap<String, Object>> loadedEntryRecords = new ArrayList<>();
 					if (limit > 0) {
 
@@ -189,17 +195,22 @@ public abstract class LoadHelpers extends Common {
 					// Group entry records by objects where they belong to
 					Map<Long, List<SortedMap<String, Object>>> entryRecordsByObjectIdMap = new HashMap<>();
 					String refIdColumnName = ((SqlRegistry) sdc.registry).getMainTableRefIdColumnFor(complexField).name;
+					Set<String> missingObjectNames = new HashSet<>();
 					for (SortedMap<String, Object> entryRecord : loadedEntryRecords) {
 
 						// Ignore entry record if main object record (referenced by object id) is not present
 						long objectId = (long) entryRecord.get(refIdColumnName);
 						if (!loadedRecordMap.containsKey(objectId)) {
-							log.warn("SDC: Object {}@{} was not loaded before (trying) updating collection or map field '{}'", domainClass.getSimpleName(), objectId, complexField.getName());
+							missingObjectNames.add(domainClass.getSimpleName() + "@" + objectId);
 							continue;
 						}
 
 						// Add entry record to entry records for object
 						entryRecordsByObjectIdMap.computeIfAbsent(objectId, m -> new ArrayList<>()).add(entryRecord);
+					}
+
+					if (log.isDebugEnabled() && !missingObjectNames.isEmpty()) {
+						log.debug("SDC: Ignore loaded entry records for objects {} where main record was not loaded before!", missingObjectNames);
 					}
 
 					// Build collection or map from entry records and add it to loaded object record with entry table name as key
@@ -248,7 +259,7 @@ public abstract class LoadHelpers extends Common {
 			String whereClause = (sdc.registry.isDataHorizonControlled(objectDomainClass) ? Const.LAST_MODIFIED_COL + ">=" + dataHorizon : null);
 
 			// Retrieve object records for one object domain class by SELECTing from database
-			Map<Long, SortedMap<String, Object>> loadedRecordsMap = retrieveRecordsFromDatabase(cn, sdc, 0, objectDomainClass, whereClause);
+			Map<Long, SortedMap<String, Object>> loadedRecordsMap = retrieveRecordsFromDatabase(cn, sdc, 0, objectDomainClass, whereClause, null);
 			if (!CMap.isEmpty(loadedRecordsMap)) {
 				loadedRecordsMapByDomainClassMap.put(objectDomainClass, loadedRecordsMap);
 			}
@@ -262,7 +273,7 @@ public abstract class LoadHelpers extends Common {
 			String whereClause, int maxCount) {
 
 		// Try to SELECT object records FOR UPDATE
-		Map<Long, SortedMap<String, Object>> loadedRecordsMap = LoadHelpers.retrieveRecordsFromDatabase(cn, sdc, maxCount, objectDomainClass, whereClause);
+		Map<Long, SortedMap<String, Object>> loadedRecordsMap = LoadHelpers.retrieveRecordsFromDatabase(cn, sdc, maxCount, objectDomainClass, whereClause, null);
 		if (CMap.isEmpty(loadedRecordsMap)) {
 			return Collections.emptyMap();
 		}
@@ -280,24 +291,29 @@ public abstract class LoadHelpers extends Common {
 		// Build WHERE clause
 		String objectTableName = ((SqlRegistry) sdc.registry).getTableFor(objectDomainClass).name;
 		String inProgressTableName = ((SqlRegistry) sdc.registry).getTableFor(inProgressClass).name;
-		whereClause = (!isEmpty(whereClause) ? "(" + whereClause + ") AND " : "") + objectTableName + ".ID NOT IN (SELECT ID FROM " + inProgressTableName + ")";
+		String syncWhereClause = objectTableName + ".ID NOT IN (SELECT ID FROM " + inProgressTableName + ")";
 
 		// SELECT object records
-		Map<Long, SortedMap<String, Object>> rawRecordsMap = LoadHelpers.retrieveRecordsFromDatabase(cn, sdc, maxCount, objectDomainClass, whereClause);
+		Map<Long, SortedMap<String, Object>> rawRecordsMap = LoadHelpers.retrieveRecordsFromDatabase(cn, sdc, maxCount, objectDomainClass, whereClause, syncWhereClause);
 		if (CMap.isEmpty(rawRecordsMap)) {
 			return Collections.emptyMap();
 		}
 
-		// Try to INSERT in-progress record with same id as records found (works only for one in-progress record per record found because of UNIQUE constraint for ID field) - provide only records
-		// where in-progress record could be inserted
+		// Try to create and INSERT in-progress record with same id as records found (works only for one in-progress record per record found because of UNIQUE constraint for ID field) - provide only
+		// records where in-progress record could be inserted
 		Map<Long, SortedMap<String, Object>> loadedRecordsMap = new HashMap<>();
 		for (Entry<Long, SortedMap<String, Object>> entry : rawRecordsMap.entrySet()) {
 
 			long id = entry.getKey();
 			try {
 				SqlDomainObject inProgressObject = sdc.createWithId(inProgressClass, id);
-				sdc.save(inProgressObject);
-				loadedRecordsMap.put(id, entry.getValue());
+				if (inProgressObject != null) {
+					sdc.save(cn, inProgressObject);
+					loadedRecordsMap.put(id, entry.getValue());
+				}
+				else {
+					log.info("SDC: {}@{} is already in progress (by another thread)", objectDomainClass.getSimpleName(), id);
+				}
 			}
 			catch (SQLException sqlex) {
 				log.info("SDC: {} record with id {} is already in progress (by another instance)", objectDomainClass.getSimpleName(), id);
@@ -323,7 +339,7 @@ public abstract class LoadHelpers extends Common {
 		String idWhereClause = ((SqlRegistry) sdc.registry).getTableFor(obj.getClass()).name + "." + Const.ID_COL + "=" + obj.getId();
 		Map<Class<? extends SqlDomainObject>, Map<Long, SortedMap<String, Object>>> loadedRecordsMapByDomainClassMap = new HashMap<>();
 
-		Map<Long, SortedMap<String, Object>> loadedRecordsMap = LoadHelpers.retrieveRecordsFromDatabase(cn, sdc, 0, obj.getClass(), idWhereClause);
+		Map<Long, SortedMap<String, Object>> loadedRecordsMap = LoadHelpers.retrieveRecordsFromDatabase(cn, sdc, 0, obj.getClass(), idWhereClause, null);
 		if (!loadedRecordsMap.isEmpty()) {
 			loadedRecordsMapByDomainClassMap.put(obj.getClass(), loadedRecordsMap);
 		}
@@ -400,41 +416,59 @@ public abstract class LoadHelpers extends Common {
 	// Assign changed data in record from database to corresponding fields of domain object - check for unsaved changes before, which will then be discarded
 	@SuppressWarnings("unchecked")
 	private static void assignDataToDomainObject(SqlDomainController sdc, SqlDomainObject obj, boolean isNew, SortedMap<String, Object> databaseChangesMap,
-			Set<SqlDomainObject> objectsWhereReferencesChanged) {
-
-		// Changed field predicates
-		Predicate<Field> hasValueChangedPredicate = (f -> databaseChangesMap.containsKey(((SqlRegistry) sdc.registry).getColumnFor(f).name));
-		Predicate<Field> hasEntriesChangedPredicate = (f -> databaseChangesMap.containsKey(((SqlRegistry) sdc.registry).getEntryTableFor(f).name));
+			Set<SqlDomainObject> objectsWhereReferencesChanged, List<UnresolvedReference> unresolvedReferences) {
 
 		// Assign loaded data to fields for all inherited domain classes of domain object
 		for (Class<? extends SqlDomainObject> domainClass : sdc.registry.getDomainClassesFor(obj.getClass())) {
 
 			// Reference fields: assign new references immediately if referenced object exists - otherwise collect unresolved references
-			for (Field refField : sdc.registry.getReferenceFields(domainClass).stream().filter(hasValueChangedPredicate).collect(Collectors.toList())) {
+			for (Field refField : sdc.registry.getReferenceFields(domainClass)) {
 				String foreignKeyColumnName = ((SqlRegistry) sdc.registry).getColumnFor(refField).name;
-				Long parentObjectIdFromDatabase = (Long) databaseChangesMap.get(foreignKeyColumnName);
 
-				if (!isNew) {
-					assignFieldWarningOnUnsavedReferenceChange(sdc, obj, refField, foreignKeyColumnName, parentObjectIdFromDatabase);
+				boolean hasValueChanged = databaseChangesMap.containsKey(foreignKeyColumnName);
+
+				SqlDomainObject currentParentObject = (SqlDomainObject) obj.getFieldValue(refField);
+				Long parentObjectId = (hasValueChanged ? (Long) databaseChangesMap.get(foreignKeyColumnName) : currentParentObject != null ? currentParentObject.getId() : null);
+
+				if (hasValueChanged && !isNew) {
+					assignFieldWarningOnUnsavedReferenceChange(sdc, obj, refField, foreignKeyColumnName, parentObjectId);
 				}
 
-				if (parentObjectIdFromDatabase == null) { // Null reference
-					obj.setFieldValue(refField, null);
+				if (parentObjectId == null) { // Null reference
+					if (hasValueChanged) {
+						obj.setFieldValue(refField, null);
+					}
 				}
 				else { // Object reference
-					SqlDomainObject newParentObject = sdc.find(sdc.registry.getCastedReferencedDomainClass(refField), parentObjectIdFromDatabase);
-					if (newParentObject != null) { // Referenced object is already loaded
-						obj.setFieldValue(refField, newParentObject);
+
+					// Check if referenced object is registered (already loaded on change in database)
+					SqlDomainObject parentObject = sdc.find(sdc.registry.getCastedReferencedDomainClass(refField), parentObjectId);
+					if (parentObject != null) { // Referenced object is registered (already loaded on change in database)
+						if (hasValueChanged) {
+							obj.setFieldValue(refField, parentObject);
+						}
 					}
-					else { // Referenced object is still not loaded (data horizon or circular reference) -> unresolved reference
-						obj.setFieldValue(refField, null); // Temporarily reset reference - this will be set to referenced object after loading this
+					else { // Referenced object is not registered
+						if (hasValueChanged) { // Reference was changed in database
+
+							// Referenced object is still not loaded (data horizon or circular reference) -> collect unresolved reference
+							obj.setFieldValue(refField, null); // Temporarily reset reference - this will be set to referenced object after loading this
+							unresolvedReferences.add(new UnresolvedReference(sdc, obj, refField, parentObjectId));
+						}
+						else { // Reference is unchanged (but referenced object is not registered anymore)
+
+							// Referenced object was unregistered (may be due to data horizon condition) -> re-register parent object to assure referential integrity again
+							sdc.reregister(currentParentObject);
+						}
 					}
 				}
 				objectsWhereReferencesChanged.add(obj); // Collect objects where references changed for subsequent update of accumulations
 			}
 
 			// Data fields: assign - potentially converted - values
+			Predicate<Field> hasValueChangedPredicate = (f -> databaseChangesMap.containsKey(((SqlRegistry) sdc.registry).getColumnFor(f).name));
 			for (Field dataField : sdc.registry.getDataFields(domainClass).stream().filter(hasValueChangedPredicate).collect(Collectors.toList())) {
+
 				String columnName = ((SqlRegistry) sdc.registry).getColumnFor(dataField).name;
 				Object columnValueFromDatabase = databaseChangesMap.get(columnName);
 
@@ -445,7 +479,9 @@ public abstract class LoadHelpers extends Common {
 			}
 
 			// Complex (table related) fields: set field values of object to collection or map (conversion from entry table record was already done directly after loading entry records)
+			Predicate<Field> hasEntriesChangedPredicate = (f -> databaseChangesMap.containsKey(((SqlRegistry) sdc.registry).getEntryTableFor(f).name));
 			for (Field complexField : sdc.registry.getComplexFields(domainClass).stream().filter(hasEntriesChangedPredicate).collect(Collectors.toList())) {
+
 				String entryTableName = ((SqlRegistry) sdc.registry).getEntryTableFor(complexField).name;
 				boolean isCollection = Collection.class.isAssignableFrom(complexField.getType());
 				Object collectionOrMapFromFieldValue = obj.getFieldValue(complexField);
@@ -478,7 +514,7 @@ public abstract class LoadHelpers extends Common {
 
 	// Update local object records, instantiate new objects and assign data to all new or changed objects. Collect objects having changed and/or still unresolved references
 	static boolean buildObjectsFromLoadedRecords(SqlDomainController sdc, Map<Class<? extends SqlDomainObject>, Map<Long, SortedMap<String, Object>>> loadedRecordsMap,
-			Set<SqlDomainObject> loadedObjects, Set<SqlDomainObject> objectsWhereReferencesChanged, Set<UnresolvedReference> unresolvedReferences)
+			Set<SqlDomainObject> loadedObjects, Set<SqlDomainObject> objectsWhereReferencesChanged, List<UnresolvedReference> unresolvedReferences)
 			throws InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException {
 
 		if (!CMap.isEmpty(loadedRecordsMap)) {
@@ -509,9 +545,6 @@ public abstract class LoadHelpers extends Common {
 					obj.setIsStored();
 					obj.lastModifiedInDb = ((LocalDateTime) loadedRecord.get(Const.LAST_MODIFIED_COL));
 				}
-
-				// Find 'unresolved references' where parent object in database is not yet (loaded and) registered
-				unresolvedReferences.addAll(findUnresolvedReferencesOnLoad(sdc, obj, loadedRecord));
 
 				// Build map with changes in database in respect to current object
 				SortedMap<String, Object> databaseChangesMap = new TreeMap<>();
@@ -550,7 +583,7 @@ public abstract class LoadHelpers extends Common {
 				}
 
 				// Assign loaded data to corresponding fields of domain object and collect objects where references were changed
-				assignDataToDomainObject(sdc, obj, isNew, databaseChangesMap, objectsWhereReferencesChanged);
+				assignDataToDomainObject(sdc, obj, isNew, databaseChangesMap, objectsWhereReferencesChanged, unresolvedReferences);
 				if (log.isTraceEnabled()) {
 					log.trace("SDC: Loaded {}object '{}': {}", (isNew ? "new " : ""), obj.name(), JdbcHelpers.forLoggingSqlResult(loadedRecord, columnNames));
 				}
@@ -589,53 +622,6 @@ public abstract class LoadHelpers extends Common {
 		}
 	}
 
-	// Check if object(s) referenced by this object in database are already (loaded and) registered and collect unresolved reference where this is not the case. Also re-register parent object(s) if
-	// parent/child relation did not change but current parent object was unregistered
-	private static <S extends SqlDomainObject> Set<UnresolvedReference> findUnresolvedReferencesOnLoad(SqlDomainController sdc, S obj, SortedMap<String, Object> loadedRecord) {
-
-		Set<UnresolvedReference> unresolvedReferences = new HashSet<>();
-		for (Class<? extends SqlDomainObject> domainClass : sdc.registry.getDomainClassesFor(obj.getClass())) {
-
-			// Reference fields: assign new references immediately if referenced object exists - otherwise collect unresolved references
-			for (Field refField : sdc.registry.getReferenceFields(domainClass)) {
-
-				String foreignKeyColumnName = ((SqlRegistry) sdc.registry).getColumnFor(refField).name;
-				Long parentObjectIdFromDatabase = (Long) loadedRecord.get(foreignKeyColumnName);
-				SqlDomainObject parentObjectInHeap = (SqlDomainObject) obj.getFieldValue(refField);
-
-				if (parentObjectIdFromDatabase != null) { // Parent object is defined in database
-
-					// Check if parent object is already registered
-					SqlDomainObject parentObjectFromDatabase = sdc.find(sdc.registry.getCastedReferencedDomainClass(refField), parentObjectIdFromDatabase);
-					if (parentObjectFromDatabase == null) { // Parent object is not registered
-
-						if (parentObjectInHeap != null && parentObjectInHeap.getId() == parentObjectIdFromDatabase) { // Parent object in heap equals parent object in database (but is not registered)
-							// Atypical case: referenced object was unregistered (on synchronization by data horizon condition) when it was still not referenced - reference was established afterwards
-
-							// Re-register parent object (using known id)
-							log.warn("SDC: {} was unregistered before parent/child relation was established -> reregister object which now is parent of {}", parentObjectInHeap, obj);
-							sdc.reregister(parentObjectInHeap);
-						}
-						else { // Parent/child relation changed in database (but new parent object is not just yet registered)
-								// Collect unresolved reference to parent object (which will later be resolved by loading parent object from database)
-							log.info("SDC: Parent {}@{} in database of {} is not yet registered - collect unresolved reference and later resolve it by loading parent object",
-									domainClass.getSimpleName(), parentObjectIdFromDatabase, obj);
-							unresolvedReferences.add(new UnresolvedReference(sdc, obj, refField, parentObjectIdFromDatabase));
-						}
-					}
-					else { // Parent object from database is already registered
-							// Nothing to do here - reference will later be changed if parent object in database differs from parent object in heap
-					}
-				}
-				else { // No parent object (null reference) in database
-						// Nothing to do here - reference will later be set to null if it is not already null
-				}
-			}
-		}
-
-		return unresolvedReferences;
-	}
-
 	// Determine object domain class of (missing) object given by id and derived domain class by loading object record
 	private static Class<? extends SqlDomainObject> determineObjectDomainClass(Connection cn, SqlDomainController sdc, Class<? extends SqlDomainObject> domainClass, long id)
 			throws SQLException, SqlDbException {
@@ -657,7 +643,7 @@ public abstract class LoadHelpers extends Common {
 	}
 
 	// Load records of objects which were not yet loaded but which are referenced by loaded objects
-	static Map<Class<? extends SqlDomainObject>, Map<Long, SortedMap<String, Object>>> loadMissingObjects(Connection cn, SqlDomainController sdc, Set<UnresolvedReference> unresolvedReferences)
+	static Map<Class<? extends SqlDomainObject>, Map<Long, SortedMap<String, Object>>> loadMissingObjects(Connection cn, SqlDomainController sdc, List<UnresolvedReference> unresolvedReferences)
 			throws SQLException, SqlDbException {
 
 		// Collect missing objects - check if missing object was already loaded before (this happens on circular references)
@@ -688,7 +674,8 @@ public abstract class LoadHelpers extends Common {
 			// Build WHERE clause(s) with IDs and load missing objects
 			Map<Long, SortedMap<String, Object>> collectedRecordMap = new HashMap<>();
 			for (String idsList : Helpers.buildMax1000IdsLists(missingObjectIds)) {
-				collectedRecordMap.putAll(retrieveRecordsFromDatabase(cn, sdc, 0, objectDomainClass, ((SqlRegistry) sdc.registry).getTableFor(objectDomainClass).name + ".ID IN (" + idsList + ")"));
+				String idListWhereClause = ((SqlRegistry) sdc.registry).getTableFor(objectDomainClass).name + ".ID IN (" + idsList + ")";
+				collectedRecordMap.putAll(retrieveRecordsFromDatabase(cn, sdc, 0, objectDomainClass, idListWhereClause, null));
 			}
 			loadedMissingRecordsMap.put(objectDomainClass, collectedRecordMap);
 		}
@@ -697,7 +684,7 @@ public abstract class LoadHelpers extends Common {
 	}
 
 	// Resolve collected unresolved references by now loaded parent object
-	static void resolveUnresolvedReferences(SqlDomainController sdc, Set<UnresolvedReference> unresolvedReferences) {
+	static void resolveUnresolvedReferences(SqlDomainController sdc, List<UnresolvedReference> unresolvedReferences) {
 
 		for (UnresolvedReference ur : unresolvedReferences) {
 
@@ -733,13 +720,13 @@ public abstract class LoadHelpers extends Common {
 
 			// Instantiate newly loaded objects, assign changed data and references to objects, collect initially unresolved references
 			Set<SqlDomainObject> objectsWhereReferencesChanged = new HashSet<>();
-			Set<UnresolvedReference> unresolvedReferences = new HashSet<>();
+			List<UnresolvedReference> unresolvedReferences = new ArrayList<>();
 			boolean hasChanges = buildObjectsFromLoadedRecords(sdc, loadedRecordsMap, loadedObjects, objectsWhereReferencesChanged, unresolvedReferences);
 
 			// Cyclicly load and instantiate missing referenced objects and detect unresolved references on these objects
 			int c = 1;
 			Map<Class<? extends SqlDomainObject>, Map<Long, SortedMap<String, Object>>> missingRecordsMap;
-			Set<UnresolvedReference> furtherUnresolvedReferences = new HashSet<>();
+			List<UnresolvedReference> furtherUnresolvedReferences = new ArrayList<>();
 			while (!unresolvedReferences.isEmpty()) {
 
 				log.info("SDC: There were in total {} unresolved reference(s) of {} objects referenced by {} objects detected in {}. load cycle", unresolvedReferences.size(),
@@ -764,7 +751,7 @@ public abstract class LoadHelpers extends Common {
 			}
 
 			// Update accumulations of all objects which are referenced by any of the objects where references changed
-			objectsWhereReferencesChanged.forEach(o -> sdc.updateAccumulationsOfParentObjects(o));
+			objectsWhereReferencesChanged.forEach(sdc::updateAccumulationsOfParentObjects);
 
 			return hasChanges;
 		}
