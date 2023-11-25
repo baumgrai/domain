@@ -1,4 +1,4 @@
-package com.icx.dom.common;
+package com.icx.common.base;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;

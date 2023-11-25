@@ -1,4 +1,4 @@
-package com.icx.dom.common;
+package com.icx.common.base;
 
 import java.sql.SQLException;
 import java.text.SimpleDateFormat;

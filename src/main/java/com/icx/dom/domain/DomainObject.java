@@ -9,9 +9,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.dom.common.CLog;
-import com.icx.dom.common.Common;
-import com.icx.dom.common.Reflection;
+import com.icx.common.Reflection;
+import com.icx.common.base.CLog;
+import com.icx.common.base.Common;
 
 /**
  * Base class for objects managed by any domain controller.

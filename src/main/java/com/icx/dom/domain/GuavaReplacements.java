@@ -7,7 +7,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import com.icx.dom.common.Common;
+import com.icx.common.base.Common;
 
 public abstract class GuavaReplacements {
 

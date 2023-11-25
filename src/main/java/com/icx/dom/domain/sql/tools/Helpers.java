@@ -13,7 +13,7 @@ import java.util.TreeSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.dom.common.CList;
+import com.icx.common.base.CList;
 import com.icx.dom.domain.DomainAnnotations;
 import com.icx.dom.domain.DomainAnnotations.Changed;
 import com.icx.dom.domain.DomainAnnotations.Created;

@@ -15,8 +15,8 @@ import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.dom.common.CFile;
-import com.icx.dom.common.Common;
+import com.icx.common.base.CFile;
+import com.icx.common.base.Common;
 import com.icx.dom.domain.DomainAnnotations;
 import com.icx.dom.domain.DomainAnnotations.SqlColumn;
 import com.icx.dom.domain.DomainAnnotations.SqlTable;

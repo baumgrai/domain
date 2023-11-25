@@ -20,8 +20,8 @@ import org.junit.jupiter.api.TestMethodOrder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.dom.common.CList;
-import com.icx.dom.common.Prop;
+import com.icx.common.Prop;
+import com.icx.common.base.CList;
 import com.icx.dom.domain.Registry;
 import com.icx.dom.domain.sql.Const;
 import com.icx.dom.domain.sql.SqlDomainController;

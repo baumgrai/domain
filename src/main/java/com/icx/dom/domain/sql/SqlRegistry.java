@@ -15,9 +15,9 @@ import java.util.Map.Entry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.dom.common.Reflection;
 import com.icx.dom.domain.DomainAnnotations.SqlColumn;
 import com.icx.dom.domain.DomainAnnotations.SqlTable;
+import com.icx.common.Reflection;
 import com.icx.dom.domain.DomainObject;
 import com.icx.dom.domain.GuavaReplacements.CaseFormat;
 import com.icx.dom.domain.Registry;

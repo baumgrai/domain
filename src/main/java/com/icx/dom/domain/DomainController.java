@@ -24,9 +24,9 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.dom.common.CRandom;
-import com.icx.dom.common.Common;
-import com.icx.dom.common.Reflection;
+import com.icx.common.Reflection;
+import com.icx.common.base.CRandom;
+import com.icx.common.base.Common;
 import com.icx.dom.domain.sql.SqlDomainController;
 
 /**

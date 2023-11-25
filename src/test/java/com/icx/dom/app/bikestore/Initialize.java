@@ -8,6 +8,7 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.icx.common.base.CFile;
 import com.icx.dom.app.bikestore.domain.Manufacturer;
 import com.icx.dom.app.bikestore.domain.bike.Bike;
 import com.icx.dom.app.bikestore.domain.bike.Bike.Breaks;
@@ -21,7 +22,6 @@ import com.icx.dom.app.bikestore.domain.bike.RaceBike.GroupSet;
 import com.icx.dom.app.bikestore.domain.bike.RaceBike.Rim;
 import com.icx.dom.app.bikestore.domain.client.Client;
 import com.icx.dom.app.bikestore.domain.client.Client.Country;
-import com.icx.dom.common.CFile;
 import com.icx.dom.domain.sql.FieldError;
 import com.icx.dom.jdbc.ConfigException;
 import com.icx.dom.jdbc.SqlConnection;

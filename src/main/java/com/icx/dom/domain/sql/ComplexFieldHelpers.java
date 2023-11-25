@@ -17,11 +17,11 @@ import java.util.TreeMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.dom.common.CCollection;
-import com.icx.dom.common.CList;
-import com.icx.dom.common.CMap;
-import com.icx.dom.common.Common;
-import com.icx.dom.common.Reflection;
+import com.icx.common.Reflection;
+import com.icx.common.base.CCollection;
+import com.icx.common.base.CList;
+import com.icx.common.base.CMap;
+import com.icx.common.base.Common;
 
 public abstract class ComplexFieldHelpers extends Common {
 

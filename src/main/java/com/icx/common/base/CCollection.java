@@ -1,7 +1,12 @@
-package com.icx.dom.common;
+package com.icx.common.base;
 
 import java.util.Collection;
 
+/**
+ * Collection helpers
+ * 
+ * @author baumgrai
+ */
 public abstract class CCollection {
 
 	/**

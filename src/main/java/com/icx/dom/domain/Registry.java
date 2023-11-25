@@ -26,7 +26,7 @@ import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.dom.common.Reflection;
+import com.icx.common.Reflection;
 import com.icx.dom.domain.DomainAnnotations.Accumulation;
 import com.icx.dom.domain.DomainAnnotations.Removed;
 import com.icx.dom.domain.DomainAnnotations.UseDataHorizon;

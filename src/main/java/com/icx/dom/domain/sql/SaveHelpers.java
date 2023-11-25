@@ -20,11 +20,11 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.dom.common.CList;
-import com.icx.dom.common.CLog;
-import com.icx.dom.common.CMap;
-import com.icx.dom.common.Common;
-import com.icx.dom.common.Reflection;
+import com.icx.common.Reflection;
+import com.icx.common.base.CList;
+import com.icx.common.base.CLog;
+import com.icx.common.base.CMap;
+import com.icx.common.base.Common;
 import com.icx.dom.domain.DomainObject;
 import com.icx.dom.domain.Registry;
 import com.icx.dom.jdbc.SqlDb;

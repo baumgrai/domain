@@ -9,10 +9,10 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.icx.common.base.CRandom;
 import com.icx.dom.app.survey.SurveyApp;
 import com.icx.dom.app.survey.domain.call.Call;
 import com.icx.dom.app.survey.domain.config.Question.QuestionType;
-import com.icx.dom.common.CRandom;
 import com.icx.dom.domain.DomainAnnotations.Accumulation;
 import com.icx.dom.domain.DomainAnnotations.SqlColumn;
 import com.icx.dom.domain.sql.SqlDomainObject;

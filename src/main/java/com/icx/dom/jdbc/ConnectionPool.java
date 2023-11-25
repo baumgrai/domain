@@ -11,8 +11,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.dom.common.Common;
-import com.icx.dom.common.Prop;
+import com.icx.common.Prop;
+import com.icx.common.base.Common;
 
 /**
  * JDBC database {@link Connection} pool.

@@ -1,4 +1,4 @@
-package com.icx.dom.common;
+package com.icx.common.base;
 
 import java.util.ArrayList;
 import java.util.Collection;

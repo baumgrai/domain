@@ -27,12 +27,12 @@ import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.dom.common.CCollection;
-import com.icx.dom.common.CDateTime;
-import com.icx.dom.common.CList;
-import com.icx.dom.common.CLog;
-import com.icx.dom.common.CMap;
-import com.icx.dom.common.Common;
+import com.icx.common.base.CCollection;
+import com.icx.common.base.CDateTime;
+import com.icx.common.base.CList;
+import com.icx.common.base.CLog;
+import com.icx.common.base.CMap;
+import com.icx.common.base.Common;
 import com.icx.dom.domain.DomainObject;
 import com.icx.dom.jdbc.JdbcHelpers;
 import com.icx.dom.jdbc.SqlConnection;

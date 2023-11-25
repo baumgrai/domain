@@ -2,14 +2,14 @@ package com.icx.dom.app.survey.domain.call;
 
 import java.io.IOException;
 
+import com.icx.common.base.CFile;
+import com.icx.common.base.CRandom;
+import com.icx.common.base.Common;
 import com.icx.dom.app.survey.SurveyApp;
 import com.icx.dom.app.survey.domain.config.Question;
 import com.icx.dom.app.survey.domain.config.Scale;
 import com.icx.dom.app.survey.domain.config.Survey;
 import com.icx.dom.app.survey.domain.message.VoiceMessage;
-import com.icx.dom.common.CFile;
-import com.icx.dom.common.CRandom;
-import com.icx.dom.common.Common;
 import com.icx.dom.domain.DomainAnnotations.UseDataHorizon;
 
 @UseDataHorizon

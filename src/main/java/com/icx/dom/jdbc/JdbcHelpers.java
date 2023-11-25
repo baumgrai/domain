@@ -21,8 +21,8 @@ import java.util.regex.Matcher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.dom.common.CLog;
-import com.icx.dom.common.Common;
+import com.icx.common.base.CLog;
+import com.icx.common.base.Common;
 import com.icx.dom.jdbc.SqlDb.DbType;
 import com.icx.dom.jdbc.SqlDbTable.Column;
 

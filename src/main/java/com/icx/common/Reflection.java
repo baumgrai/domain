@@ -1,4 +1,4 @@
-package com.icx.dom.common;
+package com.icx.common;
 
 import java.io.File;
 import java.io.UnsupportedEncodingException;
@@ -27,6 +27,8 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.icx.common.base.Common;
 
 /**
  * Java Reflection helpers.

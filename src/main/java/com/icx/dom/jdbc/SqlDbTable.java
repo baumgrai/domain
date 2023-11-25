@@ -9,8 +9,8 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
-import com.icx.dom.common.Common;
-import com.icx.dom.common.CLog;
+import com.icx.common.base.CLog;
+import com.icx.common.base.Common;
 
 /**
  * Objects of this class are associated to SQL database tables and contain table and column meta data.

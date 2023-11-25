@@ -11,7 +11,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import com.icx.dom.common.Common;
+import com.icx.common.base.Common;
 
 /**
  * Annotations for domain classes and fields for Domain object persistence mechanism.

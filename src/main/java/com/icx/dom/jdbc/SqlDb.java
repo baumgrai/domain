@@ -26,10 +26,10 @@ import java.util.TreeSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.dom.common.CLog;
-import com.icx.dom.common.CMap;
-import com.icx.dom.common.Common;
-import com.icx.dom.common.Prop;
+import com.icx.common.Prop;
+import com.icx.common.base.CLog;
+import com.icx.common.base.CMap;
+import com.icx.common.base.Common;
 import com.icx.dom.jdbc.SqlDbTable.Column;
 import com.icx.dom.jdbc.SqlDbTable.ForeignKeyColumn;
 import com.icx.dom.jdbc.SqlDbTable.UniqueConstraint;

@@ -25,8 +25,8 @@ import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.dom.common.CDateTime;
-import com.icx.dom.common.Common;
+import com.icx.common.base.CDateTime;
+import com.icx.common.base.Common;
 import com.icx.dom.domain.DomainController;
 import com.icx.dom.domain.DomainException;
 import com.icx.dom.domain.DomainObject;

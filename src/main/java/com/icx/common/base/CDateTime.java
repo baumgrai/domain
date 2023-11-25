@@ -1,4 +1,4 @@
-package com.icx.dom.common;
+package com.icx.common.base;
 
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
@@ -11,9 +11,7 @@ import java.util.List;
  */
 public abstract class CDateTime {
 
-	// -------------------------------------------------------------------------
 	// Finals
-	// -------------------------------------------------------------------------
 
 	// Date/time formatters
 	public static final String INTERNATIONAL_DATETIME_FORMAT = "yyyy-MM-dd'T'HH:mm:ss";
@@ -29,6 +27,8 @@ public abstract class CDateTime {
 	public static final String DATETIME_FORMAT = "yyyy-MM-dd HH:mm:ss";
 	public static final String DATETIME_FORMAT_DE = "dd.MM.yyyy HH:mm:ss";
 	public static final String DATETIME_MS_FORMAT = "yyyy-MM-dd HH:mm:ss.SSS";
+
+	// Methods
 
 	public static LocalDateTime add(LocalDateTime datetime, String intervalString) {
 
@@ -63,6 +63,14 @@ public abstract class CDateTime {
 
 	public static LocalDateTime subtract(LocalDateTime datetime, String intervalString) {
 		return add(datetime, (intervalString.startsWith("-") ? intervalString.substring(1) : "-" + intervalString));
+	}
+
+	public static long intervalIn(ChronoUnit unit, String intervalString) {
+
+		LocalDateTime now = LocalDateTime.now();
+		LocalDateTime added = add(now, intervalString);
+
+		return unit.between(now, added);
 	}
 
 }

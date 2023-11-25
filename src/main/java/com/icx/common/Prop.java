@@ -1,4 +1,4 @@
-package com.icx.dom.common;
+package com.icx.common;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -12,8 +12,12 @@ import java.util.Properties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.dom.common.Common.KeyValueSep;
-import com.icx.dom.common.Common.StringSep;
+import com.icx.common.base.CFile;
+import com.icx.common.base.CList;
+import com.icx.common.base.CResource;
+import com.icx.common.base.Common;
+import com.icx.common.base.Common.KeyValueSep;
+import com.icx.common.base.Common.StringSep;
 
 /**
  * Enhanced property management supporting properties for different runtime environments.

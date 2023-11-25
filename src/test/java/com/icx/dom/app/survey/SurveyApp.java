@@ -10,6 +10,9 @@ import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.icx.common.Prop;
+import com.icx.common.base.CFile;
+import com.icx.common.base.CRandom;
 import com.icx.dom.app.survey.domain.call.PhoneCall.PhoneCallSurvey;
 import com.icx.dom.app.survey.domain.config.Question;
 import com.icx.dom.app.survey.domain.config.Question.QuestionType;
@@ -18,9 +21,6 @@ import com.icx.dom.app.survey.domain.config.Scale.Metric;
 import com.icx.dom.app.survey.domain.config.Survey;
 import com.icx.dom.app.survey.domain.config.Survey.Semaphore;
 import com.icx.dom.app.survey.domain.message.VoiceMessage;
-import com.icx.dom.common.CFile;
-import com.icx.dom.common.CRandom;
-import com.icx.dom.common.Prop;
 import com.icx.dom.domain.DomainObject;
 import com.icx.dom.domain.sql.SqlDomainController;
 import com.icx.dom.jdbc.SqlConnection;
@@ -211,7 +211,7 @@ public class SurveyApp extends SqlDomainController {
 				try (SqlConnection sqlcn = SqlConnection.open(sdc.sqlDb.pool, false)) {
 
 					try {
-						Set<Survey> surveys = sdc.allocateExclusively(Survey.class, Survey.InProgress.class, "SEMAPHORE=GREEN", 1, s -> s.semaphore = Semaphore.RED);
+						Set<Survey> surveys = sdc.allocateObjectsExclusively(Survey.class, Survey.InProgress.class, "SEMAPHORE=GREEN", 1, s -> s.semaphore = Semaphore.RED);
 						if (!surveys.isEmpty()) {
 
 							Survey survey = surveys.iterator().next();
