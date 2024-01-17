@@ -295,7 +295,7 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 	 * 
 	 * @return true if object is registered, false if it was deleted or if it was not loaded because it was out of data horizon on load time
 	 */
-	public boolean isRegistered(T obj) {
+	public boolean isRegistered(DomainObject obj) {
 		return objectMap.get(obj.getClass()).containsKey(obj.getId());
 	}
 
