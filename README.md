@@ -14,10 +14,11 @@ What it supports:
 - different databases - Oracle, MS-SQL-Server, MySQL and MariaDB
 - version control - version information can be annotated to new, changed and removed classes and fields - `Java2Sql` generates incremental database update scripts for all versions 
 - class inheritance - `Bike extends SqlDomainObject`, `RaceBike extends Bike`, `Bianchi extends RaceBike`
+- parent child relations between domain objects `class Bike { Manufacturer manufacturer; }`
 - _data horizon_ - only objects newer than a configurable time in the past will be loaded and older objects will be removed from object store on synchronization
 - selective object loading - not all objects in persistence database must be loaded - `SqlDomainController#loadOnly()`
 - circular references on class and object level
-- direct access to children of a domain object by managed 'accumulations' fields (`class Bike { Manufacturer manufacturer; }` `class Manufacturer { @Accumulation Set<Bike> bikes; }`
+- direct access to children of a domain object by managed 'accumulations' fields (`class Manufacturer { @Accumulation Set<Bike> bikes; }`
 - concurrent access - multiple domain controller instances can operate on the same persistence database, concurrent access can be synchronized using methods like `SqlDomainController#allocateObjectsExclusively()`
 - Java types `String`, `Integer`, `Long`, `Double` (and primitive types), `Enum`, `LocalDate`, `LocalTime`, `LocalDateTime`, `byte[]`, `File` for persistable fields of domain classes
 - Also all other types if a conversion provider for these types is defined (TODO)
