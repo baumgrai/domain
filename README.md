@@ -4,7 +4,7 @@
 How it works:
 - objects to persist ('domain objects') extend `SqlDomainObject` class
 - 'domain controller' manages object store with domain objects during runtime
-- domain objects can be selectively accessed using methods like 'DomainController#findAny(Class, Predicate)', 'DomainController#findAll(Class, Predicate)', etc.
+- domain objects can be selectively accessed using methods like `DomainController#findAny(Class, Predicate)`, `DomainController#findAll(Class, Predicate)`, etc.
 - `SqlDomainController#synchronize()` initially loads objects from persistence database and subsequently synchronizes object store and database
 - domain objects can individually be stored to persistence database using `SqlDomainObject#save()`
 - `Java2Sql` tool analyses classes of a project and generates SQL scripts to create and update persistence database
