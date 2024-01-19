@@ -1,15 +1,27 @@
 package com.icx.dom.domain;
 
 import java.io.BufferedReader;
-import java.io.InputStream;
+import java.io.IOException;
 import java.io.InputStreamReader;
+import java.net.URL;
+import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.icx.common.base.Common;
 
+/**
+ * Helper class for methods originally contained in Google's Guava library and cloned here to avoid dependence on Guava.
+ * 
+ * @author baumgrai
+ */
 public abstract class GuavaReplacements {
+
+	static final Logger log = LoggerFactory.getLogger(GuavaReplacements.class);
 
 	// Case format conversion
 
@@ -80,22 +92,30 @@ public abstract class GuavaReplacements {
 
 		public void getTopLevelClassesRecursive(String packageName, Set<String> classNames) {
 
-			String resource = packageName.replaceAll("[.]", "/");
+			String packageResourceName = packageName.replace(".", "/");
 
-			InputStream stream = classloader.getResourceAsStream(resource); // Code for reading resources adapted from Baeldung
-			BufferedReader reader = new BufferedReader(new InputStreamReader(stream));
+			try {
+				Enumeration<URL> resources = classloader.getResources(packageResourceName);
+				if (resources.hasMoreElements()) {
+					try (BufferedReader reader = new BufferedReader(new InputStreamReader(resources.nextElement().openStream()))) {
 
-			Set<String> subResources = reader.lines().collect(Collectors.toSet());
-			for (String subResource : subResources) {
+						Set<String> subResources = reader.lines().collect(Collectors.toSet());
+						for (String subResource : subResources) {
 
-				String qualifiedSubResource = packageName + "." + subResource;
+							String qualifiedSubResource = packageName + "." + subResource;
 
-				if (subResource.endsWith(".class") && !subResource.contains("$")) { // Class
-					classNames.add(qualifiedSubResource.substring(0, qualifiedSubResource.length() - 6));
+							if (subResource.endsWith(".class") && !subResource.contains("$")) { // Class
+								classNames.add(qualifiedSubResource.substring(0, qualifiedSubResource.length() - 6));
+							}
+							else if (!subResource.contains(".")) { // Package or anything else
+								getTopLevelClassesRecursive(qualifiedSubResource, classNames);
+							}
+						}
+					}
 				}
-				else if (!subResource.contains(".")) { // Package or anything else
-					getTopLevelClassesRecursive(qualifiedSubResource, classNames);
-				}
+			}
+			catch (IOException e) {
+				log.error("GUR: Package resource '{}' could not be opened - {} occurred!", packageResourceName, e);
 			}
 		}
 
@@ -104,7 +124,7 @@ public abstract class GuavaReplacements {
 			Set<String> classNames = new HashSet<>();
 			getTopLevelClassesRecursive(packageName, classNames);
 
-			return classNames.stream().map(r -> new ClassInfo(r)).collect(Collectors.toSet());
+			return classNames.stream().map(ClassInfo::new).collect(Collectors.toSet());
 		}
 	}
 }
