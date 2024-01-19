@@ -3,13 +3,13 @@
 
 How it works:
 - objects to persist extend `SqlDomainObject` class
-- persisted objects can be loaded from database using `SqlDomainController.load()` and individually be saved using `SqlDomainObject.save()`
-- `SqlDomainController.synchronize()` saves all unsaved objects to and loads potential new objects from database
+- `SqlDomainController.synchronize()` initially loads objects from database and synchronizes local object store with persistence database
+- persisted objects can individually be saved using `SqlDomainObject.save()`
 - `Java2Sql` tool analyses classes of a project and generates SQL scripts to create or update persistence database
 
 Supports:
 - different databases - Oracle, MS-SQL-Server, MySQL and MariaDB
-- version control - incremental database update scripts will be generated automatically for new and changed classes
+- version control - creation, modification and/or deletion version can be annotated to new, changed and removed classes and fields - Java2Sql then automatically generates incremental database update scripts for any version 
 - class inheritance - object classes may be derived (`Vehicle extends SqlDomainObject`, `Car extends Vehicle`, `Sportscar extends Car`)
 - data horizon - only new objects will be loaded and old objects will be removed from heap on synchronization
 - selective object loading - amount of persisted objects to load can be shrinked (TODO)
