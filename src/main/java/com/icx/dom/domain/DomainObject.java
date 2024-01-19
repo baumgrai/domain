@@ -14,11 +14,12 @@ import com.icx.common.base.CLog;
 import com.icx.common.base.Common;
 
 /**
- * Base class for objects managed by any domain controller.
+ * Base class for objects managed by a domain controller.
  * <p>
- * Any specific domain object class must extend this class. Objects managed by specific domain controllers may have a specific base class which extends this class.
+ * Any specific domain object class must extend this class. Objects managed by specific domain controllers may have a specific base class which extends this class (e.g.: {@link SqlDomainObject} for
+ * {@link SqlDomainController}).
  * 
- * @author RainerBaumgärtel
+ * @author baumgrai
  */
 public abstract class DomainObject extends Common implements Comparable<DomainObject> {
 
@@ -37,6 +38,11 @@ public abstract class DomainObject extends Common implements Comparable<DomainOb
 	// ID
 	protected long id = 0;
 
+	/**
+	 * Get object id
+	 * 
+	 * @return object id
+	 */
 	public long getId() {
 		return id;
 	}
@@ -44,6 +50,9 @@ public abstract class DomainObject extends Common implements Comparable<DomainOb
 	public void setId(long id) { // May not be called from applications - only used in SqlDomainController#selectForExclusiveUse()
 		this.id = id;
 	}
+
+	// Associated domain controller
+	public DomainController<?> dc = null;
 
 	// Shadows for reference fields where accumulations are assigned to -
 	// contains referenced objects before updating accumulations and so allow both changing accumulation of old and new referenced objects
@@ -56,17 +65,25 @@ public abstract class DomainObject extends Common implements Comparable<DomainOb
 	/*
 	 * (non-Javadoc)
 	 * 
+	 * Returns so called 'universal' object id - domainclassname@objectid - if not overridden by specific domain class
+	 * 
 	 * @see java.lang.Object#toString()
 	 */
 	@Override
 	public String toString() {
-		return defaultName();
+		return universalId();
 	}
 
-	// Default comparison - may be overridden
+	/*
+	 * (non-Javadoc)
+	 * 
+	 * Compares objects by 'universal' object id - domainclassname@objectid - if not overridden by specific domain class
+	 * 
+	 * @see java.lang.Comparable#compareTo(java.lang.Object)
+	 */
 	@Override
 	public int compareTo(DomainObject o) {
-		return compare(id, o.id);
+		return compare(universalId(), o.universalId());
 	}
 
 	@Override
@@ -83,8 +100,12 @@ public abstract class DomainObject extends Common implements Comparable<DomainOb
 	// Name
 	// -------------------------------------------------------------------------
 
-	// Default object name consisting of class name (preceded by outer class name on member classes) and obkect id
-	private String defaultName() {
+	/**
+	 * Generates 'universal' object id - domainclassname@objectid
+	 * 
+	 * @return universal object id
+	 */
+	public String universalId() {
 
 		String name = (getClass().getSimpleName() + "@" + id);
 		if (getClass().isMemberClass()) {
@@ -93,10 +114,16 @@ public abstract class DomainObject extends Common implements Comparable<DomainOb
 		return name;
 	}
 
-	// Identifier - domain object class name and object id plus - if working and different - toString() for object - used for logging
+	/**
+	 * Identifier - 'universal object id' ({@link #universalId()} plus - if working and different - overridden {@code toString()} as 'logical' name for specific object.
+	 * <p>
+	 * Internally used for logging purposes.
+	 * 
+	 * @return "universalid[ (logicalname)]"
+	 */
 	public String name() {
 
-		String name = defaultName();
+		String name = universalId();
 		String logicalName;
 		try {
 			logicalName = toString();
@@ -111,6 +138,14 @@ public abstract class DomainObject extends Common implements Comparable<DomainOb
 		return name;
 	}
 
+	/**
+	 * Object's name {@link #name()} or "null" if object itself is null.
+	 * 
+	 * @param obj
+	 *            domain object
+	 * 
+	 * @return object name or "null"
+	 */
 	public static final String name(DomainObject obj) {
 		return (obj == null ? "null" : obj.name());
 	}
@@ -147,6 +182,8 @@ public abstract class DomainObject extends Common implements Comparable<DomainOb
 
 	/**
 	 * To override by specific domain class to check if object can be deleted.
+	 * <p>
+	 * If this method returns false for any object in a deletion process (of an object and direct an indirect child objects) no object will be deleted at all.
 	 * 
 	 * @return true if object can be deleted, false otherwise
 	 */
@@ -169,5 +206,18 @@ public abstract class DomainObject extends Common implements Comparable<DomainOb
 			setFieldValue(accuField, accumulationSet);
 		}
 		return accumulationSet;
+	}
+
+	// -------------------------------------------------------------------------
+	// Convenience methods
+	// -------------------------------------------------------------------------
+
+	/**
+	 * Check if object is currently registered in object store.
+	 * 
+	 * @return true if object is registered, false if not
+	 */
+	public boolean isRegistered() {
+		return dc.isRegistered(this);
 	}
 }
