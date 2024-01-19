@@ -153,7 +153,7 @@ class CommonTest extends TestHelpers {
 
 		ResourceBundle bundle = ResourceBundle.getBundle("messages", Locale.forLanguageTag("en"));
 		assertEquals("", CResource.i18n(bundle, null));
-		assertEquals("germany", CResource.i18n(null, "germany"));
+		assertEquals("germany", CResource.i18n((ResourceBundle) null, "germany"));
 		assertEquals("Germany", CResource.i18n(bundle, "germany"));
 		assertEquals("unknown_county", CResource.i18n(bundle, "unknown_county"));
 	}
