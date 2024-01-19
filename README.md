@@ -20,7 +20,7 @@ What it supports:
 - circular references on class and object level
 - direct access to current children of a domain object by managed 'accumulations' fields (`class Bike { Manufacturer manufacturer; }` `class Manufacturer { @Accumulation Set<Bike> bikes; }`
 - concurrent access - multiple domain controller instances can operate on the same persistence database, concurrent access can be synchronized using methods like `SqlDomainController#allocateObjectsExclusively()` (*)
-- Java types `String`, `Integer`, `Long`, `Double` (and primitive types), `enum`, `LocalDate`, `LocalTime`, `LocalDateTime`, `byte[]`, `File` for persistable fields of domain classes
+- Java types `String`, `Integer`, `Long`, `Double` (and primitive types), `Enum`, `LocalDate`, `LocalTime`, `LocalDateTime`, `byte[]`, `File` for persistable fields of domain classes
 - All other types if a conversion provider for these types is defined (TODO)
 - `List`s, `Set`s and `Map`s of these types (`List<Type>` for `enum Type`) as persistable field types
 - `List`s, `Set`s and `Map`s as elements of collections or values of maps (`Map<String>, Set<Integer>`, `List<Map<LocalDate, Integer>>`)
