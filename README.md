@@ -3,7 +3,7 @@
 
 How it works:
 - classes with objects to persist - _domain classes/domain objects_ - extend `SqlDomainObject` class
-- `Java2Sql` tool finds domain classes of a project and generates SQL scripts to create persistence database
+- `Java2Sql` tool generates SQL scripts to create persistence database from domain classes 
 - _domain controller_ `SqlDomainController extends DomainController` manages domain object store during runtime
 - `SqlDomainController#synchronize()` initially loads objects and subsequently synchronizes object store and persistence database
 - domain objects can be created using `DomainController#create(Class, Consumer init)` or using constructors and `DomainController#register(DomainObject)`
