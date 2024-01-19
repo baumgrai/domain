@@ -7,7 +7,7 @@ How it works:
 - _domain controller_ `SqlDomainController extends DomainController` manages domain object store during runtime
 - `SqlDomainController#synchronize()` initially loads objects and subsequently synchronizes object store and persistence database
 - domain objects can be created using `DomainController#create()` or using constructors and `DomainController#register(DomainObject)`
-- domain objects will be stored to persistence database using `#save()`
+- domain objects will be stored to persistence database using `#save()` or `#createAndSave()`
 - domain objects can be accessed using methods like `DomainController#findAll(Class, Predicate)`
 
 Supports:
