@@ -15,17 +15,15 @@ What it supports:
 - version control - version information can be annotated to new, changed and removed classes and fields - `Java2Sql` generates incremental database update scripts for all versions 
 - class inheritance - `Bike extends SqlDomainObject`, `RaceBike extends Bike`, `Bianchi extends RaceBike`
 - _data horizon_ - only objects newer than a configurable time in the past will be loaded and older objects will be removed from object store on synchronization
-- selective object loading - amount of persisted objects to load from database can be shrinked using `SqlDomainController#loadOnly()` (*)
-- referential integrity of loaded objects is ensured even if not all persisted objects are loaded (due to data horizon constraint or selectibe object loading)
+- selective object loading - not all objects in persistence database must be loaded - `SqlDomainController#loadOnly()`
 - circular references on class and object level
-- direct access to current children of a domain object by managed 'accumulations' fields (`class Bike { Manufacturer manufacturer; }` `class Manufacturer { @Accumulation Set<Bike> bikes; }`
-- concurrent access - multiple domain controller instances can operate on the same persistence database, concurrent access can be synchronized using methods like `SqlDomainController#allocateObjectsExclusively()` (*)
+- direct access to children of a domain object by managed 'accumulations' fields (`class Bike { Manufacturer manufacturer; }` `class Manufacturer { @Accumulation Set<Bike> bikes; }`
+- concurrent access - multiple domain controller instances can operate on the same persistence database, concurrent access can be synchronized using methods like `SqlDomainController#allocateObjectsExclusively()`
 - Java types `String`, `Integer`, `Long`, `Double` (and primitive types), `Enum`, `LocalDate`, `LocalTime`, `LocalDateTime`, `byte[]`, `File` for persistable fields of domain classes
-- All other types if a conversion provider for these types is defined (TODO)
-- `List`s, `Set`s and `Map`s of these types (`List<Type>` for `enum Type`) as persistable field types
-- `List`s, `Set`s and `Map`s as elements of collections or values of maps (`Map<String>, Set<Integer>`, `List<Map<LocalDate, Integer>>`)
-
-(*) these are the only methods where SQL is needed in _domain_ - to define WHERE clauses for selection   
+- Also all other types if a conversion provider for these types is defined (TODO)
+- `List`s, `Set`s and `Map`s of these types (`List<Type>` for `enum Type`) as persistable field types and as elements of collections or values of maps (`Map<String>, Set<Integer>`, `List<Map<LocalDate, Integer>>`)
 
 Further information:
 - _domain_ has a small footprint: 10k LoC, 200kB jar and few external libraries - only logging (slf4j2) and database drivers
+- _domain_ esures referential integrity - means parent is loaded if child is loaded - of loaded objects even if not all objects are loaded from persistence database
+- the only applications where SQL knowledge and knowledge about _domain specific Java <-> SQL conversion is neccesary, are selective object loading and allocating object exclusively
