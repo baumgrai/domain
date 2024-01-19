@@ -32,6 +32,11 @@ import com.icx.dom.jdbc.SqlDbException;
 import com.icx.dom.jdbc.SqlDbTable;
 import com.icx.dom.jdbc.SqlDbTable.Column;
 
+/**
+ * Helpers for saving domain objects to database
+ * 
+ * @author baumgrai
+ */
 public abstract class SaveHelpers extends Common {
 
 	static final Logger log = LoggerFactory.getLogger(SaveHelpers.class);
@@ -128,7 +133,7 @@ public abstract class SaveHelpers extends Common {
 
 				// Assign field value
 				if (fieldValue instanceof String && ((String) fieldValue).length() > column.maxlen) { // String field exceeds text column size
-					log.warn("SDO: Value '{}' exceeds maximum size {} of column '{}' for object {}! Truncate before saving object...", fieldValue, column.maxlen, column.name, object.name());
+					log.warn("SDC: Value '{}' exceeds maximum size {} of column '{}' for object {}! Truncate before saving object...", fieldValue, column.maxlen, column.name, object.name());
 					object.setFieldWarning(field, "CONTENT_TRUNCATED_IN_DATABASE");
 					columnValue = ((String) fieldValue).substring(0, column.maxlen);
 				}
@@ -280,14 +285,14 @@ public abstract class SaveHelpers extends Common {
 					sdc.sqlDb.insertInto(cn, entryTableName, ComplexFieldHelpers.collection2EntryRecords(refIdColumnName, object.getId(), (List<?>) complexFieldObject));
 				}
 				else {
-					log.error("SDO: Value of field '{}' is of unsupported type '{}'!", complexField.getName(), complexField.getType().getName());
+					log.error("SDC: Value of field '{}' is of unsupported type '{}'!", complexField.getName(), complexField.getType().getName());
 				}
 
 				// Update object record by new complex object
 				objectRecord.put(entryTableName, complexFieldObject);
 			}
 			catch (SQLException sqlex) {
-				log.error("SDO: Exception on updating entry table '{}' for {} field '{}' of object '{}'", entryTableName, (isMap ? "map" : "collection"), complexField.getName(), object.name());
+				log.error("SDC: Exception on updating entry table '{}' for {} field '{}' of object '{}'", entryTableName, (isMap ? "map" : "collection"), complexField.getName(), object.name());
 				object.setFieldError(complexField, "Entries for this " + (isMap ? "map" : "collection") + " field could not be updated in database");
 				throw sqlex;
 			}
@@ -314,7 +319,7 @@ public abstract class SaveHelpers extends Common {
 
 			// Re-register meanwhile unregistered parent object
 			if (!sdc.isRegistered(parentObject)) { // Parent object was unregistered before saving this object (during synchronization due to data horizon condition)
-				log.warn("SDO: {}Parent {} is not registered anymore (probably out of data horizon) - reregister object", CLog.tabs(stackSize), DomainObject.name(parentObject));
+				log.warn("SDC: {}Parent {} is not registered anymore (probably out of data horizon) - reregister object", CLog.tabs(stackSize), DomainObject.name(parentObject));
 				sdc.reregister(parentObject);
 			}
 
@@ -324,17 +329,16 @@ public abstract class SaveHelpers extends Common {
 				// Collect parent object for subsequent storing and reset reference to allow saving this object
 				unstoredParentObjectMap.put(refField, parentObject);
 				obj.setFieldValue(refField, null);
-				log.info("SDO: {}Collected unstored parent object {} for subsequent storing", CLog.tabs(stackSize), DomainObject.name(parentObject));
+				log.info("SDC: {}Collected unstored parent object {} for subsequent storing", CLog.tabs(stackSize), DomainObject.name(parentObject));
 			}
 			else {
 				// Save parent object before saving object
-				log.info("SDO: {}Store parent object", CLog.tabs(stackSize));
+				log.info("SDC: {}Store parent object", CLog.tabs(stackSize));
 				try {
 					save(cn, sdc, parentObject, objectsToCheckForCircularReference);
 				}
 				catch (SQLException sqlex) {
-					log.error("SDO: {}INSERT failed! Object {} cannot be saved because parent object {} could not be stored!", CLog.tabs(stackSize), obj.name(), DomainObject.name(parentObject));
-					log.info("SDO: {}: {}", sqlex.getClass().getSimpleName(), sqlex.getMessage());
+					log.error("SDC: {}INSERT failed! Object {} cannot be saved because parent object {} could not be stored!", CLog.tabs(stackSize), obj.name(), DomainObject.name(parentObject));
 					obj.setFieldError(refField, "REFERENCED_OBJECT_COULD_NOT_BE_STORED");
 
 					// Restore references which were reset before save error occurred
@@ -364,19 +368,18 @@ public abstract class SaveHelpers extends Common {
 
 			// Ignore if meanwhile unregistered
 			if (!sdc.isRegistered(parentObject)) {// Parent object was deleted during saving this object
-				log.warn("SDO: {}Parent {} is not registered anymore!", CLog.tabs(stackSize), DomainObject.name(parentObject));
+				log.warn("SDC: {}Parent {} is not registered anymore!", CLog.tabs(stackSize), DomainObject.name(parentObject));
 				continue;
 			}
 
 			// Store parent object if not done meanwhile
 			if (!parentObject.isStored) {
-				log.info("SDO: {}Store parent object {} after saving this object {}", CLog.tabs(stackSize), DomainObject.name(parentObject), obj.name());
+				log.info("SDC: {}Store parent object {} after saving this object {}", CLog.tabs(stackSize), DomainObject.name(parentObject), obj.name());
 				try {
 					save(cn, sdc, parentObject, objectsToCheckForCircularReference);
 				}
 				catch (SQLException sqlex) {
-					log.error("SDO: {}INSERT failed! Unsaved parent object {} of object to save {} cannot not be saved!", CLog.tabs(stackSize), DomainObject.name(parentObject), obj.name());
-					log.info("SDO: {}: {}", sqlex.getClass().getSimpleName(), sqlex.getMessage());
+					log.error("SDC: {}INSERT failed! Unsaved parent object {} of object to save {} cannot not be saved!", CLog.tabs(stackSize), DomainObject.name(parentObject), obj.name());
 					obj.setFieldError(refField, "REFERENCED_OBJECT_COULD_NOT_BE_SAVED");
 				}
 			}
@@ -390,11 +393,10 @@ public abstract class SaveHelpers extends Common {
 					// UPDATE <referencing table> SET <foreign key column>=<refrenced objectid> WHERE ID=<object id>
 					sdc.sqlDb.update(cn, referencingTableName, columnValueMapForOneReference, Const.ID_COL + "=" + obj.getId());
 					restoredReferencesCVMap.putAll(columnValueMapForOneReference); // Store change to subsequently update object record
-					log.info("SDO: {}Restored reference '{}' to {} for {}", CLog.tabs(stackSize), refField.getName(), DomainObject.name(parentObject), obj.name());
+					log.info("SDC: {}Restored reference '{}' to {} for {}", CLog.tabs(stackSize), refField.getName(), DomainObject.name(parentObject), obj.name());
 				}
 				catch (SQLException sqlex) {
-					log.error("SDO: {}UPDATE failed! Exception on restoring reference field '{}' for object {}", CLog.tabs(stackSize), Reflection.qualifiedName(refField), obj.name());
-					log.info("SDO: {}: {}", sqlex.getClass().getSimpleName(), sqlex.getMessage());
+					log.error("SDC: {}UPDATE failed! Exception on restoring reference field '{}' for object {}", CLog.tabs(stackSize), Reflection.qualifiedName(refField), obj.name());
 					obj.currentException = sqlex;
 					obj.setFieldError(refField, sqlex.getMessage());
 				}
@@ -412,23 +414,36 @@ public abstract class SaveHelpers extends Common {
 
 		Iterator<String> it = columnValueMap.keySet().iterator();
 		while (it.hasNext()) {
+
+			// Build UPDATE statement for one column only
 			String columnName = it.next();
 			Object columnValue = columnValueMap.get(columnName);
 
+			String whereClause = Const.ID_COL + "=" + obj.getId();
+			log.info("SDC: UPDATE {} SET {}={} WHERE {}", table.name, columnName, (columnValue instanceof Number ? columnValue : "'" + columnValue + "'"), whereClause);
 			oneCVMap.clear();
 			oneCVMap.put(columnName, columnValue);
 			try {
-				// Update one column
-				// UPDATE <table> SET <column>=<column value> WHERE ID=<objectid>
-				sdc.sqlDb.update(cn, table.name, oneCVMap, Const.ID_COL + "=" + obj.getId());
+				// Update column
+				sdc.sqlDb.update(cn, table.name, oneCVMap, whereClause);
 			}
 			catch (SQLException sqlex) {
-				log.error("SDO: UPDATE failed by exception! Column '{}' cannot be updated to {} for object {}", columnName, CLog.forAnalyticLogging(oneCVMap.get(columnName)), obj.name());
-				log.info("SDO: {}: {}", sqlex.getClass().getSimpleName(), sqlex.getMessage());
+				log.error("SDC: UPDATE failed by exception! Column '{}' cannot be updated to {} for object {}", columnName, CLog.forAnalyticLogging(oneCVMap.get(columnName)), obj.name());
 				obj.currentException = sqlex;
 				Field field = ((SqlRegistry) sdc.registry).getFieldFor(table.findColumnByName(columnName));
 				if (field != null) {
 					obj.setFieldError(field, "CANNOT_UPDATE_COLUMN - " + sqlex.getMessage());
+
+					// Reset field and column value in column value map to original values
+					try {
+						List<SortedMap<String, Object>> results = sdc.sqlDb.selectFrom(cn, table.name, columnName, Const.ID_COL + "=" + obj.getId(), null, null);
+						columnValue = results.get(0).get(columnName);
+						columnValueMap.put(columnName, columnValue);
+						obj.setFieldValue(field, Helpers.column2FieldValue(field.getType(), columnValue));
+					}
+					catch (SQLException | SqlDbException e) {
+						log.error("SDC: SELECT failed by exception! '{}.{}' cannot be read for object {}", table.name, columnName, obj.name());
+					}
 				}
 			}
 		}
@@ -439,20 +454,20 @@ public abstract class SaveHelpers extends Common {
 	// -------------------------------------------------------------------------
 
 	// Save object in one transaction to database
-	static void save(Connection cn, SqlDomainController sdc, SqlDomainObject obj, List<SqlDomainObject> objectsToCheckForCircularReference) throws SQLException, SqlDbException {
+	static boolean save(Connection cn, SqlDomainController sdc, SqlDomainObject obj, List<SqlDomainObject> objectsToCheckForCircularReference) throws SQLException, SqlDbException {
 
 		// Check if object was already stored within current (recursive) save operation
 		int stackSize = objectsToCheckForCircularReference.size();
 		if (objectsToCheckForCircularReference.contains(obj)) {
-			log.info("SDO: {}Object {} was already stored or tried to store within this recursive save operation (detected circular reference)", CLog.tabs(stackSize), obj.name());
-			return;
+			log.info("SDC: {}Object {} was already stored or tried to store within this recursive save operation (detected circular reference)", CLog.tabs(stackSize), obj.name());
+			return false;
 		}
 		else {
 			objectsToCheckForCircularReference.add(obj);
 		}
 
 		if (log.isDebugEnabled()) {
-			log.debug("SDO: {}Save{} object {}", CLog.tabs(stackSize), (obj.isStored ? "" : " new"), obj.name());
+			log.debug("SDC: {}Save{} object {}", CLog.tabs(stackSize), (obj.isStored ? "" : " new"), obj.name());
 		}
 
 		// Update accumulations for pending reference changes (only for convenience here) and reset object's exception and field errors/warnings which will be detected if saving fails
@@ -487,12 +502,15 @@ public abstract class SaveHelpers extends Common {
 
 			if (!obj.isStored) { // INSERT
 
+				log.info("SDC: Save {}: {}", obj.universalId(), columnValueMap);
+
 				// Add standard columns
 				columnValueMap.put(Const.ID_COL, obj.getId());
 				columnValueMap.put(Const.DOMAIN_CLASS_COL, obj.getClass().getSimpleName()); // to identify object domain class also from records of tables related to non-domain object classes
 				if (sdc.registry.isBaseDomainClass(domainClass)) {
 					columnValueMap.put(Const.LAST_MODIFIED_COL, obj.lastModifiedInDb);
 				}
+				wasChanged = true;
 
 				try {
 					// Insert record into table associated to this domain class
@@ -505,12 +523,11 @@ public abstract class SaveHelpers extends Common {
 					if (obj.getClass().getSimpleName().contains("InProgress")) {
 						// On trying to insert temporary in-progress records assume duplicate key exception here and suppress error messages and error handling because this is not an error case
 						// (in-progress records protect associated objects from multiple parallel access)
-						log.info("SDO: {}@{} is currently in use by another thread/instance and therefore cannot be allocated excusively! (this is not an error case)",
+						log.info("SDC: {}@{} is currently in use by another thread/instance and therefore cannot be allocated excusively! (this is not an error case)",
 								(obj.getClass().getEnclosingClass() != null ? obj.getClass().getEnclosingClass().getSimpleName() : ""), obj.getId());
 					}
 					else {
-						log.error("SDO: {}INSERT failed by exception! Object {} cannot be saved in table '{}'", CLog.tabs(stackSize), obj.name(), table.name);
-						log.info("SDO: {}: {}", sqlex.getClass().getSimpleName(), sqlex.getMessage());
+						log.error("SDC: {}INSERT failed by exception! Object {} cannot be saved in table '{}'", CLog.tabs(stackSize), obj.name(), table.name);
 
 						// Set exception and field errors on constraint violation(s) (check violations in ascending order of severity to have the most critical ones assigned to field(s)
 						obj.currentException = sqlex;
@@ -525,7 +542,7 @@ public abstract class SaveHelpers extends Common {
 
 						// ROLL BACK whole transaction
 						cn.rollback();
-						log.warn("SDO: Whole save transaction rolled back!");
+						log.warn("SDC: Whole save transaction rolled back!");
 					}
 
 					throw sqlex;
@@ -536,6 +553,7 @@ public abstract class SaveHelpers extends Common {
 				// Check if any changes exists in any of the domain classes
 				if (!columnValueMap.isEmpty()) {
 					wasChanged = true;
+					log.info("SDC: Update {}: {}", obj.universalId(), columnValueMap);
 				}
 
 				// Update 'last modified' field (of bottom domain class) if any changes where detected
@@ -555,15 +573,14 @@ public abstract class SaveHelpers extends Common {
 							if (sdc.isRegistered(obj)) {
 								sdc.unregister(obj);
 							}
-							return;
+							return false;
 						}
 					}
 					catch (SQLException sqlex) {
-						log.error("SDO: {}UPDATE failed by {}! Not all changed fields can be saved for object {}!\nTry to update columns separately...", CLog.tabs(stackSize),
-								sqlex.getClass().getSimpleName(), obj.name());
-						log.info("SDO: {}: {}", sqlex.getClass().getSimpleName(), sqlex.getMessage());
+						log.error("SDC: {}UPDATE failed by {}: {}! Not all changed fields can be saved for object {}! Try to update columns separately...", CLog.tabs(stackSize),
+								sqlex.getClass().getSimpleName(), sqlex.getMessage(), obj.name());
 
-						// On error try to UPDATE columns separately - so all but one (or more) columns can be updated
+						// On error try to UPDATE columns separately - so all but one (or more) columns can actually be updated
 						tryAnalyticUpdate(cn, sdc, obj, table, columnValueMap);
 					}
 				}
@@ -585,8 +602,11 @@ public abstract class SaveHelpers extends Common {
 		if (!collectedParentObjectMap.isEmpty()) {
 			objectRecord.putAll(storeCollectedParentObjectsAndRestoreReferences(cn, sdc, obj, collectedParentObjectMap, objectsToCheckForCircularReference));
 		}
+
 		if (log.isDebugEnabled()) {
-			log.debug("SDO: {}Object {} saved", CLog.tabs(stackSize), obj.name());
+			log.debug("SDC: {}Object {} saved", CLog.tabs(stackSize), obj.name());
 		}
+
+		return wasChanged;
 	}
 }
