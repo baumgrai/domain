@@ -10,7 +10,7 @@ How it works:
 - domain objects will be stored to persistence database using `#save()` or `#createAndSave()`
 - domain objects can be accessed using methods like `DomainController#findAll(Class, Predicate)`
 
-Supports:
+What it supports:
 - different databases - Oracle, MS-SQL-Server, MySQL and MariaDB
 - version control - creation, modification and/or deletion version can be annotated to new, changed and removed classes and fields - Java2Sql then automatically generates incremental database update scripts for any version 
 - class inheritance - object classes may be derived from other object classes (`Bike extends SqlDomainObject`, `RaceBike extends Bike`, `Bianchi extends RaceBike`)
@@ -20,6 +20,5 @@ Supports:
 - direct access to children of domain object by managed 'accumulations' fields (`class Bike { Manufacturer manufacturer; }` `class Manufacturer { @Accumulation Set<Bike> bikes }`
 - multiple domain controller instances - multiple instances can act on the same persistence database, concurrent access can be synchronized   
 
-Advantages:
-- small footprint - < 10k LoC, 200kB jar, few external libraries (only logging and database drivers) 
+_domain_ has a small footprint - < 10k LoC, 200kB jar and few external libraries - only logging (slf4j2) and database drivers 
 
