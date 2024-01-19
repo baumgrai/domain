@@ -1,7 +1,6 @@
 package com.icx.dom.domain.sql;
 
 import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.sql.Connection;
@@ -41,9 +40,9 @@ import com.icx.dom.jdbc.SqlDbTable;
 import com.icx.dom.jdbc.SqlDbTable.Column;
 
 /**
- * Helpers for loading objects from database
+ * Helpers for loading domain objects from database
  * 
- * @author RainerBaumgärtel
+ * @author baumgrai
  */
 public abstract class LoadHelpers extends Common {
 
@@ -268,7 +267,7 @@ public abstract class LoadHelpers extends Common {
 		return loadedRecordsMapByDomainClassMap;
 	}
 
-	// Select supplier for loading objects of given object domain class which records in database match given WHERE clause (usage in application needs knowledge about Java -> SQL mapping)
+	// Select supplier for loading objects of given object domain class which records in database match given WHERE clause (usage needs knowledge about Java -> SQL mapping)
 	static Map<Class<? extends SqlDomainObject>, Map<Long, SortedMap<String, Object>>> select(Connection cn, SqlDomainController sdc, Class<? extends SqlDomainObject> objectDomainClass,
 			String whereClause, int maxCount) {
 
@@ -282,6 +281,19 @@ public abstract class LoadHelpers extends Common {
 		Map<Class<? extends SqlDomainObject>, Map<Long, SortedMap<String, Object>>> loadedRecordsMapByDomainClassMap = new HashMap<>();
 		loadedRecordsMapByDomainClassMap.put(objectDomainClass, loadedRecordsMap);
 		return loadedRecordsMapByDomainClassMap;
+	}
+
+	// Create object with given id - only used for exclusive selection methods
+	private static <S extends SqlDomainObject> S createWithId(SqlDomainController sdc, Class<S> domainObjectClass, long id) {
+
+		S obj = sdc.instantiate(domainObjectClass);
+		if (obj != null) {
+			if (!sdc.registerById(obj, id)) { // An object of this domain class already exists and is registered
+				return null;
+			}
+			log.info("SDC: Created {} with id {}", obj.name(), id);
+		}
+		return obj;
 	}
 
 	// Select supplier used for synchronization if multiple instances access one database and have to process distinct objects (like orders)
@@ -306,7 +318,7 @@ public abstract class LoadHelpers extends Common {
 
 			long id = entry.getKey();
 			try {
-				SqlDomainObject inProgressObject = sdc.createWithId(inProgressClass, id);
+				SqlDomainObject inProgressObject = createWithId(sdc, inProgressClass, id);
 				if (inProgressObject != null) {
 					sdc.save(cn, inProgressObject);
 					loadedRecordsMap.put(id, entry.getValue());
@@ -321,9 +333,6 @@ public abstract class LoadHelpers extends Common {
 			catch (SqlDbException sqldbex) {
 				log.error("SDC: {} occurred trying to INSERT {} record", sqldbex, inProgressClass.getSimpleName());
 			}
-			catch (InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException ex) {
-				log.error("SDC: {} occurred trying to create in-progress object ({})", ex, inProgressClass.getSimpleName()); // Do not throw - selectExcusively() is used within lambda expression
-			}
 		}
 
 		// Build map to return from supplier method
@@ -333,7 +342,7 @@ public abstract class LoadHelpers extends Common {
 		return loadedRecordsMapByDomainClassMap;
 	}
 
-	// SELECT record(s) for specific object from database and build domain object record for this object - returns empty map if object could not be loaded
+	// SELECT record(s) for specific object from database and build domain object record for this object - returns empty record map if object could not be loaded
 	static Map<Class<? extends SqlDomainObject>, Map<Long, SortedMap<String, Object>>> selectObjectRecord(Connection cn, SqlDomainController sdc, SqlDomainObject obj) {
 
 		String idWhereClause = ((SqlRegistry) sdc.registry).getTableFor(obj.getClass()).name + "." + Const.ID_COL + "=" + obj.getId();
@@ -514,8 +523,7 @@ public abstract class LoadHelpers extends Common {
 
 	// Update local object records, instantiate new objects and assign data to all new or changed objects. Collect objects having changed and/or still unresolved references
 	static boolean buildObjectsFromLoadedRecords(SqlDomainController sdc, Map<Class<? extends SqlDomainObject>, Map<Long, SortedMap<String, Object>>> loadedRecordsMap,
-			Set<SqlDomainObject> loadedObjects, Set<SqlDomainObject> objectsWhereReferencesChanged, List<UnresolvedReference> unresolvedReferences)
-			throws InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException {
+			Set<SqlDomainObject> loadedObjects, Set<SqlDomainObject> objectsWhereReferencesChanged, List<UnresolvedReference> unresolvedReferences) {
 
 		if (!CMap.isEmpty(loadedRecordsMap)) {
 			log.info("SDC: Build objects from loaded records...");
@@ -652,7 +660,9 @@ public abstract class LoadHelpers extends Common {
 
 			SqlDomainObject obj = sdc.find(ur.parentDomainClass, ur.parentObjectId);
 			if (obj != null) {
-				log.info("SDC: Missing object {} was already loaded after detecting unresolved reference and do not have to be loaded again (circular reference)", obj.name());
+				if (log.isDebugEnabled()) {
+					log.debug("SDC: {} was already loaded after detecting unresolved reference (circular reference)", obj.name());
+				}
 			}
 			else {
 				Class<? extends SqlDomainObject> objectDomainClass = ur.parentDomainClass;
@@ -710,7 +720,7 @@ public abstract class LoadHelpers extends Common {
 
 	// Load objects from database using SELECT supplier, finalize these objects and load and load missing referenced objects in a loop to ensure referential integrity.
 	static boolean loadAssuringReferentialIntegrity(SqlDomainController sdc, Function<Connection, Map<Class<? extends SqlDomainObject>, Map<Long, SortedMap<String, Object>>>> select,
-			Set<SqlDomainObject> loadedObjects) throws SQLException, InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, SqlDbException {
+			Set<SqlDomainObject> loadedObjects) throws SQLException, SqlDbException {
 
 		// Get database connection from pool
 		try (SqlConnection sqlcn = SqlConnection.open(sdc.sqlDb.pool, true)) {
