@@ -1,8 +1,10 @@
 package com.icx.dom.domain.sql;
 
 import java.lang.reflect.Field;
+import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -12,24 +14,25 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.icx.dom.domain.DomainObject;
+import com.icx.dom.jdbc.SqlDbException;
 
 /**
  * Base class for objects managed by {@link SqlDomainController}. Includes methods for saving and deleting domain objects. Supports SQL error handling.
  * <p>
  * Any SQL persisted domain object must extend this class.
  * 
- * @author RainerBaumgärtel
+ * @author baumgrai
  */
 public abstract class SqlDomainObject extends DomainObject {
 
-	static final Logger log = LoggerFactory.getLogger(SqlDomainObject.class);
+	protected static final Logger log = LoggerFactory.getLogger(SqlDomainObject.class);
 
 	// -------------------------------------------------------------------------
 	// Members
 	// -------------------------------------------------------------------------
 
 	// Date of last modification
-	LocalDateTime lastModifiedInDb = null;
+	public LocalDateTime lastModifiedInDb = null;
 
 	// Is already saved to database?
 	transient boolean isStored = false;
@@ -40,6 +43,11 @@ public abstract class SqlDomainObject extends DomainObject {
 
 	public void setIsStored() {
 		isStored = true;
+	}
+
+	// Get associated SQL domain controller
+	public SqlDomainController sdc() {
+		return (SqlDomainController) dc;
 	}
 
 	// -------------------------------------------------------------------------
@@ -113,6 +121,62 @@ public abstract class SqlDomainObject extends DomainObject {
 	 */
 	public List<FieldError> getErrorsAndWarnings() {
 		return new ArrayList<>(fieldErrorMap.values());
+	}
+
+	// -------------------------------------------------------------------------
+	// Convenience methods
+	// -------------------------------------------------------------------------
+
+	public boolean wasChangedLocally() {
+
+		Map<Field, Object> fieldChangesMap = new HashMap<>();
+		for (Class<? extends SqlDomainObject> domainClass : sdc().registry.getDomainClassesFor(this.getClass())) {
+			fieldChangesMap.putAll(SaveHelpers.getFieldChangesForDomainClass(((SqlRegistry) sdc().registry), this, sdc().recordMap.get(this.getClass()).get(this.getId()), domainClass));
+		}
+		return !fieldChangesMap.isEmpty();
+	}
+
+	/**
+	 * Convenience method to delete object without throwing exception - see {@link SqlDomainController#delete(SqlDomainObject)}.
+	 * <p>
+	 * Also to have the possibility to override delete method for specific domain classes.
+	 * 
+	 * @return true if deletion succeeded, false on exception or if any of the objects to delete is not deletable by {@link DomainObject#canBeDeleted()} check
+	 */
+	public boolean delete() {
+		try {
+			return sdc().delete(this);
+		}
+		catch (SQLException | SqlDbException e) {
+			return false;
+		}
+	}
+
+	/**
+	 * Convenience method to save object to database without throwing exception - see {@link SqlDomainController#save(SqlDomainObject)}.
+	 * 
+	 * @return this object
+	 */
+	public SqlDomainObject save() {
+		try {
+			sdc().save(this);
+		}
+		catch (SQLException | SqlDbException e) {
+		}
+
+		return this;
+	}
+
+	/**
+	 * Convenience method to save object and all direct and indirect children without throwing exception see {@link SqlDomainController#saveIncludingChildren(SqlDomainObject)}.
+	 */
+	public void saveIncludingChildren() {
+
+		for (SqlDomainObject child : ((SqlDomainController) dc).getDirectChildren(this)) {
+			child.saveIncludingChildren();
+		}
+
+		save();
 	}
 
 }
