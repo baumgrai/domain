@@ -1,6 +1,5 @@
 package com.icx.common.base;
 
-import java.sql.SQLException;
 import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -9,12 +8,56 @@ import java.time.format.DateTimeFormatter;
 import java.util.Calendar;
 import java.util.Collection;
 
+import org.slf4j.Logger;
+import org.slf4j.event.Level;
+
 /**
  * Logging helpers
  * 
  * @author baumgrai
  */
 public abstract class CLog {
+
+	public static boolean isEnabled(Logger logger, Level level) {
+
+		if (level == Level.TRACE) {
+			return logger.isTraceEnabled();
+		}
+		else if (level == Level.DEBUG) {
+			return logger.isDebugEnabled();
+		}
+		else if (level == Level.INFO) {
+			return logger.isInfoEnabled();
+		}
+		else if (level == Level.WARN) {
+			return logger.isWarnEnabled();
+		}
+		else if (level == Level.ERROR) {
+			return logger.isErrorEnabled();
+		}
+		else {
+			return false;
+		}
+	}
+
+	public static void log(Logger logger, Level level, String text) {
+
+		if (level == Level.TRACE && logger.isTraceEnabled()) {
+			logger.trace(text);
+		}
+		else if (level == Level.DEBUG && logger.isDebugEnabled()) {
+			logger.debug(text);
+		}
+		else if (level == Level.INFO && logger.isInfoEnabled()) {
+			logger.info(text);
+		}
+		else if (level == Level.WARN && logger.isWarnEnabled()) {
+			logger.warn(text);
+		}
+		else if (level == Level.ERROR && logger.isErrorEnabled()) {
+			logger.error(text);
+		}
+	}
 
 	// Secret field name prefix to avoid logging value of this field
 	public static final String SECRET = "secret_";
@@ -59,13 +102,6 @@ public abstract class CLog {
 		else if (value instanceof java.sql.Timestamp) {
 			logString = value.getClass().getName() + "@" + new SimpleDateFormat(CDateTime.DATETIME_MS_FORMAT).format(((java.sql.Timestamp) value));
 		}
-		else if (value instanceof oracle.sql.TIMESTAMP)
-			try {
-				logString = value.getClass().getName() + "@" + new SimpleDateFormat(CDateTime.DATETIME_MS_FORMAT).format(((oracle.sql.TIMESTAMP) value).timestampValue());
-			}
-			catch (SQLException e) {
-				logString = value.toString();
-			}
 		else if (value instanceof java.util.Date) {
 			logString = value.getClass().getName() + "@" + new SimpleDateFormat(CDateTime.DATETIME_MS_FORMAT).format((java.util.Date) value);
 		}
@@ -142,7 +178,7 @@ public abstract class CLog {
 	}
 
 	/**
-	 * Build string for logging of value or '***' if expression given contains 'secret_'
+	 * Build string for logging of value or '***' if expression given contains 'secret_' or 'passwor' or 'pwd'
 	 * 
 	 * @param expr
 	 *            expression (may be name of value to log)
@@ -155,7 +191,16 @@ public abstract class CLog {
 		return forAnalyticLogging((value instanceof String && isSecret(expr) ? greyOut((String) value) : value));
 	}
 
-	// Indentation for logging
+	/**
+	 * Returns indentation string of count tabs
+	 * 
+	 * @param level
+	 *            indentation level
+	 * @param indent
+	 *            # of spaces for one indentation
+	 * 
+	 * @return indentation string
+	 */
 	public static String tabs(int count) {
 
 		StringBuilder sb = new StringBuilder();
@@ -164,5 +209,4 @@ public abstract class CLog {
 		}
 		return sb.toString();
 	}
-
 }

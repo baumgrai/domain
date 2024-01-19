@@ -30,6 +30,16 @@ public abstract class CDateTime {
 
 	// Methods
 
+	/**
+	 * Add an interval defined as string ("500ms", "2m30s", "1y3M") to a LocalDateTime object
+	 * 
+	 * @param datetime
+	 *            LocalDateTime object
+	 * @param intervalString
+	 *            interval string
+	 * 
+	 * @return LocalDateTime object with computed value
+	 */
 	public static LocalDateTime add(LocalDateTime datetime, String intervalString) {
 
 		LocalDateTime changedDateTime = (datetime != null ? LocalDateTime.parse(datetime.toString()) : LocalDateTime.now());
@@ -61,10 +71,30 @@ public abstract class CDateTime {
 		return changedDateTime;
 	}
 
+	/**
+	 * Subtract an interval defined as string ("500ms", "2m30s", "1y3M") from a LocalDateTime object
+	 * 
+	 * @param datetime
+	 *            LocalDateTime object
+	 * @param intervalString
+	 *            interval string
+	 * 
+	 * @return LocalDateTime object with computed value
+	 */
 	public static LocalDateTime subtract(LocalDateTime datetime, String intervalString) {
 		return add(datetime, (intervalString.startsWith("-") ? intervalString.substring(1) : "-" + intervalString));
 	}
 
+	/**
+	 * Return the amount of a given chrono unit determined by an interval string ("500ms", "2m30s", "1y3M")
+	 * 
+	 * @param unit
+	 *            chrono unit (seconds, days, etc.)
+	 * @param intervalString
+	 *            interval string
+	 * 
+	 * @return amount of given chrono unit determined by the interval string
+	 */
 	public static long intervalIn(ChronoUnit unit, String intervalString) {
 
 		LocalDateTime now = LocalDateTime.now();

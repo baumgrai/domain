@@ -5,9 +5,8 @@ import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
-import java.text.NumberFormat;
-import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -17,11 +16,13 @@ import java.util.Map;
 import java.util.Map.Entry;
 
 /**
- * Basic general and string helpers
+ * General and string helpers
  * 
  * @author baumgrai
  */
 public abstract class Common {
+
+	public static final String UTF_8 = "UTF-8";
 
 	// -------------------------------------------------------------------------
 	// Equal
@@ -51,7 +52,7 @@ public abstract class Common {
 	 * @param o2
 	 *            second object
 	 * 
-	 * @return result of o1.compareTo(o2) if o1 is not null, 0 if both objects are null and -1 if only o1 is null
+	 * @return result of o1.compareTo(o2) if both o1 and o2 are not null, 0 if both objects are null, 1 if only o2 is null and -1 if only o1 is null
 	 */
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	public static <T extends Comparable> int compare(T o1, T o2) {
@@ -67,6 +68,20 @@ public abstract class Common {
 	// -------------------------------------------------------------------------
 	// Equality checks
 	// -------------------------------------------------------------------------
+
+	/**
+	 * Check if two - may be null - objects have same string representation
+	 * 
+	 * @param o1
+	 *            first object
+	 * @param o2
+	 *            second object
+	 * 
+	 * @return true if objects both are null or toString() invocation of both objects is equal, false otherwise
+	 */
+	public static boolean toStringEqual(Object o1, Object o2) {
+		return (o1 == null && o2 == null || o1 != null && o2 != null && o1.toString().equals(o2.toString()));
+	}
 
 	/**
 	 * Check equality of two objects ignoring formal differences: (1) treat null values and empty strings, collections, maps as equal, (2) treat float, double values as equal if they are equal rounded
@@ -101,9 +116,6 @@ public abstract class Common {
 			String s2 = String.format("%.5f", ((Number) o2).doubleValue());
 			return s1.equals(s2);
 		}
-		else if (o1 instanceof LocalDateTime && o2 instanceof LocalDateTime) { // Databases potentially does not store milliseconds
-			return Math.abs(ChronoUnit.MILLIS.between((LocalDateTime) o1, (LocalDateTime) o2)) < 1000;
-		}
 		else {
 			return false;
 		}
@@ -137,6 +149,99 @@ public abstract class Common {
 		return (s == null || s.isEmpty());
 	}
 
+	/**
+	 * Check if string is a boolean value
+	 * 
+	 * @param str
+	 *            string
+	 * 
+	 * @return true if string equals - independent of case - 'true' or 'false', false otherwise
+	 */
+	public static boolean isBoolean(String str) {
+		return (str.equalsIgnoreCase("true") || str.equalsIgnoreCase("false"));
+	}
+
+	/**
+	 * Check if string is an integer value
+	 * 
+	 * @param str
+	 *            string
+	 * 
+	 * @return true if string can be converted to an integer, false otherwise
+	 */
+	public static boolean isInteger(String str) {
+		try {
+			Integer.parseInt(str);
+		}
+		catch (NumberFormatException nfe) {
+			return false;
+		}
+
+		return true;
+	}
+
+	/**
+	 * Check if string is a long value
+	 * 
+	 * @param str
+	 *            string
+	 * 
+	 * @return true if string can be converted to an long, false otherwise
+	 */
+	public static boolean isLong(String str) {
+		try {
+			Long.parseLong(str);
+		}
+		catch (NumberFormatException nfe) {
+			return false;
+		}
+
+		return true;
+	}
+
+	/**
+	 * Check if string is a numeric (double) value
+	 * 
+	 * @param str
+	 *            string
+	 * 
+	 * @return true if string can be converted to a double, false otherwise
+	 */
+	public static boolean isDouble(String str) {
+		try {
+			Double.parseDouble(str);
+		}
+		catch (NumberFormatException nfe) {
+			return false;
+		}
+
+		return true;
+	}
+
+	/**
+	 * Check if string is a date string
+	 * 
+	 * @param string
+	 *            string
+	 * @param dateFormat
+	 *            date format, if null default date format will be used for parsing
+	 * 
+	 * @return true if string can be parsed to a date using given date format or default date format, false otherwise
+	 */
+	public static boolean isDate(String string, String dateFormat) {
+		try {
+			if (dateFormat != null)
+				new SimpleDateFormat(dateFormat).parse(string);
+			else
+				new SimpleDateFormat().parse(string);
+		}
+		catch (ParseException cpex) {
+			return false;
+		}
+
+		return true;
+	}
+
 	// -------------------------------------------------------------------------
 	// Parse & format
 	// -------------------------------------------------------------------------
@@ -155,14 +260,31 @@ public abstract class Common {
 	 */
 	public static Boolean parseBoolean(String booleanValueString, Boolean defaultValue) {
 
-		if (isEmpty(booleanValueString)) {
+		if (isEmpty(booleanValueString))
 			return defaultValue;
-		}
 
 		return Boolean.parseBoolean(booleanValueString);
 	}
 
-	private static final DecimalFormatSymbols symbols = ((DecimalFormat) NumberFormat.getInstance()).getDecimalFormatSymbols();
+	/**
+	 * Format boolean value to string
+	 * 
+	 * @param value
+	 *            boolean value
+	 * @param defaultValue
+	 *            value returned if value provided is null
+	 * 
+	 * @return boolean value string
+	 */
+	public static String formatBoolean(Boolean value, Boolean defaultValue) {
+
+		if (value == null)
+			value = defaultValue;
+
+		return Boolean.toString(value);
+	}
+
+	private static final DecimalFormatSymbols symbols = ((DecimalFormat) DecimalFormat.getInstance()).getDecimalFormatSymbols();
 
 	/**
 	 * Parse string to Integer
@@ -173,21 +295,39 @@ public abstract class Common {
 	 *            value returned if value string provided is null or empty
 	 * 
 	 * @return Integer value
+	 * 
+	 * @throws NumberFormatException
+	 *             on parse error
 	 */
-	public static Integer parseInt(String intValueString, Integer defaultValue) {
+	public static Integer parseInt(String intValueString, Integer defaultValue) throws NumberFormatException {
 
-		if (isEmpty(intValueString)) {
+		if (isEmpty(intValueString))
 			return defaultValue;
-		}
 
-		if (intValueString.contains(".") && symbols.getGroupingSeparator() == '.') {
+		if (intValueString.contains(".") && symbols.getGroupingSeparator() == '.')
 			intValueString = intValueString.replace(".", "");
-		}
-		else if (intValueString.contains(",") && symbols.getGroupingSeparator() == ',') {
+		else if (intValueString.contains(",") && symbols.getGroupingSeparator() == ',')
 			intValueString = intValueString.replace(",", "");
-		}
 
 		return Integer.parseInt(intValueString);
+	}
+
+	/**
+	 * Format integer value to string
+	 * 
+	 * @param value
+	 *            integer value
+	 * @param defaultValue
+	 *            value returned if value provided is null
+	 * 
+	 * @return integer value string
+	 */
+	public static String formatInt(Integer value, Integer defaultValue) {
+
+		if (value == null)
+			value = defaultValue;
+
+		return Integer.toString(value);
 	}
 
 	/**
@@ -203,20 +343,35 @@ public abstract class Common {
 	 * @throws NumberFormatException
 	 *             on parse error
 	 */
-	public static Long parseLong(String longValueString, Long defaultValue) {
+	public static Long parseLong(String longValueString, Long defaultValue) throws NumberFormatException {
 
-		if (isEmpty(longValueString)) {
+		if (isEmpty(longValueString))
 			return defaultValue;
-		}
 
-		if (longValueString.contains(".") && symbols.getGroupingSeparator() == '.') {
+		if (longValueString.contains(".") && symbols.getGroupingSeparator() == '.')
 			longValueString = longValueString.replace(".", "");
-		}
-		else if (longValueString.contains(",") && symbols.getGroupingSeparator() == ',') {
+		else if (longValueString.contains(",") && symbols.getGroupingSeparator() == ',')
 			longValueString = longValueString.replace(",", "");
-		}
 
 		return Long.parseLong(longValueString);
+	}
+
+	/**
+	 * Format long value to string
+	 * 
+	 * @param value
+	 *            long value
+	 * @param defaultValue
+	 *            value returned if value provided is null
+	 * 
+	 * @return long value string
+	 */
+	public static String formatLong(Long value, Long defaultValue) {
+
+		if (value == null)
+			value = defaultValue;
+
+		return Long.toString(value);
 	}
 
 	/**
@@ -232,13 +387,30 @@ public abstract class Common {
 	 * @throws NumberFormatException
 	 *             on parse error
 	 */
-	public static Double parseDouble(String doubleValueString, Double defaultValue) {
+	public static Double parseDouble(String doubleValueString, Double defaultValue) throws NumberFormatException {
 
-		if (isEmpty(doubleValueString)) {
+		if (isEmpty(doubleValueString))
 			return defaultValue;
-		}
 
 		return Double.parseDouble(doubleValueString.replace(",", "."));
+	}
+
+	/**
+	 * Format double value to string
+	 * 
+	 * @param value
+	 *            double value
+	 * @param defaultValue
+	 *            value returned if value provided is null
+	 * 
+	 * @return double value string
+	 */
+	public static String formatDouble(Double value, Double defaultValue) {
+
+		if (value == null)
+			value = defaultValue;
+
+		return Double.toString(value).replace(",", ".");
 	}
 
 	// -------------------------------------------------------------------------
@@ -387,6 +559,83 @@ public abstract class Common {
 		else {
 			return s;
 		}
+	}
+
+	/**
+	 * Insert spaces between non-whitespace characters in string
+	 * 
+	 * @param string
+	 *            string to insert spaces
+	 * 
+	 * @return string with spaces between non-whitespace characters
+	 */
+	public static String insertSpaces(String string) {
+
+		if (string == null)
+			return null;
+
+		String singleCharString = "";
+		string = string.trim();
+		for (int i = 0; i < string.length(); i++) {
+			char c = string.charAt(i);
+			if (!Character.isWhitespace(c)) {
+				singleCharString += c + " ";
+			}
+		}
+
+		return singleCharString.trim();
+	}
+
+	/**
+	 * Capitalize first letter of a string
+	 * 
+	 * @param s
+	 *            string
+	 * 
+	 * @return changed string
+	 */
+	public static String capitalizeFirstLetter(String s) {
+
+		String cs = null;
+
+		if (s == null) {
+			return null;
+		}
+		else if (s.length() > 1) {
+			cs = s.substring(0, 1).toUpperCase() + s.substring(1);
+		}
+		else if (s.length() > 0) {
+			cs = s.substring(0, 1).toUpperCase();
+		}
+		else {
+			cs = "";
+		}
+
+		return cs;
+	}
+
+	/**
+	 * Remove non-digit characters from string
+	 * 
+	 * @param string
+	 *            string
+	 * 
+	 * @return string without any other characters than digits
+	 */
+	public static String removeNonDigits(String string) {
+
+		if (string == null) {
+			return null;
+		}
+
+		String onlyDigitString = "";
+		for (int i = 0; i < string.length(); i++) {
+			if (Character.isDigit(string.charAt(i))) {
+				onlyDigitString += string.charAt(i);
+			}
+		}
+
+		return onlyDigitString;
 	}
 
 	// -------------------------------------------------------------------------
@@ -689,6 +938,55 @@ public abstract class Common {
 	 */
 	public static String mapToString(Map<String, String> map) {
 		return mapToString(map, StringSep.COMMA, KeyValueSep.EQUAL_SIGN);
+	}
+
+	/**
+	 * Convert string containing key/value pairs to key/value map where value for one key may be a comma separated list if string argument contains this key multiple
+	 * 
+	 * @param string
+	 *            string containing key/value pairs
+	 * @param elementSep
+	 *            element separator type
+	 * @param keyValueSep
+	 *            key/value separator type
+	 * 
+	 * @return key/value map with possibly comma separated (multi)values
+	 */
+	public static Map<String, String> stringToMultivalueMap(String string, StringSep elementSep, KeyValueSep keyValueSep) {
+
+		Map<String, String> map = new HashMap<>();
+
+		if (isEmpty(string))
+			return map;
+
+		String eRegex = elementSep.regex();
+		String kvRegex = keyValueSep.regex();
+
+		String[] elements = string.split(eRegex);
+		for (String element : elements) {
+
+			String[] keyValue = element.split(kvRegex, 2);
+			if (keyValue.length > 0) {
+
+				String key = keyValue[0].trim();
+				String value = (keyValue.length > 1 ? keyValue[1] : "");
+				if (value.equals("(null)")) {
+					value = null;
+				}
+				else {
+					value = value.trim();
+				}
+
+				if (map.containsKey(key)) {
+					map.put(key, map.get(key) + "," + (value != null ? value : ""));
+				}
+				else {
+					map.put(key, value);
+				}
+			}
+		}
+
+		return map;
 	}
 
 	// -------------------------------------------------------------------------

@@ -25,7 +25,6 @@ public abstract class CRandom {
 	 * @return random integer
 	 */
 	public static int randomInt(int bound) {
-
 		return ThreadLocalRandom.current().nextInt(0, bound);
 	}
 
@@ -38,10 +37,7 @@ public abstract class CRandom {
 	 * @return true with given probability, false for 1 - probability
 	 */
 	public static boolean trueWithProbability(Double probability) {
-
-		int random = randomInt(1000000);
-
-		return (random < 1000000 * probability);
+		return (randomInt(1000000) < 1000000 * probability);
 	}
 
 	/**
