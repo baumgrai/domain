@@ -12,13 +12,20 @@ How it works:
 
 What it supports:
 - different databases - Oracle, MS-SQL-Server, MySQL and MariaDB
-- version control - creation, modification and/or deletion version can be annotated to new, changed and removed classes and fields - Java2Sql then automatically generates incremental database update scripts for any version 
+- version control - creation, modification and/or deletion version can be annotated to new, changed and removed classes and fields - `Java2Sql` then automatically generates incremental database update scripts for all versions 
 - class inheritance - object classes may be derived from other object classes (`Bike extends SqlDomainObject`, `RaceBike extends Bike`, `Bianchi extends RaceBike`)
-- data horizon - only objects newer than a configurable timespan in the past will be loaded and older objects will be removed from object store on synchronization
-- selective object loading and referential integrity - amount of persisted objects to loaded from database can be shrinked but referential integrity of loaded objects is ensured even if not all persisted objects are loaded
+- _data horizon_ - only objects newer than a configurable time in the past will be loaded and older objects will be removed from object store on synchronization
+- selective object loading and referential integrity - amount of persisted objects to load from database can be shrinked
+- referential integrity of loaded objects is ensured even if not all persisted objects are loaded (due to data horizon or selectibe object loading)
 - circular references on class and object level
-- direct access to children of domain object by managed 'accumulations' fields (`class Bike { Manufacturer manufacturer; }` `class Manufacturer { @Accumulation Set<Bike> bikes }`
-- multiple domain controller instances - multiple instances can act on the same persistence database, concurrent access can be synchronized   
+- direct access to current children of a domain object by managed 'accumulations' fields (`class Bike { Manufacturer manufacturer; }` `class Manufacturer { @Accumulation Set<Bike> bikes; }`
+- concurrent access - multiple domain controller instances can operate on the same persistence database, concurrent access can be synchronized using methods like `allocateObjectsExclusively()`
+- Java types `String`, `Integer`, `Long`, `Double` (and primitive types), `enum`, `LocalDate`, `LocalTime`, `LocalDateTime`, `byte[]`, `File` for persistable fields of domain classes
+- All other types if a conversion provider for these types is defined (TODO)
+- `List`s, `Set`s and `Map`s of these types (`List<Type>` for `enum Type`) as persistable field types
+- `List`s, `Set`s and `Map`s as elements of collections or values of maps (`Map<String>, List<Integer>`)  
 
-_domain_ has a small footprint - < 10k LoC, 200kB jar and few external libraries - only logging (slf4j2) and database drivers 
+Further information:
+- _domain_ has a small footprint - < 10k LoC, 200kB jar and few external libraries - only logging (slf4j2) and database drivers
+
 
