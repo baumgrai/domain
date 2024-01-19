@@ -25,6 +25,6 @@ What it supports:
 - `List`s, `Set`s and `Map`s of these types (`List<Type>` for `enum Type`) as persistable field types and as elements of collections or values of maps (`Map<String>, Set<Integer>`, `List<Map<LocalDate, Integer>>`)
 
 Further information:
-- _domain_ has a small footprint: 10k LoC, 200kB jar and few external libraries - only logging (slf4j2) and database drivers
 - _domain_ esures referential integrity - means parent is loaded if child is loaded - of loaded objects even if not all objects are loaded from persistence database
-- the only applications where SQL knowledge and knowledge about _domain specific Java <-> SQL conversion is neccesary, are selective object loading and allocating object exclusively
+- the only applications where SQL knowledge and knowledge about _domain_ specific Java <-> SQL conversion is needed, are selective object loading and allocating object exclusively, all others are Java-only
+- _domain_ has a small footprint: 10k LoC, 200kB jar and few external libraries - only logging (slf4j2) and database drivers
