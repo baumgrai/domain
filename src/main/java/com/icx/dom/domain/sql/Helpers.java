@@ -17,6 +17,11 @@ import com.icx.common.Reflection;
 import com.icx.common.base.CLog;
 import com.icx.common.base.Common;
 
+/**
+ * Field/column conversion and general helpers
+ * 
+ * @author baumgrai
+ */
 public abstract class Helpers extends Common {
 
 	static final Logger log = LoggerFactory.getLogger(Helpers.class);

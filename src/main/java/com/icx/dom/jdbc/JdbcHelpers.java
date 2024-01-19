@@ -202,7 +202,18 @@ public abstract class JdbcHelpers extends Common {
 		resultMapStringBuilder.append(CLog.forSecretLogging(key, value));
 	}
 
-	// Log result map in order of column declaration - do not log passwords
+	/**
+	 * Log result map in order of column declaration.
+	 * <p>
+	 * Do not log passwords marked by column name containing 'passwor' or 'pwd'.
+	 * 
+	 * @param map
+	 *            column/value map
+	 * @param columnNames
+	 *            column name list for ordering result entries
+	 * 
+	 * @return string with
+	 */
 	public static String forLoggingSqlResult(SortedMap<String, Object> map, List<String> columnNames) {
 
 		if (map == null) {

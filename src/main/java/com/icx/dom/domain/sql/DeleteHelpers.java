@@ -19,9 +19,9 @@ import com.icx.dom.jdbc.SqlDbException;
 /**
  * Helpers for deleting objects.
  * <p>
- * Note: Deletion of an object means unregistering this object (removing it from object store), DELETEing associated records from database and do so for all direct and indirect children.
+ * Note: Deletion of a domain object means unregistering this object (removing it from object store), DELETEing associated records from database and do so for all direct and indirect children.
  * 
- * @author RainerBaumgärtel
+ * @author baumgrai
  */
 public class DeleteHelpers extends Common {
 
@@ -38,7 +38,7 @@ public class DeleteHelpers extends Common {
 
 					if (objectsEqual(objectToCheck.getFieldValue(refField), objectToDelete)) {
 
-						log.info("SDO: {}Circular reference detected: {}.{} references {}! Reset reference before deleting object.", CLog.tabs(stackSize), objectToCheck.name(), refField.getName(),
+						log.info("SDC: {}Circular reference detected: {}.{} references {}! Reset reference before deleting object.", CLog.tabs(stackSize), objectToCheck.name(), refField.getName(),
 								objectToDelete.name());
 
 						// Set object's field value to null
@@ -77,7 +77,7 @@ public class DeleteHelpers extends Common {
 		if (objectsToCheck == null) {
 			objectsToCheck = new ArrayList<>();
 		}
-		log.info("SDO: {}Delete {}", CLog.tabs(stackSize), obj.name());
+		log.info("SDC: {}Delete {}", CLog.tabs(stackSize), obj.name());
 
 		// Unregister this object
 		sdc.unregister(obj); // to avoid that this object can be found while deletion process runs
@@ -89,14 +89,14 @@ public class DeleteHelpers extends Common {
 			deleteRecursiveFromDatabase(cn, sdc, child, unregisteredObjects, objectsToCheck, stackSize + 1);
 		}
 
-		// Delete object itself from database (if it was already saved)
+		// Delete object itself from database (if it was already stored)
 		if (obj.isStored) {
 			checkForAndResetCircularReferences(cn, sdc, obj, objectsToCheck, stackSize);
 			deleteFromDatabase(cn, sdc, obj);
 
 			objectsToCheck.remove(obj); // object was DELETED in database and does not need be checked for circular references anymore
 			if (log.isTraceEnabled()) {
-				log.trace("SDO: {}{} was deleted", CLog.tabs(stackSize), obj.name());
+				log.trace("SDC: {}{} was deleted", CLog.tabs(stackSize), obj.name());
 			}
 		}
 	}

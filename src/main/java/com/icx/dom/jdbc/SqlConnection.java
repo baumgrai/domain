@@ -7,9 +7,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Autoclosable database connection class
+ * Autoclosable database connection class based on {@link ConnectionPool}.
  * 
- * @author RainerBaumgärtel
+ * @author baumgrai
  */
 public class SqlConnection implements AutoCloseable {
 
@@ -27,7 +27,7 @@ public class SqlConnection implements AutoCloseable {
 	// Constructor
 	// -------------------------------------------------------------------------
 
-	SqlConnection(
+	private SqlConnection(
 			ConnectionPool pool,
 			boolean autoCommit) throws SQLException { // Initialization must be done in constructor to satisfy Sonarqube (which complains if code is in open() method)
 
@@ -68,7 +68,9 @@ public class SqlConnection implements AutoCloseable {
 			// Commit open transaction on non-auto commit connections
 			if (!cn.getAutoCommit()) {
 				cn.commit();
-				log.info("SCO: Transaction committed on returning connection to pool");
+				if (log.isDebugEnabled()) {
+					log.debug("SCO: Transaction committed on returning connection to pool");
+				}
 			}
 		}
 		catch (SQLException e) {

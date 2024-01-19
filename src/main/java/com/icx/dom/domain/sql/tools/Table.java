@@ -12,6 +12,11 @@ import com.icx.dom.domain.sql.SqlDomainObject;
 import com.icx.dom.domain.sql.SqlRegistry;
 import com.icx.dom.jdbc.SqlDb.DbType;
 
+/**
+ * Modeling a database table in context of {@link Java2Sql} tool
+ * 
+ * @author baumgrai
+ */
 public class Table {
 
 	static final Logger log = LoggerFactory.getLogger(Table.class);

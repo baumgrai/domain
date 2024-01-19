@@ -26,9 +26,14 @@ import com.icx.dom.domain.sql.tools.FkConstraint.ConstraintType;
 import com.icx.dom.jdbc.JdbcHelpers;
 import com.icx.dom.jdbc.SqlDb.DbType;
 
-public class Helpers extends JdbcHelpers {
+/**
+ * Helpers for {@link Java2Sql} tool
+ * 
+ * @author baumgrai
+ */
+public class Java2SqlHelpers extends JdbcHelpers {
 
-	static final Logger log = LoggerFactory.getLogger(Helpers.class);
+	static final Logger log = LoggerFactory.getLogger(Java2SqlHelpers.class);
 
 	// Indentation
 	public static String tabs(String name) {

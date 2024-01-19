@@ -505,7 +505,7 @@ public class SqlDb extends Common {
 		else if (type == Double.class) {
 			return Types.DOUBLE;
 		}
-		else if (type == java.sql.Timestamp.class || type == oracle.sql.TIMESTAMP.class) {
+		else if (type == java.sql.Timestamp.class) {
 			return Types.TIMESTAMP;
 		}
 		else if (type == byte[].class) {
@@ -1254,12 +1254,14 @@ public class SqlDb extends Common {
 					column.maxlen = rs.getInt("COLUMN_SIZE");
 					int nullableInt = rs.getInt("NULLABLE");
 					column.isNullable = (nullableInt == ResultSetMetaData.columnNullable);
-					if (objectsEqual(column.name, primaryKeyColumnName))
+					if (objectsEqual(column.name, primaryKeyColumnName)) {
 						column.isPrimaryKey = true;
+					}
 
 					table.columns.add(column);
-					if (column.isIdentity())
+					if (column.isIdentity()) {
 						table.identityColumn = column;
+					}
 				}
 			}
 

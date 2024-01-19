@@ -17,17 +17,17 @@ import com.icx.common.base.Common;
 /**
  * JDBC database {@link Connection} pool.
  * <p>
- * Manages pooled database connections for given <b>database connection string</b>, <b>user</b> and <b>password</b> independently of database type. Pool contains already opened database connections
- * which are (re)used on connection requests.
+ * Manages pooled database connections for given <b>database connection string</b>, <b>user</b> and <b>password</b> independently of database type. Connection pool contains already opened database
+ * connections which then will be (re)used by following connection requests.
  * <p>
- * {@code JdbcConnectionPool} object can be created using {@link #JdbcConnectionPool(Properties)} from {@link Properties} object containing <b>{@code dbConnectionString}</b>, <b>{@code dbUser}</b>,
- * <b>{@code dbPassword}</b> properties.
+ * {@code ConnectionPool} object can be created using {@link #ConnectionPool(Properties)} from {@link Properties} object containing <b>{@code dbConnectionString}</b>, <b>{@code dbUser}</b>,
+ * <b>{@code dbPassword}</b> properties or directly using {@link #ConnectionPool(String, String, String, int)}.
  * <p>
- * At maximum {@code poolSize} (given as last parameter in constructor call {@link #JdbcConnectionPool(String, String, String, int)}) open connections are kept in pool and reused on connection
- * requests using {@link #getConnection()}. If # of open connections in pool equals pool size additional connections will be closed physically on {@link #returnConnection(Connection)} and have to be
- * reopened on further request. If pool size is {@code UNLIMITED} (recommended) connections generally won't be closed physically before closing pool (which means # of open connections in pool is
- * maximum # of connections used at the same time after pool creation). Pool size == 0 means no pooling: every connection requested is immediately closed physically on
- * {@code returnConnection(Connection)}, so no unused connections stay open and on any connection request a new physical database connection must be opened (performance!).
+ * At maximum {@code poolSize} open connections are kept in pool and reused on connection requests using {@link #getConnection()}. If # of open connections in pool equals pool size additional
+ * connections will be closed physically on {@link #returnConnection(Connection)} and will to be reopened on further connection request. If pool size is {@code UNLIMITED} (recommended) connections
+ * generally won't be closed physically before closing pool (which also means # of open connections in pool equals maximum # of connections used at the same time in the past). Pool size == 0 disables
+ * pooling function: every connection requested is immediately closed physically on {@code returnConnection(Connection)}, so no unused connections stay open and a new physical database connection will
+ * automatically be opened for any connection request (performance!).
  * 
  * @author baumgrai
  */
@@ -154,7 +154,8 @@ public class ConnectionPool extends Common {
 	// Pooled connections
 	// -------------------------------------------------------------------------
 
-	private static Connection getConnection(String dbConnectionString, String user, String password) throws SQLException {
+	// Retrieves physical database connection from JDBC driver manager
+	private static Connection getPhysicalConnection(String dbConnectionString, String user, String password) throws SQLException {
 
 		Connection cn = null;
 
@@ -172,8 +173,6 @@ public class ConnectionPool extends Common {
 
 	/**
 	 * Get a pooled database connection for given credentials.
-	 * <p>
-	 * Uses current auto-commit mode of pool for this connection.
 	 * 
 	 * @return open database connection
 	 * 
@@ -211,7 +210,7 @@ public class ConnectionPool extends Common {
 
 		// Acquire new physical connection if pool does not contain any reusable connection
 		if (cn == null) {
-			cn = getConnection(dbConnectionString, user, password);
+			cn = getPhysicalConnection(dbConnectionString, user, password);
 		}
 
 		// Add connection to currently used connections

@@ -1,5 +1,10 @@
 package com.icx.dom.domain.sql;
 
+/**
+ * Constants names of columns and fields
+ * 
+ * @author baumgrai
+ */
 public abstract class Const {
 
 	// Fields

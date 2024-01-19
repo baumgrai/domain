@@ -16,7 +16,7 @@ import com.icx.common.base.Common;
 /**
  * Annotations for domain classes and fields for Domain object persistence mechanism.
  * 
- * @author RainerBaumgärtel
+ * @author baumgrai
  */
 public abstract class DomainAnnotations {
 
@@ -25,7 +25,7 @@ public abstract class DomainAnnotations {
 	// ----------------------------------------------------------------------
 
 	/**
-	 * For object domain classes: Defines loading strategy for domain class objects by domain controller. If a domain class misses this annotation all persisted objects will be loaded (and registered)
+	 * For object domain classes: Defines loading strategy for domain class objects by domain controller. If a domain class misses this annotation all persisted objects will be loaded and registered
 	 * on startup of domain controller. If - otherwise - this annotation is defined for a domain class, 'older' objects (which were not changed within a 'data horizon period' - specified as
 	 * {@code dataHorizonPeriod} in {@code domain.properties}) will not be loaded and registered on startup, and objects will be unregistered automatically during runtime if they fall out of the data
 	 * horizon period. Reference integrity is guaranteed, that means that objects referenced by objects within data horizon period are loaded even if they are out of this period themselves. This
@@ -305,7 +305,7 @@ public abstract class DomainAnnotations {
 	public @interface Accumulation {
 
 		/**
-		 * @return name of reference field of child objects to accumulate used for this accumulation. Must only be defined if multiple fields reference same type of objects for child object class.
+		 * @return name of reference field of child objects to accumulate used for this accumulation. Must only be defined if multiple fields reference same type of objects.
 		 */
 		public String refField() default "";
 	}

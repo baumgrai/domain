@@ -1,7 +1,7 @@
 package com.icx.dom.domain;
 
 /**
- * Exceptions thrown on domain class registration
+ * Exceptions thrown on domain class registration errors
  * 
  * @author baumgrai
  */

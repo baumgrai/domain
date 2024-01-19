@@ -14,6 +14,11 @@ import com.icx.dom.domain.sql.SqlRegistry;
 import com.icx.dom.jdbc.JdbcHelpers;
 import com.icx.dom.jdbc.SqlDb.DbType;
 
+/**
+ * Modeling a unique constraint in context of {@link Java2Sql} tool
+ * 
+ * @author baumgrai
+ */
 public class UniqueConstraint {
 
 	static final Logger log = LoggerFactory.getLogger(UniqueConstraint.class);

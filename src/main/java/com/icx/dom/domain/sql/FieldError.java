@@ -6,6 +6,11 @@ import java.time.LocalDateTime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * Error description which will be associated to a field of a specific domain object on problems saving or loading field data to/from database
+ * 
+ * @author baumgrai
+ */
 public class FieldError {
 
 	static final Logger log = LoggerFactory.getLogger(FieldError.class);

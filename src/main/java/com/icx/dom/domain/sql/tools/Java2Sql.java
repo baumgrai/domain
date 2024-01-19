@@ -18,6 +18,9 @@ import org.slf4j.LoggerFactory;
 import com.icx.common.base.CFile;
 import com.icx.common.base.Common;
 import com.icx.dom.domain.DomainAnnotations;
+import com.icx.dom.domain.DomainAnnotations.Changed;
+import com.icx.dom.domain.DomainAnnotations.Created;
+import com.icx.dom.domain.DomainAnnotations.Removed;
 import com.icx.dom.domain.DomainAnnotations.SqlColumn;
 import com.icx.dom.domain.DomainAnnotations.SqlTable;
 import com.icx.dom.domain.Registry;
@@ -27,15 +30,15 @@ import com.icx.dom.jdbc.JdbcHelpers;
 import com.icx.dom.jdbc.SqlDb.DbType;
 
 /**
- * Java program to generate SQL scripts for persistence database from domain classes for Domain persistence mechanism.
+ * Java program to generate SQL scripts for generation of persistence database using defined domain classes - for Domain persistence mechanism.
  * <p>
- * Copy {@code Java2Sql.java} into domain package of application (where all domain classes must reside) and start it there without parameters (before starting you have to change the package in the
+ * Copy {@code Java2Sql.java} into domain package of application (where all domain classes must reside) and start it there without parameters (before starting you may have to change the package in the
  * first line of code).
  * <p>
- * {@code Java2Sql} generates three SQL table generation scripts: {@code create_mssql.sql}, {@code create_mysql.sql} and {@code create_oracle.sql} in directory {@code sql} parallel to {@code src}.
+ * {@code Java2Sql} generates three SQL table generation scripts: {@code create_ms_sql.sql}, {@code create_mysql.sql} and {@code create_oracle.sql} in directory {@code sql} parallel to {@code src}.
  * <p>
- * {@code Java2Sql} supports version control: Using annotations {@link SqlTable} {@link SqlColumn} the <b>product version</b>s where domain classes and/or single fields were created, changed or
- * dropped can be defined. {@code Java2Sql} then produces additional database update scripts for any product version defined in one of these annotations.
+ * {@code Java2Sql} supports version control: Using annotations {@link Created}, {@link Changed}, {@link Removed} the <b>product version</b>s where domain classes and/or single fields were created,
+ * changed or removed can be defined. {@code Java2Sql} then produces additional database update scripts for any product version defined in one of these annotations.
  * 
  * @author baumgrai
  */
@@ -47,7 +50,7 @@ public abstract class Java2Sql extends JdbcHelpers {
 	// Finals & statics
 	// ----------------------------------------------------------------------
 
-	public static final int DEFAULT_CHARSIZE = 256;
+	public static final int DEFAULT_CHARSIZE = 1024;
 	public static final int MAX_CHARSIZE = 2000;
 	public static final int MAX_ENUM_VALUE_LENGTH = 64;
 	public static final int MAX_CLASSNAME_LENGTH = 64;
@@ -127,8 +130,8 @@ public abstract class Java2Sql extends JdbcHelpers {
 		// Generate column definitions and foreign key constraints for registered fields of domain class - include dropped fields here because 'registerAlsoDroppedFields' is true for Java2Sql
 		for (Field field : registry.getRegisteredFields(domainClass)) {
 
-			if (version != null && Helpers.getCreatedVersion(field).compareTo(version) > 0) { // Table creation in incremental update script: ignore fields created in a newer version
-				log.info("J2S: \t\t\tField '{}' was created in version {} but incremental update script is for version {}", field.getName(), Helpers.getCreatedVersion(field), version);
+			if (version != null && Java2SqlHelpers.getCreatedVersion(field).compareTo(version) > 0) { // Table creation in incremental update script: ignore fields created in a newer version
+				log.info("J2S: \t\t\tField '{}' was created in version {} but incremental update script is for version {}", field.getName(), Java2SqlHelpers.getCreatedVersion(field), version);
 				continue; // Incremental scripts: Do not create column for field which is created in a newer version on incremental table creation
 			}
 
@@ -136,7 +139,7 @@ public abstract class Java2Sql extends JdbcHelpers {
 			if (registry.isComplexField(field)) {
 
 				// Table related field: create entry table - use field type
-				newTables.add(Helpers.buildEntryTable(field, null, dbType));
+				newTables.add(Java2SqlHelpers.buildEntryTable(field, null, dbType));
 			}
 			else {
 				// Define column from field
@@ -216,17 +219,17 @@ public abstract class Java2Sql extends JdbcHelpers {
 		List<Table> createdEntryTables = new ArrayList<>();
 		for (Field field : registry.getRelevantFields(domainClass)) {
 
-			if (Helpers.wasCreatedInVersion(field, version)) {
+			if (Java2SqlHelpers.wasCreatedInVersion(field, version)) {
 
 				// New fields
 
 				// Get attributes to override by information from @Created annotation if specified
-				Map<String, String> createInfoMap = Helpers.getCreateInfo(field);
+				Map<String, String> createInfoMap = Java2SqlHelpers.getCreateInfo(field);
 
 				if (registry.isComplexField(field)) {
 
 					// Build entry table associated to collection/map field - use collection type if specified in create info or field type
-					Table entryTable = Helpers.buildEntryTable(field, createInfoMap.get(DomainAnnotations.COLLECTION_TYPE), dbType);
+					Table entryTable = Java2SqlHelpers.buildEntryTable(field, createInfoMap.get(DomainAnnotations.COLLECTION_TYPE), dbType);
 					createdEntryTables.add(entryTable);
 
 					// Add create script for entry table
@@ -237,7 +240,7 @@ public abstract class Java2Sql extends JdbcHelpers {
 					Column column = table.addColumnForRegisteredField(field);
 
 					// Override column attributes according to values specified in create info
-					Helpers.updateColumnAttributes(column, createInfoMap);
+					Java2SqlHelpers.updateColumnAttributes(column, createInfoMap);
 
 					// Add ALTER TABLE script to create column
 					script.append(column.alterTableAddColumnStatement());
@@ -260,12 +263,12 @@ public abstract class Java2Sql extends JdbcHelpers {
 					}
 				}
 			}
-			else if (Helpers.wasChangedInVersion(field, version)) {
+			else if (Java2SqlHelpers.wasChangedInVersion(field, version)) {
 
 				// Changed fields
 
 				// Get changes from version annotation
-				Map<String, String> changeInfoMap = Helpers.getChangeInfo(field, version);
+				Map<String, String> changeInfoMap = Java2SqlHelpers.getChangeInfo(field, version);
 
 				if (registry.isComplexField(field)) {
 
@@ -276,9 +279,9 @@ public abstract class Java2Sql extends JdbcHelpers {
 						// Collection type changed: use additional 'order' column for Lists and UNIQUE constraint for elements for Sets
 
 						// Create entry table associated to collection/map field as anchor for subsequent ADD/DROP statements - add both UNIQUE constraint for Set type and 'order' column for List type
-						Table entryTable = Helpers.buildEntryTable(field, "both", dbType);
-						Column orderColumnForList = Helpers.getElementOrderColumn(entryTable);
-						UniqueConstraint uniqueConstraintForSet = Helpers.getUniqueConstraintForElements(entryTable); // Both order column and unique constraint exist by 'both' parameter
+						Table entryTable = Java2SqlHelpers.buildEntryTable(field, "both", dbType);
+						Column orderColumnForList = Java2SqlHelpers.getElementOrderColumn(entryTable);
+						UniqueConstraint uniqueConstraintForSet = Java2SqlHelpers.getUniqueConstraintForElements(entryTable); // Both order column and unique constraint exist by 'both' parameter
 
 						String collectionType = changeInfoMap.get(DomainAnnotations.COLLECTION_TYPE);
 						if (collectionType.equalsIgnoreCase("list")) {
@@ -301,7 +304,7 @@ public abstract class Java2Sql extends JdbcHelpers {
 					Column column = table.addColumnForRegisteredField(field);
 
 					// Retrieve information from @Changed annotation and override information from @SqlColumn annotation if both are given
-					Helpers.updateColumnAttributes(column, changeInfoMap);
+					Java2SqlHelpers.updateColumnAttributes(column, changeInfoMap);
 
 					// Modify column
 					script.append(column.alterTableModifyColumnStatement(dbType));
@@ -319,14 +322,14 @@ public abstract class Java2Sql extends JdbcHelpers {
 					}
 				}
 			}
-			else if (Helpers.wasRemovedInVersion(field, version)) {
+			else if (Java2SqlHelpers.wasRemovedInVersion(field, version)) {
 
 				// Removed fields
 
 				if (registry.isComplexField(field)) {
 
 					// Drop entry table for removed field
-					script.append(Helpers.buildEntryTable(field, null, dbType).dropScript());
+					script.append(Java2SqlHelpers.buildEntryTable(field, null, dbType).dropScript());
 				}
 				else {
 					// Drop column (and foreign key constraint if exists) for removed field
@@ -365,11 +368,11 @@ public abstract class Java2Sql extends JdbcHelpers {
 		Table table = new Table(domainClass, dbType);
 
 		// Table changes (UNIQUE constraints and INDEXes)
-		if (Helpers.wasChangedInVersion(domainClass, version)) {
+		if (Java2SqlHelpers.wasChangedInVersion(domainClass, version)) {
 			script.append("\n");
 
 			SqlTable tableAnnotation = domainClass.getAnnotation(SqlTable.class);
-			Map<String, String> tableChangeInfo = Helpers.getChangeInfo(domainClass, version);
+			Map<String, String> tableChangeInfo = Java2SqlHelpers.getChangeInfo(domainClass, version);
 
 			if (tableChangeInfo.containsKey(DomainAnnotations.UNIQUE_CONSTRAINTS_TO_DROP)) {
 
@@ -457,7 +460,7 @@ public abstract class Java2Sql extends JdbcHelpers {
 		// Version specific DB increment scripts
 
 		// For all versions defined within table or column annotations of all (also deprecated) classes and fields
-		SortedSet<String> versions = Helpers.findAllVersions(domainClasses);
+		SortedSet<String> versions = Java2SqlHelpers.findAllVersions(domainClasses);
 		for (String version : versions) {
 
 			log.info("J2S: Generate incremental SQL scripts for {} and version {}...", dbType, version);
@@ -468,22 +471,22 @@ public abstract class Java2Sql extends JdbcHelpers {
 			// CREATE, DROP or ALTER tables for version... - consider also removed domain classes
 			for (Class<? extends SqlDomainObject> domainClass : registry.getRelevantDomainClasses()) {
 
-				if (Helpers.wasCreatedInVersion(domainClass, version)) {
+				if (Java2SqlHelpers.wasCreatedInVersion(domainClass, version)) {
 					createdTablesForVersion.addAll(createTablesForDomainClass(alterScriptForVersion, version, domainClass, dbType));
 					alterScriptForVersion.append("\n");
 				}
-				else if (Helpers.wasRemovedInVersion(domainClass, version)) {
+				else if (Java2SqlHelpers.wasRemovedInVersion(domainClass, version)) {
 					alterScriptForVersion.append(new Table(domainClass, dbType).dropScript());
 					alterScriptForVersion.append("\n");
 				}
 				else {
 					// Check version related annotations for all relevant (also removed) fields
-					if (registry.getRelevantFields(domainClass).stream().anyMatch(f -> Helpers.isFieldAffected(f, version))) {
+					if (registry.getRelevantFields(domainClass).stream().anyMatch(f -> Java2SqlHelpers.isFieldAffected(f, version))) {
 						createdTablesForVersion.addAll(alterTablesForDomainClass(alterScriptForVersion, version, domainClass, dbType));
 					}
 
 					// Check if changes on multi column UNIQUE constrains or indexes were made
-					if (Helpers.wasChangedInVersion(domainClass, version)) {
+					if (Java2SqlHelpers.wasChangedInVersion(domainClass, version)) {
 						changeUniqueConstraintsAndIndexesForDomainClass(alterScriptForVersion, version, domainClass, dbType);
 						alterScriptForVersion.append("\n");
 					}

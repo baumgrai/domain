@@ -17,6 +17,11 @@ import com.icx.dom.domain.sql.SqlRegistry;
 import com.icx.dom.domain.sql.tools.FkConstraint.ConstraintType;
 import com.icx.dom.jdbc.SqlDb.DbType;
 
+/**
+ * Modeling a table column in context of {@link Java2Sql} tool
+ * 
+ * @author baumgrai
+ */
 public class Column {
 
 	static final Logger log = LoggerFactory.getLogger(Column.class);
@@ -142,7 +147,7 @@ public class Column {
 			return "";
 		}
 
-		return "\t" + name + Helpers.tabs(name) + type + (isPrimaryKey ? Helpers.tabs(type) + "PRIMARY KEY" : notNull ? Helpers.tabs(type) + "NOT NULL" : "");
+		return "\t" + name + Java2SqlHelpers.tabs(name) + type + (isPrimaryKey ? Java2SqlHelpers.tabs(type) + "PRIMARY KEY" : notNull ? Java2SqlHelpers.tabs(type) + "NOT NULL" : "");
 	}
 
 	public String alterTableAddColumnStatement() {

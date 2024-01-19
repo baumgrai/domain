@@ -23,6 +23,18 @@ import com.icx.common.base.CList;
 import com.icx.common.base.CMap;
 import com.icx.common.base.Common;
 
+/**
+ * Helpers for conversion of collections and maps to/from associated rows of entry tables
+ * <p>
+ * Fields of domain classes which contain collections or maps are represented in database as separate 'entry' tables unlike fields containing simple values which will be represented as table columns.
+ * Methods of this class perform conversion between these representations.
+ * <p>
+ * Collections supported as fields of domain objects may contain alternatively strings, numbers (Integer, Long, Float, Double), enum values and other simple objects, which can be constructed using a
+ * constructor with one string argument. The same is valid for keys and values of maps supported as fields of domain objects. Collection elements and map values may also be themselves collections or
+ * maps of simple elements. But map keys may only be simple elements.
+ * 
+ * @author baumgrai
+ */
 public abstract class ComplexFieldHelpers extends Common {
 
 	static final Logger log = LoggerFactory.getLogger(ComplexFieldHelpers.class);
