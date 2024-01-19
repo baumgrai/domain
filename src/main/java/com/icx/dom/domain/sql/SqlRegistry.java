@@ -31,7 +31,7 @@ import com.icx.dom.jdbc.SqlDbTable.Column;
 /**
  * Singleton to register Java class/SQL table and field/column associations. Based on domain class registration of {@link Registry}. Only used internally.
  * 
- * @author RainerBaumgärtel
+ * @author baumgrai
  */
 public class SqlRegistry extends Registry<SqlDomainObject> {
 
