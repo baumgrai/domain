@@ -36,7 +36,10 @@ import com.icx.dom.domain.sql.SqlDomainController;
  * <p>
  * Specific domain controllers extend this class.
  * 
- * @author RainerBaumgärtel
+ * @param <T>
+ *            Base type of domain objects
+ * 
+ * @author baumgrai
  */
 public abstract class DomainController<T extends DomainObject> extends Common {
 
@@ -49,7 +52,8 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 	// Registry
 	public Registry<T> registry = new Registry<>();
 
-	// Object map by domain class of maps by object id
+	// Object store - map of maps of objects by object id by domain class
+	// Note: Objects of domain classes which are derived from other domain classes have multiple entries - one entry per (derived) domain class - here
 	protected Map<Class<? extends T>, SortedMap<Long, T>> objectMap = new ConcurrentHashMap<>();
 
 	// -------------------------------------------------------------------------
@@ -59,7 +63,10 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 	/**
 	 * Register domain classes by given domain package.
 	 * <p>
-	 * All top level classes in this package and in any sub package which extends DomainObject class will be registered as domain classes.
+	 * All classes in this package and in any sub package which extends DomainObject class will be registered as domain classes.
+	 * <p>
+	 * Top level domain classes are so called 'object domain classes'. E.g.: RaceBike extends Bike (extends SqlDomainObject) -> RaceBike is 'object' domain class, Bike is domain class. Non-'object'
+	 * domain classes must be abstract.
 	 * 
 	 * @param baseClass
 	 *            class where all domain classes to register are derived from ({@code SqlDomainObject.class})
@@ -70,6 +77,7 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 	 *             on registration error
 	 */
 	public void registerDomainClasses(Class<T> baseClass, String domainPackageName) throws DomainException {
+
 		registry.registerDomainClasses(baseClass, domainPackageName);
 		registry.getRegisteredDomainClasses().forEach(c -> objectMap.put(c, new ConcurrentSkipListMap<>()));
 	}
@@ -77,7 +85,8 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 	/**
 	 * Register given object domain classes and derived domain classes.
 	 * <p>
-	 * Classes must extend DomainObject class. Only object domain class (highest class in derivation order) must be given here if derived domain classes exists.
+	 * Classes must extend DomainObject class. Automatically registers base domain classes for given object domain class on inherited domain classes (RaceBike extends Bike -> only RaceBike has to be
+	 * provided). Automatically registers inner domain classes and parent domain classes (Bike references Manufacturer -> only Bike has to be provided) too.
 	 * 
 	 * @param baseClass
 	 *            class where all domain classes to register are derived from ({@code SqlDomainObject.class})
@@ -89,6 +98,7 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 	 */
 	@SafeVarargs
 	public final void registerDomainClasses(Class<T> baseClass, Class<? extends T>... domainClasses) throws DomainException {
+
 		registry.registerDomainClasses(baseClass, domainClasses);
 		registry.getRegisteredDomainClasses().forEach(c -> objectMap.put(c, new ConcurrentSkipListMap<>()));
 	}
@@ -113,7 +123,7 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 	// Use milliseconds, thread id and random value for unique identifier
 	protected synchronized <S extends T> long generateUniqueId(Class<S> domainObjectClass) {
 
-		@SuppressWarnings("deprecation")
+		@SuppressWarnings("deprecation") // New method threadId() does not exist in older Java versions
 		long id = new Date().getTime() * 100000 + (Thread.currentThread().getId() % 100) * 1000 + CRandom.randomInt(1000);
 		for (Class<? extends T> domainClass : registry.getDomainClassesFor(domainObjectClass)) {
 			while (objectMap.get(domainClass).containsKey(id)) {
@@ -125,11 +135,19 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 
 	// Instantiate domain object - called on loading new object from database and if objects are created using create() methods of domain controller
 	@SuppressWarnings("unchecked")
-	public final <S extends T> S instantiate(Class<S> objectDomainClass) throws InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException {
+	public final <S extends T> S instantiate(Class<S> objectDomainClass) {
 
-		S obj = (S) registry.getConstructor(objectDomainClass).newInstance();
-		initializeFields(obj);
-		return obj;
+		try {
+			S obj = (S) registry.getConstructor(objectDomainClass).newInstance();
+			initializeFields(obj);
+			return obj;
+		}
+		catch (InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException ex) {
+			// Note #instantiate() method is only used in context of domain persistence mechanism where these exceptions may not be thrown because it is ensured on domain controller startup that a
+			// public parameterless constructor exists for - non abstract - object domain classes, that this constructor is accessible per Reflection and that it does not throw exceptions itself
+			log.error("DC: Exception {} occurred trying to instantiate object of domain class '{}'", ex, objectDomainClass.getName());
+			return null;
+		}
 	}
 
 	/**
@@ -139,29 +157,24 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 	 * <p>
 	 * Uses default constructor which therefore must be defined explicitly if other constructors are defined!
 	 * 
-	 * @param <T>
-	 *            specific domain object class type
+	 * @param <S>
+	 *            specific object domain class type
 	 * @param domainObjectClass
 	 *            instantiable domain (object) class
 	 * @param init
 	 *            object initialization function
 	 * 
 	 * @return newly created domain object
-	 * @throws InvocationTargetException
-	 * @throws IllegalArgumentException
-	 * @throws IllegalAccessException
-	 * @throws InstantiationException
 	 */
-	public final <S extends T> S create(final Class<S> domainObjectClass, Consumer<S> init) throws InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException {
+	public final <S extends T> S create(final Class<S> domainObjectClass, Consumer<S> init) {
 
 		S obj = instantiate(domainObjectClass);
 		if (init != null) {
 			init.accept(obj);
 		}
+		obj.dc = this;
 		register(obj);
-		if (log.isDebugEnabled()) {
-			log.debug("DC: Created {}.", obj.name());
-		}
+		log.info("DC: Created {}.", obj.name());
 		return obj;
 	}
 
@@ -169,9 +182,7 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 	// Accumulations
 	// -------------------------------------------------------------------------
 
-	/**
-	 * Update accumulations (if exist) of parent objects reflecting any reference change of this object.
-	 */
+	// Update accumulations (if exist) of parent objects reflecting any reference change of this object.
 	public void updateAccumulationsOfParentObjects(T obj) {
 
 		if (obj.refForAccuShadowMap == null) {
@@ -253,6 +264,7 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 			return false;
 		}
 
+		obj.dc = this;
 		obj.id = id;
 		registry.getDomainClassesFor(objectDomainClass).forEach(c -> objectMap.get(c).put(id, obj));
 		updateAccumulationsOfParentObjects(obj);
@@ -276,11 +288,13 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 	/**
 	 * Register object in object store.
 	 * <p>
-	 * To call if application specific constructor is used to create domain object instead of using {@link DomainController#create(Class, java.util.function.Consumer)} or
+	 * To call if constructor is used to create domain object instead of using {@link DomainController#create(Class, java.util.function.Consumer)} or
 	 * {@link SqlDomainController#createAndSave(Class, java.util.function.Consumer)}.
 	 * 
-	 * @param <T>
-	 *            domain object class
+	 * @param <S>
+	 *            object domain class
+	 * @param obj
+	 *            object to register in object store
 	 * 
 	 * @return this object
 	 */
@@ -292,6 +306,9 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 
 	/**
 	 * Check if object is registered.
+	 * 
+	 * @param obj
+	 *            object to check
 	 * 
 	 * @return true if object is registered, false if it was deleted or if it was not loaded because it was out of data horizon on load time
 	 */
@@ -343,7 +360,7 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 			return false;
 		}
 
-		if (!objectsToCheck.contains(obj)) { // Avoid endless recursion
+		if (!objectsToCheck.contains(obj)) { // Avoid endless recursion on circular references
 			objectsToCheck.add(obj);
 
 			for (T child : getDirectChildren(obj)) {
@@ -352,6 +369,7 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 				}
 			}
 		}
+
 		return true;
 	}
 
@@ -360,12 +378,29 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Get object by domain class and id.
-	 *
-	 * @param <T>
+	 * Find object by id, return null if not found.
+	 * 
+	 * @param <S>
 	 *            specific domain class type
 	 * @param domainClass
-	 *            domain class - may also be any - non instantiable - base class of a domain object class
+	 *            domain class - may be an object domain class or a - non instantiable - base class of an object domain class (RaceBike or Bike)
+	 * @param objectId
+	 *            object id
+	 * 
+	 * @return object found or null
+	 */
+	@SuppressWarnings("unchecked")
+	public final <S extends T> S find(Class<S> domainClass, long objectId) {
+		return (S) objectMap.get(domainClass).get(objectId);
+	}
+
+	/**
+	 * Get object by domain class and id, throws exception if not found.
+	 *
+	 * @param <S>
+	 *            specific domain class type
+	 * @param domainClass
+	 *            domain class - may be an object domain class or a - non instantiable - base class of an object domain class (RaceBike or Bike)
 	 * @param objectId
 	 *            object id
 	 *
@@ -374,50 +409,43 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 	 * @throws ObjectNotFoundException
 	 *             if denoted object does not exist
 	 */
-	@SuppressWarnings("unchecked")
 	public final <S extends T> S get(Class<S> domainClass, long objectId) throws ObjectNotFoundException {
 
-		S object = (S) objectMap.get(domainClass).get(objectId);
-		if (object != null) {
-			return object;
+		S object = find(domainClass, objectId);
+		if (object == null) {
+			throw new ObjectNotFoundException("No " + domainClass.getSimpleName().toLowerCase() + " found for id: " + objectId);
 		}
 
-		throw new ObjectNotFoundException("No " + domainClass.getSimpleName().toLowerCase() + " found for id: " + objectId);
+		return object;
 	}
 
 	/**
-	 * Find object by id using {@link #get(Class, long)}, return null if not found.
+	 * Find object by universal object id, return null if not found.
 	 * 
-	 * @param domainClass
-	 *            domain class - may also be any - non instantiable - base class of a domain object class
-	 * @param objectId
-	 *            object id
+	 * @param universalId
+	 *            universal object id (scheme: 'domainclassname@objectid')
 	 * 
-	 * @return object found or null
+	 * @return object found or null (also on invalid universal id)
 	 */
-	public final <S extends T> S find(Class<S> domainClass, long objectId) {
-		try {
-			return get(domainClass, objectId);
-		}
-		catch (ObjectNotFoundException e) {
-			return null;
-		}
+	public final T find(String universalId) {
+		return find(getDomainClassByName(untilFirst(universalId, "@")), Long.parseLong(behindFirst(universalId, "@")));
 	}
 
 	/**
 	 * Retrieve all registered objects of a specific domain class.
 	 * <p>
-	 * Returns new set containing objects, not internally used collection.
+	 * Returns new set containing objects instead of existing collection which is part of object store.
 	 *
-	 * @param <T>
-	 *            specific domain object class type
+	 * @param <S>
+	 *            specific domain class type
 	 * @param domainClass
-	 *            domain class - may also be any - non instantiable - base class of a domain object class
+	 *            domain class - may be an object domain class or a - non instantiable - base class of an object domain class (RaceBike or Bike)
 	 *
-	 * @return set of all objects of given domain class
+	 * @return newly created set of all registered objects of given domain class
 	 */
 	@SuppressWarnings("unchecked")
 	public final <S extends T> Set<S> all(Class<S> domainClass) {
+
 		Set<S> objects = new HashSet<>();
 		objectMap.get(domainClass).values().forEach(v -> objects.add((S) v));
 		return objects;
@@ -426,12 +454,12 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 	/**
 	 * Check if any object is registered for given domain class.
 	 *
-	 * @param <T>
+	 * @param <S>
 	 *            specific domain class type
 	 * @param domainClass
-	 *            domain class - may also be any - non instantiable - base class of a domain object class
+	 *            domain class - may be an object domain class or a - non instantiable - base class of an object domain class (RaceBike or Bike)
 	 *
-	 * @return true if such object exists, false otherwise
+	 * @return true if a registered object of given domain class exists, false otherwise
 	 */
 	public final <S extends T> boolean hasAny(Class<S> domainClass) {
 		return (!objectMap.get(domainClass).isEmpty());
@@ -440,10 +468,10 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 	/**
 	 * Check if any domain object of a specific domain class is registered fulfilling given predicate.
 	 *
-	 * @param <T>
+	 * @param <S>
 	 *            specific domain class type
 	 * @param domainClass
-	 *            domain class - may also be any - non instantiable - base class of a domain object class
+	 *            domain class - may be an object domain class or a - non instantiable - base class of an object domain class (RaceBike or Bike)
 	 * @param predicate
 	 *            predicate to fulfill
 	 *
@@ -454,77 +482,97 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 	}
 
 	/**
-	 * Find any domain object of a specific domain class fulfilling predicate.
+	 * Find any registered domain object of a specific domain class fulfilling given predicate.
 	 *
-	 * @param <T>
+	 * @param <S>
 	 *            specific domain class type
 	 * @param domainClass
-	 *            domain class - may also be any - non instantiable - base class of a domain object class
+	 *            domain class - may be an object domain class or a - non instantiable - base class of an object domain class (RaceBike or Bike)
 	 * @param predicate
-	 *            predicate to fulfill by object to find
+	 *            predicate to fulfill
 	 *
-	 * @return any domain object found or null if no object fulfills given predicate
+	 * @return any domain object found or null if no object exists fulfilling given predicate
 	 */
 	public final <S extends T> S findAny(Class<S> domainClass, Predicate<S> predicate) {
-		Optional<S> opt = all(domainClass).stream().filter(predicate).findAny();
-		return (opt.isPresent() ? opt.get() : null);
+
+		if (predicate != null) {
+			return all(domainClass).stream().filter(predicate).findAny().orElse(null);
+		}
+		else {
+			return all(domainClass).stream().findAny().orElse(null);
+		}
 	}
 
 	/**
-	 * Retrieve all domain objects of a specific object domain class fulfilling given predicate.
+	 * Retrieve all registered domain objects of a specific domain class fulfilling given predicate.
+	 * <p>
+	 * Returns new set containing objects instead of existing collection which is part of object store.
 	 *
-	 * @param <T>
+	 * @param <S>
 	 *            specific domain class type
 	 * @param domainClass
-	 *            domain class - may also be any - non instantiable - base class of a domain object class
+	 *            domain class - may be an object domain class or a - non instantiable - base class of an object domain class (RaceBike or Bike)
 	 * @param predicate
-	 *            predicate to fulfill by object to select
+	 *            predicate to fulfill
 	 *
-	 * @return Domain object fulfilling given predicate
+	 * @return Registered domain objects fulfilling given predicate
 	 */
 	public final <S extends T> Set<S> findAll(Class<S> domainClass, Predicate<S> predicate) {
-		return all(domainClass).stream().filter(predicate).collect(Collectors.toSet());
+
+		if (predicate != null) {
+			return all(domainClass).stream().filter(predicate).collect(Collectors.toSet());
+		}
+		else {
+			return all(domainClass).stream().collect(Collectors.toSet());
+		}
 	}
 
 	/**
-	 * Get # of domain objects of a specific object domain class fulfilling predicate.
+	 * Get # of registered domain objects of a specific domain class fulfilling given predicate.
 	 *
-	 * @param <T>
+	 * @param <S>
 	 *            specific domain class type
 	 * @param domainClass
-	 *            domain class - may also be any - non instantiable - base class of a domain object class
+	 *            domain class - may be an object domain class or a - non instantiable - base class of an object domain class (RaceBike or Bike)
 	 * @param predicate
-	 *            predicate to fulfill by object
+	 *            predicate to fulfill
 	 *
-	 * @return Domain object fulfilling given predicate
+	 * @return Number of domain objects of given domain class fulfilling given predicate
 	 */
 	public final <S extends T> long count(Class<S> domainClass, Predicate<S> predicate) {
-		return all(domainClass).stream().filter(predicate).count();
+		if (predicate != null) {
+			return all(domainClass).stream().filter(predicate).count();
+		}
+		else {
+			return all(domainClass).stream().count();
+		}
 	}
 
 	/**
-	 * Retrieve all registered objects fulfilling given predicate.
+	 * Retrieve all registered domain objects fulfilling given predicate.
 	 * 
 	 * @param predicate
 	 *            predicate to fulfill
 	 * 
-	 * @return set of all objects currently loaded into object store
+	 * @return set of all registered objects - independently of their domain classes - fulfilling given predicate
 	 */
 	@SuppressWarnings("unchecked")
-	public final <S extends T> Set<S> findAll(Predicate<S> predicate) {
+	public final Set<T> findAll(Predicate<T> predicate) {
 
-		Set<S> all = new HashSet<>();
+		Set<T> all = new HashSet<>();
 		for (Class<? extends T> objectDomainClass : registry.getRegisteredObjectDomainClasses()) {
-			all.addAll(findAll((Class<S>) objectDomainClass, predicate));
+			all.addAll(findAll((Class<T>) objectDomainClass, predicate));
 		}
 		return all;
 	}
 
 	/**
-	 * Build sorted list from collection of domain objects.
+	 * Build sorted list from collection of domain objects of a specific domain class.
 	 * <p>
 	 * Sort by id or according to overridden {@code compareTo()} method.
 	 * 
+	 * @param <S>
+	 *            specific domain class type
 	 * @param objectCollection
 	 *            collection of domain objects
 	 * 
@@ -541,16 +589,20 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Group accumulation by given classifier.
+	 * Group (accumulated) elements by given classifier.
 	 * <p>
-	 * Example: {@code Map<Manufacturer, List<Car>> carByManufacturerMap = DomainController.groupBy(cars, c -> c.manufacturer)}
+	 * Example: {@code Map<Manufacturer, List<Bike>> bikeByManufacturerMap = DomainController.groupBy(bikes, c -> c.manufacturer)}
 	 * 
+	 * @param <S1>
+	 *            type of classifier objects
+	 * @param <S2>
+	 *            domain class type of (child) objects to group
 	 * @param accumulation
-	 *            accumulation
+	 *            set of (child) objects to group; typically an 'accumulation' - a managed set of children defined using {@link DomainAnnotations#Accumulation} annotation
 	 * @param classifier
 	 *            classifier for elements of accumulation - e.g.: a reference to another domain object, a property, a property of a referenced domain object
 	 * 
-	 * @return map with accumulated objects grouped by classifier
+	 * @return map with (accumulated) objects grouped by classifier
 	 */
 	public <S1, S2 extends T> Map<S1, Set<S2>> groupBy(Set<S2> accumulation, Function<S2, S1> classifier) {
 
@@ -571,17 +623,20 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 	}
 
 	/**
-	 * Count accumulation elements by general classifier.
-	 * <p>
+	 * Count (accumulated) elements by given classifier.
 	 * 
 	 * @see {@link #groupBy(Set, Function)}.
 	 * 
+	 * @param <S1>
+	 *            type of classifier objects
+	 * @param <S2>
+	 *            domain class type of (child) objects to group
 	 * @param accumulation
-	 *            accumulation
+	 *            set of (child) objects to group; typically an 'accumulation' - a managed set of children defined using {@link DomainAnnotations#Accumulation} annotation
 	 * @param classifier
 	 *            classifier for elements of accumulation - e.g.: a reference to another domain object, a property, a property of a referenced domain object
 	 * 
-	 * @return map with count of accumulated objects grouped by classifier
+	 * @return map with count of (accumulated) objects grouped by classifier
 	 */
 	public <S1, S2 extends T> Map<S1, Integer> countBy(Set<S2> accumulation, Function<S2, S1> classifier) {
 
@@ -590,6 +645,7 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 		for (Entry<S1, Set<S2>> entry : t2GroupedByT1Map.entrySet()) {
 			countGroupedByT1Map.put(entry.getKey(), entry.getValue().size());
 		}
+
 		return countGroupedByT1Map;
 	}
 }
