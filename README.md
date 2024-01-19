@@ -24,6 +24,7 @@ What it supports:
 - All other types if a conversion provider for these types is defined (TODO)
 - `List`s, `Set`s and `Map`s of these types (`List<Type>` for `enum Type`) as persistable field types
 - `List`s, `Set`s and `Map`s as elements of collections or values of maps (`Map<String>, Set<Integer>`, `List<Map<LocalDate, Integer>>`)
+
 (*) these are the only methods where SQL is needed in _domain_ - to define WHERE clauses for selection   
 
 Further information:
