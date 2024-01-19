@@ -33,11 +33,14 @@ import com.icx.dom.domain.DomainAnnotations.UseDataHorizon;
 import com.icx.dom.domain.GuavaReplacements.ClassInfo;
 import com.icx.dom.domain.GuavaReplacements.ClassPath;
 import com.icx.dom.domain.sql.SqlDomainObject;
+import com.icx.dom.domain.sql.tools.Java2Sql;
 
 /**
  * Find and register domain classes. Only used internally.
+ * <p>
+ * Used by {@link Java2Sql} tool to generate SQL scripts for generating persistence database and also used during initialization of domain controller.
  * 
- * @author RainerBaumgärtel
+ * @author baumgrai
  */
 public class Registry<T extends DomainObject> extends Reflection {
 
@@ -193,7 +196,6 @@ public class Registry<T extends DomainObject> extends Reflection {
 
 	// Check if field is of one of the types which forces to interpret field as 'data' field
 	private static boolean isDataFieldType(Class<?> type) {
-
 		return (String.class.isAssignableFrom(type) || isBooleanType(type) || isNumberType(type) || Enum.class.isAssignableFrom(type) || LocalDateTime.class.isAssignableFrom(type)
 				|| LocalDate.class.isAssignableFrom(type) || LocalTime.class.isAssignableFrom(type) || File.class.isAssignableFrom(type) || byte[].class.isAssignableFrom(type));
 	}
@@ -305,7 +307,7 @@ public class Registry<T extends DomainObject> extends Reflection {
 	// -------------------------------------------------------------------------
 
 	// Register data, reference and table related fields to serialize
-	// Do not use isDomainClass() and isObjectDomainClass() here because not all domain classes are already registered in this state!
+	// Note: do not use isDomainClass() and isObjectDomainClass() here because not all domain classes are already registered in this state!
 	private <S extends T> void registerDomainClass(Class<S> domainClass) throws DomainException {
 
 		String className = (domainClass.isMemberClass() ? domainClass.getDeclaringClass().getSimpleName() + "$" : "") + domainClass.getSimpleName();
@@ -324,6 +326,13 @@ public class Registry<T extends DomainObject> extends Reflection {
 		catch (NoSuchMethodException nsmex) {
 			throw new DomainException("Parameterless default constructor does not exist for domain class '" + domainClass.getSimpleName()
 					+ "'! If specific constructors are defined also the parameterless default constructor must be defined!");
+		}
+
+		// Check if parameterless default constructor does not throw any exception
+		Class<?>[] exceptionTypes = domainClassInfoMap.get(domainClass).constructor.getExceptionTypes();
+		if (exceptionTypes.length > 0) {
+			throw new DomainException("Parameterless default constructor for domain class '" + domainClass.getSimpleName() + "' throws " + exceptionTypes
+					+ "! Parameterless default constructors of domain classes may not throw exceptions");
 		}
 
 		// Log standard fields of DomainObject class for all domain classes
@@ -595,7 +604,8 @@ public class Registry<T extends DomainObject> extends Reflection {
 		init(baseClass);
 
 		// Find all object domain classes in given package and sub packages
-		for (ClassInfo classinfo : ClassPath.from(Thread.currentThread().getContextClassLoader()).getTopLevelClassesRecursive(domainPackageName)) {
+		ClassLoader cl = Thread.currentThread().getContextClassLoader();
+		for (ClassInfo classinfo : ClassPath.from(cl).getTopLevelClassesRecursive(domainPackageName)) {
 			try {
 				Class<? extends T> cls = castDomainClass(Class.forName(classinfo.getName()));
 				if (baseClass.isAssignableFrom(cls) && isObjectDomainClass(cls)) {
@@ -635,7 +645,7 @@ public class Registry<T extends DomainObject> extends Reflection {
 		objectDomainClassesToRegister.addAll(Stream.of(domainClasses).filter(this::isObjectDomainClass).collect(Collectors.toList()));
 		log.info("REG: Object domain classes to register: {}", objectDomainClassesToRegister.stream().map(Class::getSimpleName).collect(Collectors.toList()));
 
-		// Check if all domain classes which are no object domain classes are not instantiable (abstract)
+		// Check if all domain classes which are not object domain classes are not instantiable (abstract)
 		for (Class<? extends T> objectDomainClass : objectDomainClassesToRegister) {
 			checkObjectDomainClass(objectDomainClass);
 		}
