@@ -23,9 +23,7 @@ What it supports:
 - Java types `String`, `Integer`, `Long`, `Double` (and primitive types), `enum`, `LocalDate`, `LocalTime`, `LocalDateTime`, `byte[]`, `File` for persistable fields of domain classes
 - All other types if a conversion provider for these types is defined (TODO)
 - `List`s, `Set`s and `Map`s of these types (`List<Type>` for `enum Type`) as persistable field types
-- `List`s, `Set`s and `Map`s as elements of collections or values of maps (`Map<String>, List<Integer>`)  
+- `List`s, `Set`s and `Map`s as elements of collections or values of maps (`Map<String>, List<Integer>`, `Set<Map<LocalDate, Integer>>`)  
 
 Further information:
-- _domain_ has a small footprint - < 10k LoC, 200kB jar and few external libraries - only logging (slf4j2) and database drivers
-
-
+- _domain_ has a small footprint: 10k LoC, 200kB jar and few external libraries - only logging (slf4j2) and database drivers
