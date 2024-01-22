@@ -25,7 +25,7 @@ What it supports:
 - parent child relations between domain objects - `class Bike { Manufacturer manufacturer; }` - and direct access to children by managed 'accumulations' fields - `class Manufacturer { @Accumulation Set<Bike> bikes; }`
 - n:m relations between domain objects - using helper classes - `class A {}`, `class B {}`, `class AB { A a; B b; }`
 
-[^1]: The only applications where SQL knowledge (and knowledge about *domain* specific Java <-> SQL conversion) is needed, are selective object loading and allocating objects exclusively, all others are Java-only.
+[^1]: The only applications where SQL knowledge (and knowledge about *domain* specific Java <-> SQL conversion) is needed, are selective object loading and allocating objects exclusively, all others are Java-only. See Javadoc of the methods used for these applications.
 
 Also good to know:
 - *domain* ensures referential integrity even if not all persisted objects are loaded into object store - parent is loaded if child is loaded
