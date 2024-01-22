@@ -25,7 +25,7 @@ What it supports:
 - parent child relations between domain objects - `class Bike { Manufacturer manufacturer; }` and direct access to children by managed 'accumulations' fields - `class Manufacturer { @Accumulation Set<Bike> bikes; }`
 
 Also good to know:
-- *domain* ensures referential integrity, which means: parent is loaded to object store if child is loaded
+- *domain* ensures referential integrity even if not all persisted objects are loaded into object store. This means: parent is loaded if child is loaded
 - the only applications where SQL knowledge and knowledge about *domain* specific Java <-> SQL conversion is needed, are selective object loading and allocating object exclusively, all others are Java-only
 - code is Java 8 compatible
-- *domain* has a small footprint (10k LoC, 200kB jar), and needs very few external libraries - only logging ('slf4j' V2) and specific database driver
+- *domain* has a small footprint (10k LoC, 200kB jar), and needs very few external libraries - only logging (*slf4j* V2) and specific database driver
