@@ -24,7 +24,7 @@ What it supports:
 - `List`s, `Set`s and `Map`s of these types - `List<String>`, `Map<Type, LocalDateTime>` (where `Type` is an enum) - also as elements of collections or values of maps - `List<Map<LocalDate, Double>>`, `Map<String>, Set<Integer>`
 - parent child relations between domain objects - `class Bike { Manufacturer manufacturer; }` - and direct access to children by managed 'accumulations' fields - `class Manufacturer { @Accumulation Set<Bike> bikes; }`
 
-[^1]The only applications where SQL knowledge (and knowledge about *domain* specific Java <-> SQL conversion) is needed, are selective object loading and allocating objects exclusively, all others are Java-only.
+[^1]: The only applications where SQL knowledge (and knowledge about *domain* specific Java <-> SQL conversion) is needed, are selective object loading and allocating objects exclusively, all others are Java-only.
 
 Also good to know:
 - *domain* ensures referential integrity even if not all persisted objects are loaded into object store - parent is loaded if child is loaded
