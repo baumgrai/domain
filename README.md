@@ -3,12 +3,13 @@
 
 How it works:
 1) Let all classes with objects to persist extend `SqlDomainObject` class directly or indirectly (inheritance is supported)
-2) Use `Java2Sql` tool to automatically generate SQL scripts from these _domain_ classes and generate persistence database using these scripts
-3) Configure database connection in 'db.properties'
-4) On programm startup create `SqlDomainController' object and call `SqlDomainController#synchronize()` to synchronize object store in heap with persistence database
-5) Create domain objects using `DomainController#create(Class, Consumer init)` or using specific constructors and `DomainController#register(DomainObject)`
-6) Save domain objects in persistence database with `#save()` or `#createAndSave()`
-7) Find domain objects using methods like `DomainController#findAll(Class, Predicate)`, `DomainController#findAny(Class, Predicate)`
+2) Use `Java2Sql` tool to automatically generate SQL scripts from these classes
+3) Generate persistence database using these scripts
+4) Configure database connection in `db.properties`
+5) On programm startup create `SqlDomainController' object and call `SqlDomainController#synchronize()` to synchronize object store in heap with persistence database
+6) Create objects using `DomainController#create(Class, Consumer init)` or using individuell constructors and `DomainController#register(DomainObject)`
+7) Save objects in persistence database using `#save()` or create and save objects immediately with `SqlDomainController#createAndSave(Class, Consumer init)`
+8) Find objects using methods like `DomainController#findAll(Class, Predicate)`, `DomainController#findAny(Class, Predicate)`
 
 What it supports:
 - different databases - Oracle, MS-SQL-Server, MySQL and MariaDB
