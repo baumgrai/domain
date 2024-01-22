@@ -2,7 +2,7 @@
 **Lightweight SQL Persistence Layer for Java**
 
 How it works:
-- classes with objects to persist - _domain classes/domain objects_ - extend `SqlDomainObject` class
+- _domain_ classes with objects to persist (_domain_ objects) extend `SqlDomainObject` class
 - `Java2Sql` tool generates SQL scripts to create persistence database from domain classes 
 - _domain controller_ `SqlDomainController extends DomainController` manages domain object store during runtime
 - `SqlDomainController#synchronize()` initially loads objects and subsequently synchronizes object store and persistence database
