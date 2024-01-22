@@ -14,7 +14,7 @@ What it supports:
 - currently *Oracle*, *MS-SQL-Server*, *MySQL* and *MariaDB*
 - version control - version information can be annotated to new, changed and removed classes and fields - `Java2Sql` generates incremental database update scripts for consecutive versions 
 - inheritance - `Bike extends SqlDomainObject`, `RaceBike extends Bike`, `Bianchi extends RaceBike`
-- circular references on domain class and domain object level - `class X { X next; }`, `class A { B b; }`, class B { C c; }`, class C { A a; }`
+- circular references on domain class and domain object level - `class X { X next; }`, `class A { B b; }`, `class B { C c; }`, `class C { A a; }`
 - "NoSQL" selection - objects can be selected from object store using methods like `DomainController#findAll(Class, Predicate)`, `DomainController#findAny(Class, Predicate)` which do not need SQL where clauses
 - *data horizon* - only objects newer than a configurable time in the past (`dataHorizonPeriod` in `domain.properties`) will be loaded on synchronization, and older objects will be removed from object store for classes where `@UseDataHorizon` is annotated 
 - selective object loading - not all objects in persistence database must be loaded - `SqlDomainController#loadOnly()`
