@@ -21,7 +21,7 @@ What it supports:
 - concurrent access - multiple domain controller instances can operate on the same persistence database, access synchronization (e.g. for order processing) can be made using `SqlDomainController#allocateObjectsExclusively()`[^1]
 - `String`, `Integer`, `Long`, `Double` (and primitive types), `Enum`, `LocalDate`, `LocalTime`, `LocalDateTime`, `byte[]`, `File` as allowed Java types for persistable fields of domain classes
 - Also all other types if a conversion provider for these types is defined (TODO)
-- `List`s, `Set`s and `Map`s of these types - `List<String>`, `Map<Type, LocalDateTime>` (where `Type` is an enum) - also as elements of collections or values of maps - `List<Map<LocalDate, Double>>`, `Map<String>, Set<Integer>`
+- `List`s, `Set`s and `Map`s of these types - `List<String>`, `Map<Type, LocalDateTime>` (where `Type` is an enum) - also as elements of collections or values of maps - `List<Map<LocalDate, Double>>`, `Map<String, Set<Integer>>`
 - parent child relations between domain objects - `class Bike { Manufacturer manufacturer; }` - and direct access to children by managed 'accumulations' fields - `class Manufacturer { @Accumulation Set<Bike> bikes; }`
 
 [^1]: The only applications where SQL knowledge (and knowledge about *domain* specific Java <-> SQL conversion) is needed, are selective object loading and allocating objects exclusively, all others are Java-only.
