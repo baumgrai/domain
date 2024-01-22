@@ -81,6 +81,7 @@ if (JavaVersion.current().isJava8Compatible()) {
        		// options.addStringOption('Xmaxwarns', '500')
        		// options.addStringOption('Xmaxerrs', '50')
        		options.addStringOption('Xdoclint:none', '-quiet')
+       		options.addStringOption('locale', 'en_GB')
      	}
    	}
 }

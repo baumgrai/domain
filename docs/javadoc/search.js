@@ -25,21 +25,21 @@
 "use strict";
 const messages = {
     enterTerm: "Enter a search term",
-    noResult: "Keine Ergebnisse gefunden",
+    noResult: "No results found",
     oneResult: "Found one result",
     manyResults: "Found {0} results",
-    loading: "Suchindex wird geladen...",
+    loading: "Loading search index...",
     searching: "Searching...",
     redirecting: "Redirecting to first result...",
     copyUrl: "Copy URL",
     urlCopied: "Copied!"
 }
 const categories = {
-    modules: "Module",
+    modules: "Modules",
     packages: "Packages",
-    types: "Klassen und Schnittstellen",
-    members: "Mitglieder",
-    searchTags: "Tags suchen"
+    types: "Classes and Interfaces",
+    members: "Members",
+    searchTags: "Search Tags"
 };
 const highlight = "<span class='result-highlight'>$&</span>";
 const NO_MATCH = {};
