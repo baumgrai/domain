@@ -11,7 +11,7 @@ How to use:
 7) Save domain objects in persistence database using `#save()` or create and save objects immediately with `SqlDomainController#createAndSave(Class, Consumer init)`
 
 What it supports:
-- different databases - currently *Oracle*, *MS-SQL-Server*, *MySQL* and *MariaDB*
+- currently *Oracle*, *MS-SQL-Server*, *MySQL* and *MariaDB*
 - version control - version information can be annotated to new, changed and removed classes and fields - `Java2Sql` generates incremental database update scripts for all versions 
 - class inheritance - `Bike extends SqlDomainObject`, `RaceBike extends Bike`, `Bianchi extends RaceBike`
 - "NoSQL" selection - selecting objects from object store using methods like `DomainController#findAll(Class, Predicate)`, `DomainController#findAny(Class, Predicate)` which do not need SQL where clauses
