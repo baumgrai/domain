@@ -2,7 +2,7 @@
 **Lightweight SQL Persistence Layer for Java**
 
 How to use:
-1) Let all classes with objects to persist extend `SqlDomainObject` class directly or indirectly (inheritance is supported)
+1) Let all object classes to persist extend `SqlDomainObject` class directly or indirectly (inheritance is supported)
 2) Use `Java2Sql` tool to automatically generate SQL scripts from these classes
 3) Generate persistence database using these scripts
 4) Configure database connection in `db.properties`
