@@ -28,4 +28,4 @@ Also good to know:
 - *domain* ensures referential integrity even if not all persisted objects are loaded into object store - parent is loaded if child is loaded
 - the only applications where SQL knowledge (and knowledge about *domain* specific Java <-> SQL conversion) is needed, are selective object loading and allocating objects exclusively, all others are Java-only
 - source code of *domain* is Java 8 compatible
-- *domain* has a small footprint (10k LoC, 200kB jar), and needs only logging (*slf4j* V2) and specific database driver as external libraries
+- *domain* has a small footprint (10k LoC, 200kB jar), and needs only logging (*slf4j* and *log4j* V2) and specific database driver as external libraries
