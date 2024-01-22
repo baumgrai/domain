@@ -19,7 +19,7 @@ What it supports:
 - *data horizon* - only objects newer than a configurable time in the past (`dataHorizonPeriod` in `domain.properties`) will be loaded on synchronization, and older objects will be removed from object store for classes where `@UseDataHorizon` is annotated 
 - selective object loading - not all objects in persistence database must be loaded - `SqlDomainController#loadOnly()`
 - concurrent access - multiple domain controller instances can operate on the same persistence database, concurrent access (e.g. for order processing) can be synchronized using methods like `SqlDomainController#allocateObjectsExclusively()`
-- Java types `String`, `Integer`, `Long`, `Double` (and primitive types), `Enum`, `LocalDate`, `LocalTime`, `LocalDateTime`, `byte[]`, `File` for persistable fields of domain classes
+- `String`, `Integer`, `Long`, `Double` (and primitive types), `Enum`, `LocalDate`, `LocalTime`, `LocalDateTime`, `byte[]`, `File` as allowed Java types for persistable fields of domain classes
 - Also all other types if a conversion provider for these types is defined (TODO)
 - `List`s, `Set`s and `Map`s of these types (`List<String>`, `Map<Type, LocalDateTime> - where Type is an enum) - also as elements of collections or values of maps (`List<Map<LocalDate, Double>>`, `Map<String>, Set<Integer>`)
 - parent child relations between domain objects - `class Bike { Manufacturer manufacturer; }` and direct access to children by managed 'accumulations' fields - `class Manufacturer { @Accumulation Set<Bike> bikes; }`
