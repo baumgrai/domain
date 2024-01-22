@@ -18,6 +18,16 @@ import org.slf4j.event.Level;
  */
 public abstract class CLog {
 
+	/**
+	 * Check if logging level is enabled for logger.
+	 * 
+	 * @param logger
+	 *            logger
+	 * @param level
+	 *            level to check
+	 * 
+	 * @return true if level is enabled, false otherwise
+	 */
 	public static boolean isEnabled(Logger logger, Level level) {
 
 		if (level == Level.TRACE) {
@@ -40,6 +50,16 @@ public abstract class CLog {
 		}
 	}
 
+	/**
+	 * Log text message using given logging level.
+	 * 
+	 * @param logger
+	 *            logger
+	 * @param level
+	 *            logging level
+	 * @param text
+	 *            text message to log
+	 */
 	public static void log(Logger logger, Level level, String text) {
 
 		if (level == Level.TRACE && logger.isTraceEnabled()) {
@@ -65,7 +85,7 @@ public abstract class CLog {
 	/**
 	 * Convert object value to string containing also type of value for analytic logging.
 	 * <p>
-	 * null: null, char: 'v', String: "v", Date/Time/Calendar types: <type>@<formatted v>, others: <type>@v.toString()
+	 * null: null, char: 'v', String: "v", Date/Time/Calendar types: type@formatted_value, others: type@v.toString()
 	 * <p>
 	 * Method should only be used for trace and error logging because there is no mechanism to hide security critical values!
 	 * 
@@ -156,7 +176,7 @@ public abstract class CLog {
 	}
 
 	/**
-	 * Grey out secret info
+	 * Grey out secret info.
 	 * 
 	 * @param secretInfo
 	 *            secret info to replace by '*'
@@ -173,12 +193,22 @@ public abstract class CLog {
 		}
 	}
 
-	public static boolean isSecret(String expr) {
-		return (expr != null && (expr.contains(SECRET) || expr.toLowerCase().contains("passwor") || expr.toLowerCase().contains("pwd")));
+	/**
+	 * Check if a name forces secret logging of value.
+	 * <p>
+	 * Secret logging of value is forced for names containing '_secret', 'pwd' and 'passwor'.
+	 * 
+	 * @param name
+	 *            name to check
+	 * 
+	 * @return true if secret logging is forced, false otherwise
+	 */
+	public static boolean isSecret(String name) {
+		return (name != null && (name.contains(SECRET) || name.toLowerCase().contains("passwor") || name.toLowerCase().contains("pwd")));
 	}
 
 	/**
-	 * Build string for logging of value or '***' if expression given contains 'secret_' or 'passwor' or 'pwd'
+	 * Build string for logging of value or '***' if expression given contains 'secret_' or 'passwor' or 'pwd'.
 	 * 
 	 * @param expr
 	 *            expression (may be name of value to log)
@@ -192,12 +222,10 @@ public abstract class CLog {
 	}
 
 	/**
-	 * Returns indentation string of count tabs
+	 * Returns indentation string of count tabs.
 	 * 
-	 * @param level
-	 *            indentation level
-	 * @param indent
-	 *            # of spaces for one indentation
+	 * @param count
+	 *            number of tabs for indentation
 	 * 
 	 * @return indentation string
 	 */

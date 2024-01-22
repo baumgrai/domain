@@ -22,6 +22,9 @@ import java.util.Map.Entry;
  */
 public abstract class Common {
 
+	/**
+	 * UTF-8 charset
+	 */
 	public static final String UTF_8 = "UTF-8";
 
 	// -------------------------------------------------------------------------

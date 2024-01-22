@@ -1,5 +1,6 @@
 package com.icx.dom.jdbc;
 
+import java.sql.Connection;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -15,7 +16,7 @@ import com.icx.common.base.Common;
 /**
  * Objects of this class are associated to SQL database tables and contain table and column meta data.
  * <p>
- * {@code SqlDbTable} objects are created on registering database tables using {@link SqlDb#registerTable(String)} and can then be retrieved by table name using
+ * {@code SqlDbTable} objects are created on registering database tables using {@link SqlDb#registerTable(Connection, String)} and can then be retrieved by table name using
  * {@link SqlDb#findRegisteredTable(String)}.
  * <p>
  * Table metadata is stored in fields of {@code SqlDbTable}, column metadata in fields of {@link Column}, {@link ForeignKeyColumn}, {@link UniqueConstraint} subclasses.

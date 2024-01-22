@@ -22,7 +22,7 @@ import java.util.jar.Manifest;
  * 
  * @author baumgrai
  */
-public class CResource extends Common {
+public abstract class CResource extends Common {
 
 	// -------------------------------------------------------------------------
 	// Localized messages

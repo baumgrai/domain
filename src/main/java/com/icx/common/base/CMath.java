@@ -7,7 +7,7 @@ import java.util.Collection;
  * 
  * @author baumgrai
  */
-public class CMath {
+public abstract class CMath {
 
 	/**
 	 * Build sum of numbers
@@ -179,17 +179,5 @@ public class CMath {
 			doubleString = doubleString.replace(".", decimalSeparatorOrNull).replace(",", decimalSeparatorOrNull);
 
 		return doubleString;
-	}
-
-	public static void main(String[] args) {
-
-		System.out.println(formatDouble(42.0, 0, null));
-		System.out.println(formatDouble(42.0, 3, null));
-		System.out.println(formatDouble(42.0, 10, null));
-		System.out.println(formatDouble(42.12345, 0, null));
-		System.out.println(formatDouble(42.12345, 3, null));
-		System.out.println(formatDouble(42.12345, 10, null));
-		System.out.println(formatDouble(42.12345, 10, "."));
-		System.out.println(formatDouble(42.12345, 10, ","));
 	}
 }

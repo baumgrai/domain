@@ -40,6 +40,9 @@ import com.icx.dom.domain.sql.tools.Java2Sql;
  * <p>
  * Used by {@link Java2Sql} tool to generate SQL scripts for generating persistence database and also used during initialization of domain controller.
  * 
+ * @param <T>
+ *            type of domain object which will be registered ({@link SqlDomainObject}
+ * 
  * @author baumgrai
  */
 public class Registry<T extends DomainObject> extends Reflection {

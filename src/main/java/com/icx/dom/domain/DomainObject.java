@@ -12,6 +12,8 @@ import org.slf4j.LoggerFactory;
 import com.icx.common.Reflection;
 import com.icx.common.base.CLog;
 import com.icx.common.base.Common;
+import com.icx.dom.domain.sql.SqlDomainController;
+import com.icx.dom.domain.sql.SqlDomainObject;
 
 /**
  * Base class for objects managed by a domain controller.

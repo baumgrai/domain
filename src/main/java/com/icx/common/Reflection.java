@@ -59,7 +59,7 @@ public abstract class Reflection extends Common {
 	 * 
 	 * @return Associated object type if type is primitive, type itself otherwise
 	 */
-	public static <T> Class<?> getBoxingWrapperType(Class<T> type) {
+	public static Class<?> getBoxingWrapperType(Class<?> type) {
 
 		if (type == boolean.class) {
 			return Boolean.class;
@@ -140,7 +140,7 @@ public abstract class Reflection extends Common {
 	/**
 	 * Create new collection of specified type
 	 * 
-	 * @param <T>
+	 * @param <E>
 	 *            element type
 	 * @param collectionClass
 	 *            collection type (Set, List, ...)

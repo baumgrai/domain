@@ -27,6 +27,7 @@ import org.slf4j.LoggerFactory;
 import com.icx.common.Reflection;
 import com.icx.common.base.CRandom;
 import com.icx.common.base.Common;
+import com.icx.dom.domain.DomainAnnotations.Accumulation;
 import com.icx.dom.domain.sql.SqlDomainController;
 
 /**
@@ -598,7 +599,7 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 	 * @param <S2>
 	 *            domain class type of (child) objects to group
 	 * @param accumulation
-	 *            set of (child) objects to group; typically an 'accumulation' - a managed set of children defined using {@link DomainAnnotations#Accumulation} annotation
+	 *            set of (child) objects to group; typically an 'accumulation' - a managed set of children defined using {@link Accumulation} annotation
 	 * @param classifier
 	 *            classifier for elements of accumulation - e.g.: a reference to another domain object, a property, a property of a referenced domain object
 	 * 
@@ -624,15 +625,15 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 
 	/**
 	 * Count (accumulated) elements by given classifier.
-	 * 
-	 * @see {@link #groupBy(Set, Function)}.
+	 * <p>
+	 * Like {@link #groupBy(Set, Function)}.
 	 * 
 	 * @param <S1>
 	 *            type of classifier objects
 	 * @param <S2>
 	 *            domain class type of (child) objects to group
 	 * @param accumulation
-	 *            set of (child) objects to group; typically an 'accumulation' - a managed set of children defined using {@link DomainAnnotations#Accumulation} annotation
+	 *            set of (child) objects to group; typically an 'accumulation' - a managed set of children defined using {@link Accumulation} annotation
 	 * @param classifier
 	 *            classifier for elements of accumulation - e.g.: a reference to another domain object, a property, a property of a referenced domain object
 	 * 

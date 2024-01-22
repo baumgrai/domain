@@ -85,6 +85,7 @@ public abstract class CFile {
 	 * @return file object
 	 * 
 	 * @throws IOException
+	 *             if file or directory could not be created or written
 	 */
 	public static File checkOrCreateFile(File file) throws IOException {
 
@@ -247,12 +248,18 @@ public abstract class CFile {
 	}
 
 	/**
-	 * File search filter for file extensions
+	 * File search filter for file extensions.
 	 */
 	public static class ExtFilter implements FilenameFilter {
 
 		String ext;
 
+		/**
+		 * Constructor by extension.
+		 * 
+		 * @param ext
+		 *            extension
+		 */
 		public ExtFilter(
 				String ext) {
 
@@ -262,8 +269,9 @@ public abstract class CFile {
 		@Override
 		public boolean accept(File dir, String name) {
 
-			if (new File(dir, name).isDirectory())
+			if (new File(dir, name).isDirectory()) {
 				return false;
+			}
 
 			name = name.toLowerCase();
 			return name.endsWith(ext);
@@ -271,12 +279,18 @@ public abstract class CFile {
 	}
 
 	/**
-	 * File search filter working like file masks in console
+	 * File search filter working like file masks in console.
 	 */
 	public static class MaskFilter implements FilenameFilter {
 
 		String mask;
 
+		/**
+		 * Constructor by mask.
+		 * 
+		 * @param mask
+		 *            file mask (e.g. "*.txt")
+		 */
 		public MaskFilter(
 				String mask) {
 
@@ -289,18 +303,25 @@ public abstract class CFile {
 		@Override
 		public boolean accept(File dir, String name) {
 
-			if (new File(dir, name).isDirectory())
+			if (new File(dir, name).isDirectory()) {
 				return false;
+			}
 
 			return name.toLowerCase().matches(mask);
 		}
 	}
 
 	/**
-	 * Filter for searching subdirectories working like file masks in console
+	 * Filter for searching subdirectories working like file masks in console.
 	 */
 	public static class DirMaskFilter extends MaskFilter {
 
+		/**
+		 * Constructor by mask.
+		 * 
+		 * @param mask
+		 *            directory mask
+		 */
 		public DirMaskFilter(
 				String mask) {
 			super(mask);
@@ -309,8 +330,9 @@ public abstract class CFile {
 		@Override
 		public boolean accept(File dir, String name) {
 
-			if (!new File(dir, name).isDirectory())
+			if (!new File(dir, name).isDirectory()) {
 				return false;
+			}
 
 			return name.toLowerCase().matches(mask);
 		}

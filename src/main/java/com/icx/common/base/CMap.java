@@ -41,6 +41,10 @@ public abstract class CMap {
 	/**
 	 * Create and initialize generic map (HashMap)
 	 * 
+	 * @param <K>
+	 *            key type
+	 * @param <V>
+	 *            value type
 	 * @param firstKey
 	 *            first key
 	 * @param firstValue
@@ -65,6 +69,10 @@ public abstract class CMap {
 	/**
 	 * Create and initialize generic sorted map (TreeMap)
 	 * 
+	 * @param <K>
+	 *            key type
+	 * @param <V>
+	 *            value type
 	 * @param firstKey
 	 *            first key
 	 * @param firstValue
@@ -93,6 +101,8 @@ public abstract class CMap {
 	/**
 	 * Make keys in {@code Map<String, Object>} map uppercase
 	 * 
+	 * @param <V>
+	 *            value type
 	 * @param map
 	 *            map
 	 */

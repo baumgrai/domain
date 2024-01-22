@@ -7,7 +7,7 @@ import java.util.List;
  * 
  * @author baumgrai
  */
-public class CArray {
+public abstract class CArray {
 
 	// -------------------------------------------------------------------------
 	// Manipulation

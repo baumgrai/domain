@@ -15,6 +15,8 @@ public abstract class CSet {
 	/**
 	 * Create and initialize generic set (HashSet)
 	 * 
+	 * @param <E>
+	 *            type of set
 	 * @param firstElement
 	 *            first element
 	 * @param furtherElements
@@ -37,6 +39,8 @@ public abstract class CSet {
 	/**
 	 * Create and initialize generic sorted set (TreeSet)
 	 * 
+	 * @param <E>
+	 *            type of set
 	 * @param firstElement
 	 *            first element
 	 * @param furtherElements

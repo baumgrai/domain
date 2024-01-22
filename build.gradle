@@ -74,3 +74,13 @@ publishing {
         }
     }
 }
+
+if (JavaVersion.current().isJava8Compatible()) {
+   	allprojects {
+   		tasks.withType(Javadoc) {
+       		// options.addStringOption('Xmaxwarns', '500')
+       		// options.addStringOption('Xmaxerrs', '50')
+       		options.addStringOption('Xdoclint:none', '-quiet')
+     	}
+   	}
+}

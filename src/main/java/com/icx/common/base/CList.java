@@ -22,8 +22,10 @@ public abstract class CList {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Check if list is null or empty
+	 * Check if list is null or empty.
 	 * 
+	 * @param <T>
+	 *            list type
 	 * @param list
 	 *            list
 	 * 
@@ -34,8 +36,10 @@ public abstract class CList {
 	}
 
 	/**
-	 * Get last element of a list
+	 * Get last element of a list.
 	 * 
+	 * @param <T>
+	 *            list type
 	 * @param list
 	 *            list
 	 * 
@@ -56,8 +60,10 @@ public abstract class CList {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Create and initialize generic list
+	 * Create and initialize generic list.
 	 * 
+	 * @param <T>
+	 *            list type
 	 * @param objects
 	 *            elements
 	 * 
@@ -73,7 +79,7 @@ public abstract class CList {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Reverse list
+	 * Reverse list.
 	 * 
 	 * @param <T>
 	 *            Element type
@@ -93,6 +99,8 @@ public abstract class CList {
 	/**
 	 * Sort object stream collection by given comparator
 	 * 
+	 * @param <T>
+	 *            list type
 	 * @param objectStream
 	 *            stream of objects
 	 * @param comparator
@@ -118,6 +126,8 @@ public abstract class CList {
 	/**
 	 * Sort object collection by given comparator
 	 * 
+	 * @param <T>
+	 *            list type
 	 * @param objects
 	 *            collection of objects
 	 * @param comparator
@@ -139,6 +149,8 @@ public abstract class CList {
 	/**
 	 * Sort object collection by {@code Comparable} attribute retrieved using given getter
 	 * 
+	 * @param <T>
+	 *            list type
 	 * @param objectStream
 	 *            collection of objects
 	 * @param getter
@@ -164,6 +176,8 @@ public abstract class CList {
 	/**
 	 * Sort object collection by {@code Comparable} attribute retrieved using given getter
 	 * 
+	 * @param <T>
+	 *            list type
 	 * @param objects
 	 *            collection of objects
 	 * @param getter

@@ -26,6 +26,7 @@ import org.slf4j.LoggerFactory;
 
 import com.icx.common.base.CDateTime;
 import com.icx.common.base.Common;
+import com.icx.dom.domain.DomainAnnotations.UseDataHorizon;
 import com.icx.dom.domain.DomainController;
 import com.icx.dom.domain.DomainException;
 import com.icx.dom.domain.DomainObject;
@@ -237,7 +238,7 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	 * and overridden by database values! Warn logs will be written and warnings will be assigned to affected objects in this case. It's recommended to ensure that all local changes are saved before
 	 * calling {@link #synchronize(Class...)}.
 	 * <p>
-	 * For data horizon controlled domain classes this method first loads only objects within data horizon {@link @useDataHorizon}. But method ensures referential integrity by generally loading all
+	 * For data horizon controlled domain classes this method first loads only objects within data horizon {@link UseDataHorizon}. But method ensures referential integrity by generally loading all
 	 * referenced objects even if they are out of data horizon.
 	 * <p>
 	 * This method is used for initial loading of domain objects from persistence database on startup of domain controller. If there is a single domain controller instance connected to persistence
@@ -288,11 +289,11 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	 * Load objects of only one (primary) object domain class (selected by WHERE clause if specified) and also objects directly or indirectly referenced by these primarily loaded objects (to assure
 	 * referential integrity).
 	 * <p>
-	 * Note: To provide a WHERE clause one needs knowledge of the relation of Java domain class and field names and associated SQL object table and column names and also knowledge about column types
-	 * associated to field types. The basic rule for conversion of Java class/field names to SQL table/column names is: CaseFormat.UPPER_CAMEL -> CaseFormat.UPPER_UNDERSCORE. Tables additionally have
-	 * the prefix 'DOM_'. E.g.: class name -> table name: {@code Xyz} -> 'DOM_Xyz', {@code XYZ} -> 'DOM_X_Y_Z' and field name -> column name: {@code xyz} -> 'XYZ'. {@code xYz} -> 'X_YZ'. If field is a
-	 * reference field referencing another domain class the correspondent column has appendix '_ID' (because object references are realized as foreign key columns referencing unique object id). E.g.
-	 * {@code (Bike.)manufacturer} -> MANUFACTURER_ID in DOM_BIKE). If field name may be a reserved name in SQL column name also get prefix 'DOM_' like table names (e.g.: {@code date} -> 'DOM_DATE',
+	 * Note: To provide a WHERE clause one needs knowledge of the relation of Java class/field names and associated SQL table/column names and also knowledge about column types associated to field
+	 * types. The basic rule for conversion of Java class/field names to SQL table/column names is: CaseFormat.UPPER_CAMEL -> CaseFormat.UPPER_UNDERSCORE. Tables are additionally prefixed by 'DOM_'.
+	 * E.g.: class name -> table name: {@code Xyz} -> 'DOM_Xyz', {@code XYZ} -> 'DOM_X_Y_Z' and field name -> column name: {@code xyz} -> 'XYZ'. {@code xYz} -> 'X_YZ'. If field is a reference field
+	 * referencing another domain class the correspondent column has appendix '_ID' (object references are realized as foreign key columns referencing unique object id). E.g. <code> class Bike {
+	 * Manufacturer manufacturer; }</code> -> MANUFACTURER_ID in DOM_BIKE). If field name may be a reserved name in SQL the column name is also prefixed by 'DOM_' (e.g.: {@code date} -> 'DOM_DATE',
 	 * {@code type} -> 'DOM_TYPE'). Relation of field and column types generally is database type specific. For building WHERE clause there are following rules: {@code String}, {@code Enum} and
 	 * {@code File} fields result in appropriate database specific string columns (VARCHAR, NVARCHAR2), number fields ({@code Integer}, {@code Long}, {@code Double}, {@code BigInteger},
 	 * {@code BigDecimal}) result in appropriate database specific number columns (NUMBER, INTEGER, FLOAT, DOUBLE, BIGINT), LocaDate, LocalTime, LocalDateTime fields result in appropriate database
@@ -305,7 +306,7 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	 * @param maxCount
 	 *            maximum number of primary objects to load
 	 * 
-	 * @return objects loaded from database potentially including referenced objects of other classes than the given object domain class
+	 * @return objects loaded from database potentially including referenced objects of other classes than the given object domain class (referential integrity)
 	 * 
 	 * @throws SQLException
 	 *             on opening database connection or performing SELECT statements
@@ -513,8 +514,6 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	 * @param inProgressClass
 	 *            class for shadow records to ensure exclusivity of this operation - @see {@link #allocateObjectExclusively(SqlDomainObject, Class, Consumer)}
 	 * 
-	 * @return true if object was exclusively allocated before, false otherwise
-	 * 
 	 * @throws SQLException
 	 *             exceptions thrown establishing connection or on executing SQL UPDATE statement on saving object
 	 * @throws SqlDbException
@@ -530,7 +529,7 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	 * Exclusively compute a function on objects of one domain class and save updated objects immediately.
 	 * <p>
 	 * Works like {@link #allocateObjectsExclusively(Class, Class, String, int, Consumer)} but releases objects immediately after computing update function. Releasing updated objects
-	 * ({@link SqlDomainObject#releaseObject(Class, Class, Consumer)} is not necessary.
+	 * ({@link #releaseObject(SqlDomainObject, Class, Consumer)} is not necessary.
 	 * 
 	 * @param <S>
 	 *            specific domain object class type
@@ -561,8 +560,6 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	/**
 	 * Allocate this object exclusively, compute an update function on this object, save changed object and releases object immediately from exclusive use.
 	 * 
-	 * @param <S>
-	 *            specific domain object class type
 	 * @param obj
 	 *            object to compute function for
 	 * @param inProgressClass
@@ -711,6 +708,8 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	 * 
 	 * @return newly created domain object
 	 * 
+	 * @param <S>
+	 *            specific domain object class type
 	 * @throws SqlDbException
 	 *             on Java/SQL inconsistencies
 	 * @throws SQLException

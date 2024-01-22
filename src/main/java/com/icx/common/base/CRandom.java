@@ -43,6 +43,8 @@ public abstract class CRandom {
 	/**
 	 * Random selection of k-from-n different elements
 	 * 
+	 * @param <T>
+	 *            type of collection elements
 	 * @param elements
 	 *            element collection
 	 * @param count

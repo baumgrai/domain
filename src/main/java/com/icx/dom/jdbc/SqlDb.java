@@ -49,9 +49,9 @@ import com.icx.dom.jdbc.SqlDbTable.UniqueConstraint;
  * database connection is retrieved internally from connection pool of {@code SqlDb} object. Methods of first type support database transactions spanning more than one SQL statement (using
  * non-auto-commit connections in this case).
  * <p>
- * Database tables can be <b>registered</b> using {@link #registerTable(String)} in form of {@link SqlDbTable} objects, which provide meta data of these tables and their columns. {@link SqlDbTable}
- * provides also methods to analyze table reference structure of database. {@link SqlDbTable} objects for registered tables can be retrieved by table name using {@link #findRegisteredTable(String)}.
- * Database tables involved in INSERT and UPDATE methods will be registered internally on first call for performance reasons.
+ * Database tables can be <b>registered</b> using {@link #registerTable(Connection, String)} in form of {@link SqlDbTable} objects, which provide meta data of these tables and their columns.
+ * {@code SqlDbTable} provides also methods to analyze table reference structure of database. {@link SqlDbTable} objects for registered tables can be retrieved by table name using
+ * {@link #findRegisteredTable(String)}. Database tables involved in INSERT and UPDATE methods will be registered internally on first call for performance reasons.
  * <p>
  * Currently database types MS-SQL, Oracle and MySql are supported.
  * 
@@ -159,6 +159,8 @@ public class SqlDb extends Common {
 	 *            password or null
 	 * @param connectionPoolSize
 	 *            maximum # of open connections kept in connection pool
+	 * @param queryTimeout
+	 *            query timeout in milliseconds
 	 * 
 	 * @throws ConfigException
 	 *             if database connection string is null or empty and on unsupported database type (currently supported MS-SQL, Oracle, MySql)
@@ -182,7 +184,7 @@ public class SqlDb extends Common {
 	/**
 	 * Create database object from {@code Properties} object.
 	 * <p>
-	 * Behaves like {@link #SqlDb(String, String, String, int)}.
+	 * Behaves like {@link #SqlDb(String, String, String, int, int)}.
 	 * 
 	 * @param databaseProperties
 	 *            {@code Properties} object which must contain the following properties: {@code dbConnectionString}, {@code dbUser}, {@code dbPassword} and can optionally contain {@code poolSize}
@@ -207,6 +209,7 @@ public class SqlDb extends Common {
 	 * Close database connection pool and all open database connections
 	 * 
 	 * @throws SQLException
+	 *             exception on {@link Connection#close()}
 	 */
 	public void close() throws SQLException {
 
@@ -291,7 +294,6 @@ public class SqlDb extends Common {
 					try {
 						if (!st.isClosed()) {
 							st.cancel();
-							st.close();
 						}
 					}
 					catch (SQLException ex) {
@@ -699,8 +701,6 @@ public class SqlDb extends Common {
 
 	/**
 	 * INSERT one record into a database table on given database connection.
-	 * <p>
-	 * Behaves like {@link #insertInto(String, SortedMap, boolean)}.
 	 * 
 	 * @param cn
 	 *            database connection
@@ -728,8 +728,6 @@ public class SqlDb extends Common {
 
 	/**
 	 * INSERT multiple records per batch insert into a database table on given database connection.
-	 * <p>
-	 * Behaves like {@link #insertInto(String, SortedMap, boolean)}.
 	 * 
 	 * @param cn
 	 *            database connection
@@ -1161,6 +1159,7 @@ public class SqlDb extends Common {
 	 * Try to find already registered table by name
 	 * 
 	 * @param tableName
+	 *            name of database table
 	 * 
 	 * @return registered table object or null if table with given name was not registered
 	 */
