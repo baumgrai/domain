@@ -4,7 +4,7 @@
 How to use:
 1) Let all object classes to persist extend `SqlDomainObject` class (directly or indirectly - inheritance is supported)
 2) Generate SQL scripts for persistence database automatically from these classes using `Java2Sql` tool  
-3) Generate persistence database using these scripts
+3) Generate persistence database using these SQL scripts
 4) Configure database connection in `db.properties`
 5) On programm startup create `SqlDomainController` object and call `SqlDomainController#synchronize()` to synchronize object store in heap with persistence database
 6) Create and register *domain* objects using `DomainController#create(Class, Consumer init)` or using individuell constructors and `DomainController#register(DomainObject)`
