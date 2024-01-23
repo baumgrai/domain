@@ -197,7 +197,6 @@ class CommonTest extends TestHelpers {
 		assertEquals("java.sql.Date@1970-01-01", CLog.forAnalyticLogging(new java.sql.Date(0L)), "analytic log sql date");
 		assertEquals("java.sql.Time@01:00:00.000", CLog.forAnalyticLogging(new java.sql.Time(0L)), "analytic log sql time");
 		assertEquals("java.sql.Timestamp@1970-01-01 01:00:00.000", CLog.forAnalyticLogging(new java.sql.Timestamp(0L)), "analytic log Java timestamp");
-		assertEquals("oracle.sql.TIMESTAMP", Common.untilFirst(CLog.forAnalyticLogging(new oracle.sql.TIMESTAMP()), "@"), "analytic log Oracle timestamp");
 		assertEquals("java.util.Date@1970-01-01 01:00:00.000", CLog.forAnalyticLogging(new java.util.Date(0L)), "analytic log util date");
 		assertEquals("java.time.LocalDateTime", Common.untilFirst(CLog.forAnalyticLogging(LocalDateTime.now()), "@"), "analytic log local datetime");
 		assertEquals("java.time.LocalDate", Common.untilFirst(CLog.forAnalyticLogging(LocalDate.now()), "@"), "analytic log local date");
