@@ -15,6 +15,7 @@ import java.text.NumberFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.GregorianCalendar;
 import java.util.HashMap;
@@ -35,11 +36,13 @@ import org.slf4j.LoggerFactory;
 
 import com.icx.common.Prop;
 import com.icx.common.Reflection;
+import com.icx.common.base.CArray;
 import com.icx.common.base.CCollection;
 import com.icx.common.base.CFile;
 import com.icx.common.base.CList;
 import com.icx.common.base.CLog;
 import com.icx.common.base.CMap;
+import com.icx.common.base.CMath;
 import com.icx.common.base.CRandom;
 import com.icx.common.base.CResource;
 import com.icx.common.base.CSet;
@@ -73,6 +76,12 @@ class CommonTest extends TestHelpers {
 		assertTrue(Common.logicallyEqual(null, new ArrayList<>()), "logically equals null and empty list");
 		assertTrue(Common.logicallyEqual(new HashMap<>(), null), "logically equals empty map and null");
 		assertTrue(Common.logicallyEqual(null, new HashMap<>()), "logically equals null and empty map");
+
+		assertEquals(0, Common.compare(null, null));
+		assertTrue(Common.compare(null, 1) < 0);
+		assertTrue(Common.compare("a", null) > 0);
+		assertEquals(0, Common.compare("a", "a"));
+		assertTrue(Common.compare("A", "a") < 0);
 
 		assertEquals("a", Common.untilFirst("a.b.s", "."), "until first");
 		assertEquals("", Common.untilFirst("a.b.s", "a"), "until first");
@@ -109,11 +118,38 @@ class CommonTest extends TestHelpers {
 		assertEquals(123.45, Common.parseDouble("123.45", 123.46), "parse double");
 		assertEquals(123.46, Common.parseDouble("", 123.46), "parse double");
 
+		assertTrue(Common.isBoolean("true"));
+		assertTrue(Common.isInteger("123"));
+		assertFalse(Common.isInteger("123a	"));
+		assertTrue(Common.isLong("-1234567890"));
+		assertFalse(Common.isLong("1234567890X"));
+		assertTrue(Common.isDouble("+0.1"));
+		assertFalse(Common.isDouble("0&0"));
+		// assertTrue(Common.isDate("2/24/24", null));
+		assertTrue(Common.isDate("24.2.24", "dd.MM.yy"));
+		assertFalse(Common.isDate("24.FEB.2024", "dd.MM.yyyy"));
+
+		assertEquals("true", Common.formatBoolean(true, false));
+		assertEquals("false", Common.formatBoolean(null, false));
+		assertEquals("12", Common.formatInt(12, 13));
+		assertEquals("13", Common.formatInt(null, 13));
+		assertEquals("1234567890", Common.formatLong(1234567890L, 13L));
+		assertEquals("13", Common.formatLong(null, 13L));
+		assertEquals("1.2", Common.formatDouble(1.2, 1.3));
+		assertEquals("1.3", Common.formatDouble(null, 1.3));
+
 		assertEquals("a,null,", Common.listToString(CList.newList("a", null, "")), "list to string");
 		assertEquals(CList.newList("a", null, ""), Common.stringToList("[a,null,]"), "string to list");
 
 		assertEquals("a=A,b=null,c=", Common.mapToString(CMap.newMap("a", "A", "b", null, "c", "")), "map to string");
 		assertEquals(CMap.newMap("a", "A", "b", null, "c", ""), Common.stringToMap("{a=A,b=null,c=}"), "string to map");
+
+		assertEquals(CMap.newMap("a", "A,A1", "b", null, "c", ""), Common.stringToMultivalueMap("a=A,A1;b=(null);c=", StringSep.SEMICOLON, KeyValueSep.EQUAL_SIGN));
+
+		assertEquals("A 1 !", Common.insertSpaces("A1!"));
+		assertEquals("A", Common.capitalizeFirstLetter("a"));
+		assertEquals("Abc", Common.capitalizeFirstLetter("abc"));
+		assertEquals("12345", Common.removeNonDigits("1a2 3\t4?5"));
 
 		byte[] bytes = { (byte) 0xc3, (byte) 0xa4 };
 		assertEquals((byte) 0xc3, Common.getBytesUTF8("ä")[0], "UTF8 string to byte array");
@@ -144,18 +180,44 @@ class CommonTest extends TestHelpers {
 		assertTrue(CCollection.containsAny(CList.newList(4, 3, 2, 1), CList.newList(1, 5, 6)), "collection contains any");
 		assertFalse(CCollection.containsAny(CList.newList(4, 3, 2, 1), CList.newList(7, 5, 6)), "collection contains any");
 
+		List<Map<String, String>> records = new ArrayList<>();
+		records.add(CMap.newMap("a", "A1", "b", "B2", "c", "C3"));
+		records.add(CMap.newMap("a", "", "b", null, "c", "null"));
+		assertEquals("A;B;C;\nA1;B2;C3;\n;;null;\n", CMap.listOfMapsToCsv(records, CList.newList(new SimpleEntry<>("a", "A"), new SimpleEntry<>("b", "B"), new SimpleEntry<>("c", "C")), ""));
+
 		SortedMap<String, Integer> map = CMap.newSortedMap("a", 1, "b", 2);
 		assertTrue(map.get("a") == 1 && map.get("b") == 2 && map.firstKey().equals("a") && map.lastKey().equals("b"));
 		CMap.upperCaseKeysInMap(map);
 		assertTrue(map.get("A") == 1 && map.get("B") == 2 && map.firstKey().equals("A") && map.lastKey().equals("B"));
 
+		assertEquals(6, CMath.sum(CList.newList(1, 2, 3)).intValue());
+		assertEquals(50.0, CMath.percentage(125, 250));
+		assertEquals(5, CMath.intPercentage(50L, 1000.0));
+		assertEquals(3, CMath.max(CList.newList(2, 1, 3)));
+		assertEquals(3.0, CMath.maxDouble(CList.newList(1.0, 3.0, 2.0)));
+		assertEquals(1, CMath.min(CList.newList(2, 1, 3)));
+		assertEquals(1.0, CMath.minDouble(CList.newList(1.0, 3.0, 2.0)));
+		assertEquals("123.46", CMath.formatDouble(123.456, 2, ".")); // Round
+		Object[] array = { 1, 2, 3, 4, 5 };
+		assertArrayEquals(array, CArray.sum(CArray.newObjectArray(4, 5), 1, 2, 3));
+
 		assertFalse(Common.exceptionStackToString(new Exception()).isEmpty());
 
-		ResourceBundle bundle = ResourceBundle.getBundle("messages", Locale.forLanguageTag("en"));
+		CResource.setLocalizedMessageFileName("domain.i18n.messages");
+		@SuppressWarnings("deprecation")
+		Locale de = new Locale("de");
+		ResourceBundle bundle = CResource.getBundleForLocale(de);
+		assertNotNull(bundle);
 		assertEquals("", CResource.i18n(bundle, null));
-		assertEquals("germany", CResource.i18n((ResourceBundle) null, "germany"));
-		assertEquals("Germany", CResource.i18n(bundle, "germany"));
+		assertEquals("true", CResource.i18n((ResourceBundle) null, "true"));
+		assertEquals("Richtig", CResource.i18n(de, "true"));
 		assertEquals("unknown_county", CResource.i18n(bundle, "unknown_county"));
+		File domainManifest = new File("src/main/webapp/META-INF/MANIFEST.MF");
+		assertTrue(CResource.getVersion(domainManifest).startsWith("1.0.1"));
+		File domainJar = new File("build/libs/domain-1.0.1.jar");
+		if (domainJar.exists()) {
+			assertTrue(CResource.getVersion(domainJar).startsWith("1.0.1"));
+		}
 	}
 
 	@SuppressWarnings("static-method")
@@ -168,6 +230,7 @@ class CommonTest extends TestHelpers {
 		new File("test/text.txt").delete();
 		new File("test").delete();
 		File testTxt = new File("test/text.txt");
+		assertEquals(CList.newList("test", "text.txt"), CFile.getPathElements(new File("test/text.txt")));
 		assertNotNull(CFile.checkOrCreateFile(testTxt), "Create file");
 		assertNotNull(CFile.checkOrCreateFile(testTxt), "Create file");
 		assertEquals("text.txt", CFile.getRelativeFilePath(testTxt, new File("test")).getPath(), "relative file path");
@@ -181,8 +244,17 @@ class CommonTest extends TestHelpers {
 		CFile.writeBinary(testTxt, Common.getBytesUTF8("abcÄÖÜß"));
 		assertEquals("abcÄÖÜß", Common.getStringUTF8(CFile.readBinary(testTxt)), "write/read binary");
 
+		assertNotNull(CFile.findFileInDir(new File("test"), "*.txt"));
+		assertTrue(!CList.isEmpty(CFile.findFilesInDir(new File("test"), "*.txt")));
+		CFile.checkOrCreateFile(new File("test/subdir/text.txt"));
+		assertNotNull(CFile.findSubDir(new File("test"), "*"));
+		assertEquals(2, CFile.findFilesInTree(new File("test"), "*.txt").size());
+
+		new File("test/subdir/text.txt").delete();
+		new File("test/subdir").delete();
 		new File("test/text.txt").delete();
 		new File("test").delete();
+
 	}
 
 	@SuppressWarnings("static-method")
