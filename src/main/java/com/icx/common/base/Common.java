@@ -278,8 +278,9 @@ public abstract class Common {
 	 */
 	public static Boolean parseBoolean(String booleanValueString, Boolean defaultValue) {
 
-		if (isEmpty(booleanValueString))
+		if (isEmpty(booleanValueString)) {
 			return defaultValue;
+		}
 
 		return Boolean.parseBoolean(booleanValueString);
 	}
@@ -296,8 +297,9 @@ public abstract class Common {
 	 */
 	public static String formatBoolean(Boolean value, Boolean defaultValue) {
 
-		if (value == null)
+		if (value == null) {
 			value = defaultValue;
+		}
 
 		return Boolean.toString(value);
 	}
@@ -319,13 +321,16 @@ public abstract class Common {
 	 */
 	public static Integer parseInt(String intValueString, Integer defaultValue) throws NumberFormatException {
 
-		if (isEmpty(intValueString))
+		if (isEmpty(intValueString)) {
 			return defaultValue;
+		}
 
-		if (intValueString.contains(".") && symbols.getGroupingSeparator() == '.')
+		if (intValueString.contains(".") && symbols.getGroupingSeparator() == '.') {
 			intValueString = intValueString.replace(".", "");
-		else if (intValueString.contains(",") && symbols.getGroupingSeparator() == ',')
+		}
+		else if (intValueString.contains(",") && symbols.getGroupingSeparator() == ',') {
 			intValueString = intValueString.replace(",", "");
+		}
 
 		return Integer.parseInt(intValueString);
 	}
@@ -342,8 +347,9 @@ public abstract class Common {
 	 */
 	public static String formatInt(Integer value, Integer defaultValue) {
 
-		if (value == null)
+		if (value == null) {
 			value = defaultValue;
+		}
 
 		return Integer.toString(value);
 	}
@@ -363,13 +369,16 @@ public abstract class Common {
 	 */
 	public static Long parseLong(String longValueString, Long defaultValue) throws NumberFormatException {
 
-		if (isEmpty(longValueString))
+		if (isEmpty(longValueString)) {
 			return defaultValue;
+		}
 
-		if (longValueString.contains(".") && symbols.getGroupingSeparator() == '.')
+		if (longValueString.contains(".") && symbols.getGroupingSeparator() == '.') {
 			longValueString = longValueString.replace(".", "");
-		else if (longValueString.contains(",") && symbols.getGroupingSeparator() == ',')
+		}
+		else if (longValueString.contains(",") && symbols.getGroupingSeparator() == ',') {
 			longValueString = longValueString.replace(",", "");
+		}
 
 		return Long.parseLong(longValueString);
 	}
@@ -386,8 +395,9 @@ public abstract class Common {
 	 */
 	public static String formatLong(Long value, Long defaultValue) {
 
-		if (value == null)
+		if (value == null) {
 			value = defaultValue;
+		}
 
 		return Long.toString(value);
 	}
@@ -407,8 +417,9 @@ public abstract class Common {
 	 */
 	public static Double parseDouble(String doubleValueString, Double defaultValue) throws NumberFormatException {
 
-		if (isEmpty(doubleValueString))
+		if (isEmpty(doubleValueString)) {
 			return defaultValue;
+		}
 
 		return Double.parseDouble(doubleValueString.replace(",", "."));
 	}
@@ -425,8 +436,9 @@ public abstract class Common {
 	 */
 	public static String formatDouble(Double value, Double defaultValue) {
 
-		if (value == null)
+		if (value == null) {
 			value = defaultValue;
+		}
 
 		return Double.toString(value).replace(",", ".");
 	}
@@ -589,8 +601,9 @@ public abstract class Common {
 	 */
 	public static String insertSpaces(String string) {
 
-		if (string == null)
+		if (string == null) {
 			return null;
+		}
 
 		String singleCharString = "";
 		string = string.trim();

@@ -139,8 +139,9 @@ public abstract class CMap {
 		// Get fields of all records (no duplicates)
 		Set<String> fields = new HashSet<>();
 		for (Map<String, String> record : records) {
-			for (String field : record.keySet())
+			for (String field : record.keySet()) {
 				fields.add(field != null ? field : "");
+			}
 		}
 
 		// Build ordered field list and CSV-headline
@@ -168,10 +169,12 @@ public abstract class CMap {
 		// Insert CSV-records
 		for (Map<String, String> record : records) {
 			for (String field : orderedFields) {
-				if (record.get(field) != null)
+				if (record.get(field) != null) {
 					csv.append(record.get(field).replace(";", ",").replace("\n", " ") + ";");
-				else
+				}
+				else {
 					csv.append(emptyValue + ";");
+				}
 			}
 
 			csv.append("\n");

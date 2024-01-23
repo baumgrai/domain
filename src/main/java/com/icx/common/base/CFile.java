@@ -148,8 +148,9 @@ public abstract class CFile {
 	 */
 	public static void writeBinary(File file, byte[] bytes) throws IOException {
 
-		if (bytes == null)
+		if (bytes == null) {
 			return;
+		}
 
 		OutputStream os = new FileOutputStream(file);
 		try {

@@ -35,7 +35,7 @@ public abstract class CMath {
 	 * @param part
 	 *            absolute value of part
 	 * @param total
-	 *            part absolute value of total
+	 *            absolute value of total
 	 * 
 	 * @return percentage value of part of total (may be &gt; 100 or &lt; 0) or 0 if total is 0
 	 */
