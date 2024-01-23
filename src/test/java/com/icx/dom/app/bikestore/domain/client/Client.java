@@ -11,8 +11,6 @@ import java.util.ResourceBundle;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 
 import com.icx.common.base.CList;
@@ -37,8 +35,6 @@ import com.icx.dom.domain.sql.SqlDomainObject;
  */
 @SqlTable(uniqueConstraints = { "firstName, country" }, indexes = "bikeSize") // Define multi column UNIQUE constraints and indexes here
 public class Client extends SqlDomainObject {
-
-	static final Logger log = LoggerFactory.getLogger(Client.class);
 
 	// Types
 
