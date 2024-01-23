@@ -28,13 +28,14 @@ import com.icx.dom.domain.sql.SqlDomainController;
 import com.icx.dom.domain.sql.SqlDomainObject;
 import com.icx.dom.domain.sql.SqlRegistry;
 import com.icx.dom.domain.sql.tools.Java2Sql;
-import com.icx.dom.jdbc.SqlDbTable;
 import com.icx.dom.jdbc.SqlDb.DbType;
+import com.icx.dom.jdbc.SqlDbTable;
 import com.icx.dom.jdbc.SqlDbTable.Column;
 import com.icx.dom.jdbc.SqlDbTable.UniqueConstraint;
 import com.icx.dom.junit.TestHelpers;
 import com.icx.dom.junit.domain.A;
 import com.icx.dom.junit.domain.AA;
+import com.icx.dom.junit.domain.AB;
 import com.icx.dom.junit.domain.B;
 import com.icx.dom.junit.domain.C;
 import com.icx.dom.junit.domain.O;
@@ -59,8 +60,10 @@ class RegistryTest extends TestHelpers {
 
 		// Expected values
 
-		List<Class<? extends SqlDomainObject>> registeredDomainClasses = CList.newList(O.class, AA.class, A.class, A.Inner.class, B.class, C.class, X.class, X.InProgress.class, Y.class, Z.class);
-		List<Class<? extends SqlDomainObject>> registeredObjectDomainClasses = CList.newList(O.class, AA.class, A.Inner.class, B.class, C.class, X.class, X.InProgress.class, Y.class, Z.class);
+		List<Class<? extends SqlDomainObject>> registeredDomainClasses = CList.newList(O.class, AA.class, A.class, A.Inner.class, AB.class, B.class, C.class, X.class, X.InProgress.class, Y.class,
+				Z.class);
+		List<Class<? extends SqlDomainObject>> registeredObjectDomainClasses = CList.newList(O.class, AA.class, A.Inner.class, AB.class, B.class, C.class, X.class, X.InProgress.class, Y.class,
+				Z.class);
 		List<Class<? extends SqlDomainObject>> relevantDomainClasses = new ArrayList<>(registeredDomainClasses);
 		relevantDomainClasses.add(RemovedClass.class);
 
@@ -95,7 +98,7 @@ class RegistryTest extends TestHelpers {
 		assertEquals(O.class, sdc.getDomainClassByName("O"), "register inherited domain class");
 		assertEquals(Z.class, sdc.getDomainClassByName("Z"), "register referenced domain class");
 
-		assertDoesNotThrow(() -> sdc.registerDomainClasses(SqlDomainObject.class, O.class, AA.class, A.Inner.class, B.class, C.class, X.class, RemovedClass.class));
+		assertDoesNotThrow(() -> sdc.registerDomainClasses(SqlDomainObject.class, O.class, AA.class, A.Inner.class, AB.class, B.class, C.class, X.class, RemovedClass.class));
 
 		assertListsEqualButOrder(registeredDomainClasses, sdc.registry.getRegisteredDomainClasses(), "register domain classes by class list");
 
