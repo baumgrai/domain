@@ -92,7 +92,8 @@ public class Table {
 			}
 
 			log.info("J2S: \t\t\tColumn '{}': attributes got from @SqlColumn: {}{}{}{}{}", column.name, (nameAttributeDefined ? "name: '" + column.name + "' " : ""),
-					(column.notNull ? "NOT NULL " : ""), (column.isUnique ? "UNIQUE " : ""), (column.charsize != 256 ? "charsize: " + column.charsize + " " : ""), (column.isText ? "isText" : ""));
+					(column.notNull ? "NOT NULL " : ""), (column.isUnique ? "UNIQUE " : ""), (column.charsize != Java2Sql.DEFAULT_CHARSIZE ? "charsize: " + column.charsize + " " : ""),
+					(column.isText ? "isText" : ""));
 		}
 
 		return column;
