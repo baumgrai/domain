@@ -7,6 +7,8 @@ import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -118,6 +120,19 @@ public abstract class Common {
 			String s1 = String.format("%.5f", ((Number) o1).doubleValue());
 			String s2 = String.format("%.5f", ((Number) o2).doubleValue());
 			return s1.equals(s2);
+		}
+		else if (o1 instanceof LocalDateTime && o2 instanceof LocalDateTime) { // Skip milli/nano seconds which will potentially be suppressed by (date) times retrieved from database rounding 'second'
+																				// value
+			LocalDateTime dt1 = (LocalDateTime) o1;
+			LocalDateTime dt2 = (LocalDateTime) o2;
+			return (dt1.getYear() == dt2.getYear() && dt1.getMonth() == dt2.getMonth() && dt1.getDayOfMonth() == dt2.getDayOfMonth() && dt1.getHour() == dt2.getHour()
+					&& dt1.getMinute() == dt2.getMinute() && (dt1.getSecond() == dt2.getSecond() || dt1.getSecond() == dt2.getSecond() + 1 || dt1.getSecond() + 1 == dt2.getSecond()));
+		}
+		else if (o1 instanceof LocalTime && o2 instanceof LocalTime) {
+			LocalTime t1 = (LocalTime) o1;
+			LocalTime t2 = (LocalTime) o2;
+			return (t1.getHour() == t2.getHour() && t1.getMinute() == t2.getMinute()
+					&& (t1.getSecond() == t2.getSecond() || t1.getSecond() == t2.getSecond() + 1 || t1.getSecond() + 1 == t2.getSecond()));
 		}
 		else {
 			return false;
