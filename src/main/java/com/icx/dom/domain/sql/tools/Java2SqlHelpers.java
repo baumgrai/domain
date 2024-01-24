@@ -221,9 +221,7 @@ public class Java2SqlHelpers extends JdbcHelpers {
 
 			// Add UNIQUE constraint for element sets (or if type is unknown)
 			if (currentType == null || Set.class.isAssignableFrom(currentType)) {
-				if (dbType == DbType.MYSQL) {
-					elementColumn.charsize = 764; // Max 3072 bytes allowed for keys in UNIQUE constraints
-				}
+				elementColumn.charsize = 512; // Less bytes allowed for keys in UNIQUE constraints (differs by database type)
 				entryTable.addUniqueConstraintFor(mainTableRefColumn, elementColumn);
 			}
 
@@ -244,9 +242,7 @@ public class Java2SqlHelpers extends JdbcHelpers {
 			}
 			else { // if elementType instanceof ParameterizedType
 				keyColumn = entryTable.addStandardColumn(Const.KEY_COL, (Class<?>) keyType);
-				if (dbType == DbType.MYSQL) {
-					keyColumn.charsize = 764; // Max 3072 bytes allowed for keys in UNIQUE constraints
-				}
+				keyColumn.charsize = 512; // Less bytes allowed for keys in UNIQUE constraints
 			}
 
 			// Create value column - differ between simple objects and collections or maps as values
