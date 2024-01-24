@@ -279,6 +279,14 @@ class CommonTest extends TestHelpers {
 
 		assertEquals("\"***\"", CLog.forSecretLogging("pwd", "abc"), "secret logging");
 		assertEquals("\"******\"", CLog.forSecretLogging("passwort", ""), "empty secret logging");
+
+		assertFalse(CLog.forSecretLogging("timestamp", new java.sql.Timestamp(0L)).isEmpty());
+		assertFalse(CLog.forSecretLogging("LocalDateTime", LocalDateTime.now()).isEmpty());
+		assertFalse(CLog.forSecretLogging("LocalDate", LocalDate.now()).isEmpty());
+		assertFalse(CLog.forSecretLogging("LocalTime", LocalTime.now()).isEmpty());
+		assertFalse(CLog.forSecretLogging("Calendar", new GregorianCalendar()).isEmpty());
+		assertFalse(CLog.forSecretLogging("boolean", true).isEmpty());
+
 	}
 
 	@SuppressWarnings("static-method")
@@ -378,15 +386,6 @@ class CommonTest extends TestHelpers {
 	@Test
 	@Order(6)
 	void jdbc() throws Exception {
-
-		assertEquals("\"***\"", CLog.forSecretLogging("pwd", "123"));
-		assertFalse(CLog.forSecretLogging("oracleTimestamp", new oracle.sql.TIMESTAMP()).isEmpty());
-		assertFalse(CLog.forSecretLogging("timestamp", new java.sql.Timestamp(0L)).isEmpty());
-		assertFalse(CLog.forSecretLogging("LocalDateTime", LocalDateTime.now()).isEmpty());
-		assertFalse(CLog.forSecretLogging("LocalDate", LocalDate.now()).isEmpty());
-		assertFalse(CLog.forSecretLogging("LocalTime", LocalTime.now()).isEmpty());
-		assertFalse(CLog.forSecretLogging("Calendar", new GregorianCalendar()).isEmpty());
-		assertFalse(CLog.forSecretLogging("boolean", true).isEmpty());
 
 		checkDatabase("jdbc:mysql://localhost/junit?useSSL=false", "infinit", "infinit", DbType.MYSQL);
 		checkDatabase("jdbc:sqlserver://localhost;Database=junit", "infinit", "infinit", DbType.MS_SQL);
