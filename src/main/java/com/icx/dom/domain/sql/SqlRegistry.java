@@ -273,7 +273,7 @@ public class SqlRegistry extends Registry<SqlDomainObject> {
 
 					// Store [ field : column ] relation
 					sqlColumnByFieldMap.put(field, column);
-					sqlReqiredJdbcTypeByColumnMap.put(column, Helpers.requiredJdbcTypeFor(isReferenceField(field) ? idField.getType() : field.getType()));
+					sqlReqiredJdbcTypeByColumnMap.put(column, FieldColumnConversion.requiredJdbcTypeFor(isReferenceField(field) ? idField.getType() : field.getType()));
 					log.info("SRG: \t\t[ {} ({}) : {} ]", Reflection.qualifiedName(field), field.getType().getSimpleName(), column.toStringWithoutTable(field.getType()));
 				}
 				else { // If associated column does not exist...

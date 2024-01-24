@@ -109,7 +109,7 @@ public abstract class LoadHelpers extends Common {
 				elementType = String.class; // Collections and maps as elements of a collection are stored as strings in database
 			}
 			else {
-				elementType = Helpers.requiredJdbcTypeFor((Class<?>) elementType);
+				elementType = FieldColumnConversion.requiredJdbcTypeFor((Class<?>) elementType);
 			}
 			sde.allFieldTypes.add((Class<?>) elementType);
 
@@ -125,7 +125,7 @@ public abstract class LoadHelpers extends Common {
 			// Column for keys of map
 			sde.allColumnNames.add(Const.KEY_COL);
 			Type keyType = genericFieldType.getActualTypeArguments()[0];
-			keyType = Helpers.requiredJdbcTypeFor((Class<?>) keyType);
+			keyType = FieldColumnConversion.requiredJdbcTypeFor((Class<?>) keyType);
 			sde.allFieldTypes.add((Class<?>) keyType); // Keys may not be complex objects
 
 			// Column for values of map
@@ -135,7 +135,7 @@ public abstract class LoadHelpers extends Common {
 				valueType = String.class; // Collections and maps as values of a map are stored as strings in database
 			}
 			else {
-				valueType = Helpers.requiredJdbcTypeFor((Class<?>) valueType);
+				valueType = FieldColumnConversion.requiredJdbcTypeFor((Class<?>) valueType);
 			}
 			sde.allFieldTypes.add((Class<?>) valueType);
 		}
@@ -389,7 +389,7 @@ public abstract class LoadHelpers extends Common {
 
 		Object fieldValue = obj.getFieldValue(dataField);
 		Object columnValueFromObjectRecord = sdc.recordMap.get(obj.getClass()).get(obj.getId()).get(columnName);
-		Object fieldValueFromObjectRecord = Helpers.column2FieldValue(dataField.getType(), columnValueFromObjectRecord);
+		Object fieldValueFromObjectRecord = FieldColumnConversion.column2FieldValue(dataField.getType(), columnValueFromObjectRecord);
 
 		if (!objectsEqual(fieldValue, fieldValueFromObjectRecord)) {
 			log.warn("SDC: Data field '{}' of object '{}' has unsaved changed value {} which will be overridden by value {} from database!", dataField.getName(), obj.name(),
@@ -484,7 +484,7 @@ public abstract class LoadHelpers extends Common {
 				if (!isNew) {
 					assignFieldWarningOnUnsavedValueChange(sdc, obj, dataField, columnName, columnValueFromDatabase /* only for logging */);
 				}
-				obj.setFieldValue(dataField, Helpers.column2FieldValue(dataField.getType(), columnValueFromDatabase));
+				obj.setFieldValue(dataField, FieldColumnConversion.column2FieldValue(dataField.getType(), columnValueFromDatabase));
 			}
 
 			// Complex (table related) fields: set field values of object to collection or map (conversion from entry table record was already done directly after loading entry records)

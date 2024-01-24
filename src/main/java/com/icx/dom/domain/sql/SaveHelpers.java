@@ -65,7 +65,7 @@ public abstract class SaveHelpers extends Common {
 				Object fieldValue = object.getFieldValue(dataField);
 				Object columnValue = objectRecord.get(sqlRegistry.getColumnFor(dataField).name);
 
-				if (!logicallyEqual(fieldValue, Helpers.column2FieldValue(dataField.getType(), columnValue))) {
+				if (!logicallyEqual(fieldValue, FieldColumnConversion.column2FieldValue(dataField.getType(), columnValue))) {
 					fieldChangesMap.put(dataField, fieldValue);
 				}
 			}
@@ -139,7 +139,7 @@ public abstract class SaveHelpers extends Common {
 				}
 				else {
 					// Convert field value to appropriate value to set in table column (Enum, BigInteger, BigDecimal, File)
-					columnValue = Helpers.field2ColumnValue(fieldValue);
+					columnValue = FieldColumnConversion.field2ColumnValue(fieldValue);
 				}
 				columnValueMap.put(column.name, columnValue);
 			}
@@ -227,7 +227,7 @@ public abstract class SaveHelpers extends Common {
 					// Update entry records for changed map entries
 					for (Object key : mapEntriesToChange.keySet()) {
 						SortedMap<String, Object> updateMap = CMap.newSortedMap(Const.VALUE_COL, ComplexFieldHelpers.element2ColumnValue(mapEntriesToChange.get(key)));
-						Object columnKey = Helpers.field2ColumnValue(key);
+						Object columnKey = FieldColumnConversion.field2ColumnValue(key);
 
 						// UPDATE <entry table> SET ENTRY_VALUE=<converted entry value> WHERE <object reference column>=<objectid> AND ENTRY_KEY=<converted entry key>
 						sdc.sqlDb.update(cn, entryTableName, updateMap,
@@ -439,7 +439,7 @@ public abstract class SaveHelpers extends Common {
 						List<SortedMap<String, Object>> results = sdc.sqlDb.selectFrom(cn, table.name, columnName, Const.ID_COL + "=" + obj.getId(), null, null);
 						columnValue = results.get(0).get(columnName);
 						columnValueMap.put(columnName, columnValue);
-						obj.setFieldValue(field, Helpers.column2FieldValue(field.getType(), columnValue));
+						obj.setFieldValue(field, FieldColumnConversion.column2FieldValue(field.getType(), columnValue));
 					}
 					catch (SQLException | SqlDbException e) {
 						log.error("SDC: SELECT failed by exception! '{}.{}' cannot be read for object {}", table.name, columnName, obj.name());
