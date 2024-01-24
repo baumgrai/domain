@@ -5,9 +5,6 @@ import java.time.temporal.ChronoUnit;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.icx.common.base.Common;
 import com.icx.dom.app.bikestore.BikeStoreApp;
 import com.icx.dom.app.bikestore.domain.bike.Bike;
@@ -24,8 +21,6 @@ import com.icx.dom.domain.sql.SqlDomainObject;
 // Note: If @UseDataHorizon is present for a class ON DELETE CASCADE will automatically assigned to FOREIGN KEY constraint of all reference fields of this class to allow deletion of parent objects
 // even if not all children are registered in object store (due to 'data horizon' control)
 public class Order extends SqlDomainObject {
-
-	static final Logger log = LoggerFactory.getLogger(Order.class);
 
 	// Helper domain class to select orders exclusively
 	public static class InProgress extends SqlDomainObject {

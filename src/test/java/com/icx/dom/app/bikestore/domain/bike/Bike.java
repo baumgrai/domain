@@ -5,9 +5,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.icx.common.base.CList;
 import com.icx.common.base.Common;
 import com.icx.dom.app.bikestore.BikeStoreApp;
@@ -26,8 +23,6 @@ import com.icx.dom.domain.sql.SqlDomainObject;
  */
 @SqlTable(uniqueConstraints = { "manufacturer, model" }) // Define multi column constraints here
 public abstract class Bike extends SqlDomainObject {
-
-	static final Logger log = LoggerFactory.getLogger(Bike.class);
 
 	// Helper domain class for exclusive allocation by one domain controller instance (to avoid ordering more bikes than available)
 	public static class InProgress extends SqlDomainObject {
