@@ -79,6 +79,8 @@ public abstract class CLog {
 		}
 	}
 
+	// TODO: Field annotation to generally suppress logging of secret values
+
 	// Secret field name prefix to avoid logging value of this field
 	public static final String SECRET = "secret_";
 
