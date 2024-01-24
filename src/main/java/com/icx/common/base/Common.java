@@ -135,7 +135,7 @@ public abstract class Common {
 					&& (t1.getSecond() == t2.getSecond() || t1.getSecond() == t2.getSecond() + 1 || t1.getSecond() + 1 == t2.getSecond()));
 		}
 		else {
-			return false;
+			return toStringEqual(o1, o2);
 		}
 	}
 
