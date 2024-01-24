@@ -502,8 +502,6 @@ public abstract class SaveHelpers extends Common {
 
 			if (!obj.isStored) { // INSERT
 
-				log.info("SDC: Save {}: {}", obj.universalId(), columnValueMap);
-
 				// Add standard columns
 				columnValueMap.put(Const.ID_COL, obj.getId());
 				columnValueMap.put(Const.DOMAIN_CLASS_COL, obj.getClass().getSimpleName()); // to identify object domain class also from records of tables related to non-domain object classes
@@ -511,6 +509,8 @@ public abstract class SaveHelpers extends Common {
 					columnValueMap.put(Const.LAST_MODIFIED_COL, obj.lastModifiedInDb);
 				}
 				wasChanged = true;
+
+				log.info("SDC: Insert for class {}: {} ({})", domainClass.getSimpleName(), columnValueMap, obj.universalId());
 
 				try {
 					// Insert record into table associated to this domain class
@@ -539,10 +539,6 @@ public abstract class SaveHelpers extends Common {
 						for (Field refField : collectedParentObjectMap.keySet()) {
 							obj.setFieldValue(refField, collectedParentObjectMap.get(refField));
 						}
-
-						// ROLL BACK whole transaction
-						cn.rollback();
-						log.warn("SDC: Whole save transaction rolled back!");
 					}
 
 					throw sqlex;
@@ -553,7 +549,7 @@ public abstract class SaveHelpers extends Common {
 				// Check if any changes exists in any of the domain classes
 				if (!columnValueMap.isEmpty()) {
 					wasChanged = true;
-					log.info("SDC: Update {}: {}", obj.universalId(), columnValueMap);
+					log.info("SDC: Update for class {}: {} ({})", domainClass.getSimpleName(), columnValueMap, obj.universalId());
 				}
 
 				// Update 'last modified' field (of bottom domain class) if any changes where detected
@@ -601,10 +597,6 @@ public abstract class SaveHelpers extends Common {
 		// Save collected parent objects (on nullable foreign key columns) after saving this object and restore (UPDATE) references in database
 		if (!collectedParentObjectMap.isEmpty()) {
 			objectRecord.putAll(storeCollectedParentObjectsAndRestoreReferences(cn, sdc, obj, collectedParentObjectMap, objectsToCheckForCircularReference));
-		}
-
-		if (log.isDebugEnabled()) {
-			log.debug("SDC: {}Object {} saved", CLog.tabs(stackSize), obj.name());
 		}
 
 		return wasChanged;
