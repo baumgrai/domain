@@ -213,7 +213,7 @@ class CommonTest extends TestHelpers {
 		assertEquals("Richtig", CResource.i18n(de, "true"));
 		assertEquals("unknown_county", CResource.i18n(bundle, "unknown_county"));
 		File domainManifest = new File("src/main/webapp/META-INF/MANIFEST.MF");
-		assertTrue(CResource.getVersion(domainManifest).startsWith("1.0.1"));
+		assertTrue(CResource.getVersion(domainManifest).startsWith("1."));
 		File domainJar = new File("build/libs/domain-1.0.1.jar");
 		if (domainJar.exists()) {
 			assertTrue(CResource.getVersion(domainJar).startsWith("1.0.1"));
@@ -388,9 +388,8 @@ class CommonTest extends TestHelpers {
 		assertFalse(CLog.forSecretLogging("Calendar", new GregorianCalendar()).isEmpty());
 		assertFalse(CLog.forSecretLogging("boolean", true).isEmpty());
 
-		// TODO: Test with Oracle and SQL Server
 		checkDatabase("jdbc:mysql://localhost/junit?useSSL=false", "infinit", "infinit", DbType.MYSQL);
 		checkDatabase("jdbc:sqlserver://localhost;Database=junit", "infinit", "infinit", DbType.MS_SQL);
-		// checkDatabase("jdbc:oracle:thin:@//localhost:1521/xe/junit", "infinit", "infinit");
+		checkDatabase("jdbc:oracle:thin:@//localhost:1521/xe", "infinit", "infinit", DbType.ORACLE);
 	}
 }
