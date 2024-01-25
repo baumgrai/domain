@@ -1,5 +1,6 @@
 package com.icx.dom.domain.sql;
 
+import java.io.File;
 import java.lang.reflect.Field;
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -222,8 +223,8 @@ public abstract class SaveHelpers extends Common {
 						Object columnKey = key;
 
 						// UPDATE <entry table> SET ENTRY_VALUE=<converted entry value> WHERE <object reference column>=<objectid> AND ENTRY_KEY=<converted entry key>
-						sdc.sqlDb.update(cn, entryTableName, updateMap,
-								refIdColumnName + "=" + object.getId() + " AND " + Const.KEY_COL + "=" + (columnKey instanceof String ? "'" + columnKey + "'" : columnKey));
+						sdc.sqlDb.update(cn, entryTableName, updateMap, refIdColumnName + "=" + object.getId() + " AND " + Const.KEY_COL + "="
+								+ (columnKey instanceof String || columnKey instanceof Enum || columnKey instanceof File ? "'" + columnKey + "'" : columnKey));
 					}
 
 					// Update object record by new complex object
