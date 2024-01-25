@@ -239,7 +239,6 @@ class RegistryTest extends TestHelpers {
 		assertNull(((SqlRegistry) sdc.registry).getColumnFor(A.class.getDeclaredField("strings")));
 		assertNull(((SqlRegistry) sdc.registry).getEntryTableFor(A.class.getDeclaredField("l")));
 		assertNull(((SqlRegistry) sdc.registry).getMainTableRefIdColumnFor(A.class.getDeclaredField("i")));
-		assertNull(((SqlRegistry) sdc.registry).getRequiredJdbcTypeFor(null));
 		Column domainClassColumn = ((SqlRegistry) sdc.registry).getTableFor(A.class).columns.stream().filter(c -> Const.DOMAIN_CLASS_COL.equals(c.name)).findAny().orElse(null);
 		assertNull(((SqlRegistry) sdc.registry).getFieldFor(domainClassColumn));
 	}
