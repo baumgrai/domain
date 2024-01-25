@@ -117,7 +117,7 @@ class LoadAndSaveTest extends TestHelpers {
 
 			assertEquals(A.class, sdc.getDomainClassByName("A"));
 
-			Helpers.dbType = DbType.MYSQL;
+			Helpers.dbType = DbType.ORACLE;
 			Properties dbProps = Prop.readEnvironmentSpecificProperties(Prop.findPropertiesFile("db.properties"), Helpers.getLocal(Helpers.dbType), CList.newList("dbConnectionString", "dbUser"));
 			Properties domainProps = Prop.readProperties(Prop.findPropertiesFile("domain.properties"));
 
@@ -271,6 +271,7 @@ class LoadAndSaveTest extends TestHelpers {
 		try {
 			AA aa1 = sdc.findAny(AA.class, aa -> true);
 
+			// SortedMap<String, Object> objectRecord = sdc.recordMap.get(aa1.getClass()).get(aa1.getId());
 			aa1.strings.remove("A");
 			aa1.strings.add("E");
 
@@ -661,7 +662,10 @@ class LoadAndSaveTest extends TestHelpers {
 
 			O o1 = sdc.createAndSave(O.class, null);
 			AA aa1 = sdc.createAndSave(AA.class, aa -> aa.o = o1);
-			AB ab1 = sdc.createAndSave(AB.class, null);
+			AB ab1 = sdc.createAndSave(AB.class, ab -> {
+				ab.i = 1;
+				ab.s = "ab";
+			});
 			X x1a = sdc.createAndSave(X.class, x -> {
 				x.a = aa1;
 				x.s = "available";
@@ -981,6 +985,8 @@ class LoadAndSaveTest extends TestHelpers {
 			assertEquals(2, aa1.getErrorsAndWarnings().size());
 
 			cleanup();
+
+			sdc.sqlDb.close();
 		}
 		catch (AssertionFailedError failed) {
 			throw failed;
