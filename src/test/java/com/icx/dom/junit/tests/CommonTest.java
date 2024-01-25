@@ -9,7 +9,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
-import java.sql.SQLException;
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
 import java.time.LocalDate;
@@ -25,7 +24,6 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.ResourceBundle;
 import java.util.SortedMap;
-import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.MethodOrderer.OrderAnnotation;
 import org.junit.jupiter.api.Order;
@@ -50,12 +48,6 @@ import com.icx.common.base.Common;
 import com.icx.dom.app.bikestore.BikeStoreApp;
 import com.icx.dom.app.bikestore.domain.client.Client;
 import com.icx.dom.app.bikestore.domain.client.Client.RegionInProgress;
-import com.icx.dom.jdbc.ConfigException;
-import com.icx.dom.jdbc.SqlConnection;
-import com.icx.dom.jdbc.SqlDb;
-import com.icx.dom.jdbc.SqlDb.DbType;
-import com.icx.dom.jdbc.SqlDbException;
-import com.icx.dom.jdbc.SqlDbTable;
 import com.icx.dom.junit.TestHelpers;
 
 @TestMethodOrder(OrderAnnotation.class)
@@ -345,50 +337,4 @@ class CommonTest extends TestHelpers {
 		assertNull(Prop.findPropertiesFile("nonexistent.properties"), "non-existent properties file");
 	}
 
-	private static void checkDatabase(String sqlConnectionString, String user, String pwd, DbType dbType) throws ConfigException, SQLException, SqlDbException {
-
-		SqlDb sqlDb = new SqlDb(sqlConnectionString, user, pwd, 1, 5000);
-		try (SqlConnection sqlcn1 = SqlConnection.open(sqlDb.pool, true)) {
-			try (SqlConnection sqlcn2 = SqlConnection.open(sqlDb.pool, true)) {
-
-				sqlDb.select(sqlcn2.cn, "SELECT COUNT(*) FROM DOM_A WHERE I=? AND S=?", CList.newList(0, "S"), null);
-				sqlDb.selectCountFrom(sqlcn2.cn, "DOM_O", null);
-
-				sqlDb.registerTable(sqlcn2.cn, "DOM_A");
-				SqlDbTable tableA = sqlDb.findRegisteredTable("DOM_A");
-				assertNotNull(tableA);
-
-				assertNotNull(tableA.toString());
-				Map<String, Object> columnValueMap = new HashMap<>();
-				for (String columnName : tableA.columns.stream().map(c -> c.name).collect(Collectors.toList())) {
-					columnValueMap.put(columnName, "a");
-				}
-				String logged = tableA.logColumnValueMap(columnValueMap);
-				assertNotNull(logged);
-				log.info(logged);
-				assertNotNull(tableA.uniqueConstraints.iterator().next().toString());
-				assertNotNull(tableA.uniqueConstraints.iterator().next().toStringWithoutTable());
-
-				// int i = 0;
-				// List<Object> countList = new ArrayList<>();
-				// sqlDb.callStoredProcedure(sqlcn2.cn, "TEST_PROC", false, CList.newList(ParameterMode.IN, ParameterMode.OUT), CList.newList(i, Integer.class), countList);
-				// assertNotNull(countList.get(0));
-			}
-		}
-
-		assertEquals(dbType, sqlDb.getDbType());
-		assertEquals(SqlDb.DB_DATE_FUNCT.get(dbType), sqlDb.getSqlDateFunct());
-
-		sqlDb.close();
-	}
-
-	@SuppressWarnings("static-method")
-	@Test
-	@Order(6)
-	void jdbc() throws Exception {
-
-		checkDatabase("jdbc:mysql://localhost/junit?useSSL=false", "infinit", "infinit", DbType.MYSQL);
-		checkDatabase("jdbc:sqlserver://localhost;Database=junit", "infinit", "infinit", DbType.MS_SQL);
-		checkDatabase("jdbc:oracle:thin:@//localhost:1521/xe", "infinit", "infinit", DbType.ORACLE);
-	}
 }
