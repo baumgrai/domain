@@ -7,6 +7,8 @@ import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Types;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -298,17 +300,27 @@ public abstract class JdbcHelpers extends Common {
 
 				// Get value retrieved - required types for CLOB is String and for BLOB is byte[] (see com.icx.dom.domain.sql.tools.Column), max 2GB characters or bytes is supported
 				Object value = null;
-				if (rsmd.getColumnType(c + 1) == Types.BLOB) {
+				int columnType = rsmd.getColumnType(c + 1);
+				if (columnType == Types.BLOB) {
 					Blob blob = rs.getBlob(c + 1);
 					if (blob != null) {
 						value = blob.getBytes(1, ((Number) blob.length()).intValue());
 					}
 				}
-				else if (rsmd.getColumnType(c + 1) == Types.CLOB) {
+				else if (columnType == Types.CLOB) {
 					Clob clob = rs.getClob(c + 1);
 					if (clob != null) {
 						value = clob.getSubString(1, ((Number) clob.length()).intValue());
 					}
+				}
+				else if (columnType == Types.TIMESTAMP || columnType == Types.TIMESTAMP_WITH_TIMEZONE) {
+					value = rs.getObject(c + 1, LocalDateTime.class);
+				}
+				else if (columnType == Types.TIME || columnType == Types.TIME_WITH_TIMEZONE) {
+					value = rs.getObject(c + 1, LocalTime.class);
+				}
+				else if (columnType == Types.DATE) {
+					value = rs.getObject(c + 1, LocalDate.class);
 				}
 				else if (requiredTypeDiffers(rsmd, requiredResultTypes, c)) {
 
