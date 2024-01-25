@@ -1,5 +1,6 @@
 package com.icx.dom.jdbc;
 
+import java.io.File;
 import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
@@ -315,14 +316,14 @@ public class SqlDb extends Common {
 					return JdbcHelpers.buildAndLogResult(rs, requiredResultTypes);
 				}
 				catch (SQLException sqlex) {
-					log.error("SQL: {} '{}' on retrieving results '{}' ({})", sqlex.getClass().getSimpleName(), sqlex.getMessage(), JdbcHelpers.forLoggingSelect(sql, valuesOfPlaceholders),
+					log.error("SQL: {} '{}' on retrieving results '{}' ({})", sqlex.getClass().getSimpleName(), sqlex.getMessage().trim(), JdbcHelpers.forLoggingSelect(sql, valuesOfPlaceholders),
 							exceptionStackToString(sqlex));
 					throw sqlex;
 				}
 			}
 		}
 		catch (SQLException sqlex) {
-			log.error("SQL: {} '{}' on '{}'", sqlex.getClass().getSimpleName(), sqlex.getMessage(), JdbcHelpers.forLoggingSelect(sql, valuesOfPlaceholders)); // Log SQL statement on exception
+			log.error("SQL: {} '{}' on '{}'", sqlex.getClass().getSimpleName(), sqlex.getMessage().trim(), JdbcHelpers.forLoggingSelect(sql, valuesOfPlaceholders)); // Log SQL statement on exception
 			throw sqlex;
 		}
 	}
@@ -690,7 +691,7 @@ public class SqlDb extends Common {
 	// return results;
 	// }
 	// catch (SQLException sqlex) {
-	// log.error("SQL: Exception '{}'on '{}'", sqlex.getMessage(), JdbcHelpers.forLoggingSql(callableStatementString, inputValuesAndOutputJavaTypes)); // Log SQL statement on exception
+	// log.error("SQL: Exception '{}'on '{}'", sqlex.getMessage().trim(), JdbcHelpers.forLoggingSql(callableStatementString, inputValuesAndOutputJavaTypes)); // Log SQL statement on exception
 	// throw sqlex;
 	// }
 	// }
@@ -851,7 +852,10 @@ public class SqlDb extends Common {
 						if (columnValue == null) {
 							pst.setNull(i + 1, typeIntegerFromJdbcType(columnsWithPlaceholders.get(i).jdbcType));
 						}
-						else { // Normal value
+						else if (columnValue instanceof Boolean || columnValue instanceof Enum || columnValue instanceof File) {
+							pst.setObject(i + 1, columnValue.toString());
+						}
+						else { // Other value
 							pst.setObject(i + 1, columnValue);
 						}
 					}
@@ -904,7 +908,7 @@ public class SqlDb extends Common {
 				log.info("In-progress record used for access synchronization in Domain persistence system could not be inserted - associated object is currently used exclusivly by another thread!");
 			}
 			else {
-				log.error("SQL: {} '{}' on... ", sqlex.getClass().getSimpleName(), sqlex.getMessage()); // Log SQL statement(s) on exception
+				log.error("SQL: {} '{}' on... ", sqlex.getClass().getSimpleName(), sqlex.getMessage().trim()); // Log SQL statement(s) on exception
 				for (Map<String, Object> columnValueMap : columnValueMaps) {
 					log.error("SQL: '{}'", JdbcHelpers.forLoggingInsertUpdate(preparedStatementString, columnValueMap, columnsToInsert));
 				}
@@ -1029,7 +1033,10 @@ public class SqlDb extends Common {
 				if (columnValue == null) {
 					pst.setNull(i + 1, typeIntegerFromJdbcType(columnsWithPlaceholders.get(i).jdbcType));
 				}
-				else { // Normal value
+				else if (columnValue instanceof Boolean || columnValue instanceof Enum || columnValue instanceof File) {
+					pst.setObject(i + 1, columnValue.toString());
+				}
+				else { // Other value
 					pst.setObject(i + 1, columnValue);
 				}
 			}
@@ -1053,7 +1060,8 @@ public class SqlDb extends Common {
 			return count;
 		}
 		catch (SQLException sqlex) {
-			log.error("SQL: {} '{}' on '{}'", sqlex.getClass().getSimpleName(), sqlex.getMessage(), JdbcHelpers.forLoggingInsertUpdate(preparedStatementString, columnValueMap, columnsToUpdate));
+			log.error("SQL: {} '{}' on '{}'", sqlex.getClass().getSimpleName(), sqlex.getMessage().trim(),
+					JdbcHelpers.forLoggingInsertUpdate(preparedStatementString, columnValueMap, columnsToUpdate));
 			throw sqlex;
 		}
 	}
@@ -1115,7 +1123,7 @@ public class SqlDb extends Common {
 			return count;
 		}
 		catch (SQLException sqlex) {
-			log.error("SQL: {} '{}' on '{}'", sqlex.getClass().getSimpleName(), sqlex.getMessage(), preparedStatementString); // Log SQL statement on exception
+			log.error("SQL: {} '{}' on '{}'", sqlex.getClass().getSimpleName(), sqlex.getMessage().trim(), preparedStatementString); // Log SQL statement on exception
 			throw sqlex;
 		}
 	}
@@ -1358,7 +1366,7 @@ public class SqlDb extends Common {
 			}
 		}
 		catch (SQLException sqlex) {
-			log.error("SQL: {} '{}' on '{}'", sqlex.getClass().getSimpleName(), sqlex.getMessage(), sql);
+			log.error("SQL: {} '{}' on '{}'", sqlex.getClass().getSimpleName(), sqlex.getMessage().trim(), sql);
 			throw sqlex;
 		}
 
