@@ -1,5 +1,6 @@
 package com.icx.dom.domain.sql;
 
+import java.io.File;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.List;
@@ -69,8 +70,8 @@ public abstract class Helpers extends Common {
 
 		for (Object element : elements) {
 
-			element = FieldColumnConversion.field2ColumnValue(element);
-			if (element instanceof String) {
+			// element = FieldColumnConversion.field2ColumnValue(element);
+			if (element instanceof String || element instanceof Enum || element instanceof Boolean || element instanceof File) {
 				sb.append("'" + element + "'");
 			}
 			else {

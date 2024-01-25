@@ -91,7 +91,7 @@ public abstract class ComplexFieldHelpers extends Common {
 			return map2String((Map<?, ?>) element);
 		}
 		else { // Elements of collection or values of map are simple values
-			return FieldColumnConversion.field2ColumnValue(element);
+			return element;
 		}
 	}
 
@@ -213,7 +213,7 @@ public abstract class ComplexFieldHelpers extends Common {
 		}
 		else {
 			// Element of collection or value of map is simple object
-			return FieldColumnConversion.column2FieldValue((Class<?>) elementType, columnValue);
+			return Conversion.column2FieldValue((Class<?>) elementType, columnValue);
 		}
 	}
 
@@ -283,7 +283,7 @@ public abstract class ComplexFieldHelpers extends Common {
 			Entry<?, ?> keyValuePair = (Entry<?, ?>) it.next();
 
 			entryRecord.put(mainTableRefIdColumnName, objId);
-			entryRecord.put(Const.KEY_COL, FieldColumnConversion.field2ColumnValue(keyValuePair.getKey())); // Keys may not be complex objects
+			entryRecord.put(Const.KEY_COL, keyValuePair.getKey()); // Keys may not be complex objects
 			entryRecord.put(Const.VALUE_COL, element2ColumnValue(keyValuePair.getValue()));
 		}
 
@@ -305,7 +305,7 @@ public abstract class ComplexFieldHelpers extends Common {
 
 		for (SortedMap<String, Object> entryRecord : entryRecords) {
 
-			Object key = FieldColumnConversion.column2FieldValue((Class<?>) keyType, entryRecord.get(Const.KEY_COL)); // Keys may not be complex objects
+			Object key = Conversion.column2FieldValue((Class<?>) keyType, entryRecord.get(Const.KEY_COL)); // Keys may not be complex objects
 			Object value = columnValue2Element(valueType, entryRecord.get(Const.VALUE_COL)); // Value of map can be a collection or map itself
 
 			map.put(key, value);

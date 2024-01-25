@@ -2,7 +2,6 @@ package com.icx.dom.domain.sql;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
@@ -57,7 +56,6 @@ public abstract class LoadHelpers extends Common {
 
 		String joinedTableExpression = null;
 		List<String> allColumnNames = new ArrayList<>();
-		List<Class<?>> allFieldTypes = new ArrayList<>();
 		String orderByClause = null;
 	}
 
@@ -69,7 +67,6 @@ public abstract class LoadHelpers extends Common {
 		SqlDbTable objectTable = sqlRegistry.getTableFor(objectDomainClass);
 		sd.joinedTableExpression = objectTable.name;
 		sd.allColumnNames.addAll(objectTable.columns.stream().map(c -> objectTable.name + "." + c.name).collect(Collectors.toList()));
-		sd.allFieldTypes.addAll(objectTable.columns.stream().map(sqlRegistry::getRequiredJdbcTypeFor).collect(Collectors.toList()));
 
 		// Extend table and column expression for inherited domain classes
 		Predicate<Column> isNonStandardColumnPredicate = c -> !objectsEqual(c.name, Const.ID_COL) && !objectsEqual(c.name, Const.DOMAIN_CLASS_COL);
@@ -79,7 +76,6 @@ public abstract class LoadHelpers extends Common {
 			SqlDbTable inheritedTable = sqlRegistry.getTableFor(derivedDomainClass);
 			sd.joinedTableExpression += " JOIN " + inheritedTable.name + " ON " + inheritedTable.name + ".ID=" + objectTable.name + ".ID";
 			sd.allColumnNames.addAll(inheritedTable.columns.stream().filter(isNonStandardColumnPredicate).map(c -> inheritedTable.name + "." + c.name).collect(Collectors.toList()));
-			sd.allFieldTypes.addAll(inheritedTable.columns.stream().filter(isNonStandardColumnPredicate).map(sqlRegistry::getRequiredJdbcTypeFor).collect(Collectors.toList()));
 
 			derivedDomainClass = sqlRegistry.getCastedSuperclass(derivedDomainClass);
 		}
@@ -95,49 +91,24 @@ public abstract class LoadHelpers extends Common {
 		String refIdColumnName = sqlRegistry.getMainTableRefIdColumnFor(complexField).name;
 		sde.joinedTableExpression = entryTableName + " JOIN " + baseTableExpression + " ON " + entryTableName + "." + refIdColumnName + "=" + objectTableName + ".ID";
 		sde.allColumnNames.add(refIdColumnName); // Column referencing main table for domain class
-		sde.allFieldTypes.add(Long.class);
 
 		Class<?> fieldClass = complexField.getType();
-		ParameterizedType genericFieldType = ((ParameterizedType) complexField.getGenericType());
 
 		if (Collection.class.isAssignableFrom(fieldClass)) {
 
 			// Column for elements of collection
 			sde.allColumnNames.add(Const.ELEMENT_COL);
-			Type elementType = genericFieldType.getActualTypeArguments()[0];
-			if (elementType instanceof ParameterizedType) {
-				elementType = String.class; // Collections and maps as elements of a collection are stored as strings in database
-			}
-			else {
-				elementType = FieldColumnConversion.requiredJdbcTypeFor((Class<?>) elementType);
-			}
-			sde.allFieldTypes.add((Class<?>) elementType);
-
 			if (List.class.isAssignableFrom(fieldClass)) {
 
 				// Column for list order and ORDER BY clause
 				sde.allColumnNames.add(Const.ORDER_COL);
-				sde.allFieldTypes.add(Integer.class);
 				sde.orderByClause = Const.ORDER_COL;
 			}
 		}
 		else {
-			// Column for keys of map
+			// Column for keys and values of map
 			sde.allColumnNames.add(Const.KEY_COL);
-			Type keyType = genericFieldType.getActualTypeArguments()[0];
-			keyType = FieldColumnConversion.requiredJdbcTypeFor((Class<?>) keyType);
-			sde.allFieldTypes.add((Class<?>) keyType); // Keys may not be complex objects
-
-			// Column for values of map
 			sde.allColumnNames.add(Const.VALUE_COL);
-			Type valueType = genericFieldType.getActualTypeArguments()[1];
-			if (valueType instanceof ParameterizedType) {
-				valueType = String.class; // Collections and maps as values of a map are stored as strings in database
-			}
-			else {
-				valueType = FieldColumnConversion.requiredJdbcTypeFor((Class<?>) valueType);
-			}
-			sde.allFieldTypes.add((Class<?>) valueType);
 		}
 		return sde;
 	}
@@ -156,13 +127,12 @@ public abstract class LoadHelpers extends Common {
 		try {
 			// Load (main) object records and build up loaded records by id map
 			SelectDescription sd = buildSelectDescriptionForMainObjectRecords(((SqlRegistry) sdc.registry), objectDomainClass);
-			List<SortedMap<String, Object>> loadedRecords = sdc.sqlDb.selectFrom(cn, sd.joinedTableExpression, sd.allColumnNames, whereClauseIncludingSyncCondition, null, limit, null,
-					sd.allFieldTypes);
+			List<SortedMap<String, Object>> loadedRecords = sdc.sqlDb.selectFrom(cn, sd.joinedTableExpression, sd.allColumnNames, whereClauseIncludingSyncCondition, null, limit, null, null);
 			if (CList.isEmpty(loadedRecords)) {
 				return loadedRecordMap;
 			}
 			for (SortedMap<String, Object> rec : loadedRecords) {
-				loadedRecordMap.put((long) rec.get(Const.ID_COL), rec);
+				loadedRecordMap.put(((Number) rec.get(Const.ID_COL)).longValue(), rec);
 			}
 
 			// Load entry records for all complex (table related) fields and assign them to main object records using entry table name as key
@@ -183,12 +153,12 @@ public abstract class LoadHelpers extends Common {
 						List<String> idsLists = Helpers.buildMax1000IdsLists(loadedRecordMap.keySet());
 						for (String idsList : idsLists) {
 							String limitWhereClause = (!isEmpty(whereClause) ? "(" + whereClause + ") AND " : "") + objectTableName + ".ID IN (" + idsList + ")";
-							loadedEntryRecords.addAll(sdc.sqlDb.selectFrom(cn, sde.joinedTableExpression, sde.allColumnNames, limitWhereClause, sde.orderByClause, sde.allFieldTypes));
+							loadedEntryRecords.addAll(sdc.sqlDb.selectFrom(cn, sde.joinedTableExpression, sde.allColumnNames, limitWhereClause, sde.orderByClause, null));
 						}
 					}
 					else {
 						// SELECT all entry records
-						loadedEntryRecords.addAll(sdc.sqlDb.selectFrom(cn, sde.joinedTableExpression, sde.allColumnNames, whereClause, sde.orderByClause, sde.allFieldTypes));
+						loadedEntryRecords.addAll(sdc.sqlDb.selectFrom(cn, sde.joinedTableExpression, sde.allColumnNames, whereClause, sde.orderByClause, null));
 					}
 
 					// Group entry records by objects where they belong to
@@ -198,7 +168,7 @@ public abstract class LoadHelpers extends Common {
 					for (SortedMap<String, Object> entryRecord : loadedEntryRecords) {
 
 						// Ignore entry record if main object record (referenced by object id) is not present
-						long objectId = (long) entryRecord.get(refIdColumnName);
+						long objectId = ((Number) entryRecord.get(refIdColumnName)).longValue();
 						if (!loadedRecordMap.containsKey(objectId)) {
 							missingObjectNames.add(domainClass.getSimpleName() + "@" + objectId);
 							continue;
@@ -213,6 +183,7 @@ public abstract class LoadHelpers extends Common {
 					}
 
 					// Build collection or map from entry records and add it to loaded object record with entry table name as key
+					// (perform table entries -> collection/map conversion here and not later during assignment of values to objects)
 					String entryTableName = ((SqlRegistry) sdc.registry).getEntryTableFor(complexField).name;
 					ParameterizedType genericFieldType = ((ParameterizedType) complexField.getGenericType());
 					if (Collection.class.isAssignableFrom(complexField.getType())) { // Collection
@@ -364,14 +335,15 @@ public abstract class LoadHelpers extends Common {
 	private static void assignFieldWarningOnUnsavedReferenceChange(SqlDomainController sdc, SqlDomainObject obj, Field refField, String foreignKeyColumnName, Long parentObjectIdFromDatabase) {
 
 		SqlDomainObject parentObj = (SqlDomainObject) obj.getFieldValue(refField);
-		Long parentObjectIdFromLocalObjectRecord = (Long) sdc.recordMap.get(obj.getClass()).get(obj.getId()).get(foreignKeyColumnName);
+		Number parentObjectIdNumber = (Number) sdc.recordMap.get(obj.getClass()).get(obj.getId()).get(foreignKeyColumnName);
+		Long parentObjectIdFromLocalObjectRecord = (parentObjectIdNumber != null ? parentObjectIdNumber.longValue() : null);
 
 		if (parentObj == null && parentObjectIdFromLocalObjectRecord != null) {
 			log.warn("SDC: Reference field '{}' of object '{}' has unsaved null reference which will be overridden by reference to '{}@{}' from database!", refField.getName(), obj.name(),
 					refField.getType().getSimpleName(), parentObjectIdFromDatabase);
 			obj.setFieldWarning(refField, "Discarded unsaved changed null reference of field '" + refField.getName() + "' on loading object from database");
 		}
-		else if (parentObj != null && parentObj.getId() != parentObjectIdFromLocalObjectRecord) {
+		else if (parentObj != null && (parentObjectIdFromLocalObjectRecord == null || parentObj.getId() != parentObjectIdFromLocalObjectRecord)) {
 			if (parentObjectIdFromDatabase != null) {
 				log.warn("SDC: Referenced field '{}' of object '{}' has unsaved changed reference to '{}@{}' which will be overridden by reference to '{}@{}' from database!", refField.getName(),
 						obj.name(), refField.getType().getSimpleName(), parentObj.getId(), refField.getType().getSimpleName(), parentObjectIdFromDatabase);
@@ -389,7 +361,7 @@ public abstract class LoadHelpers extends Common {
 
 		Object fieldValue = obj.getFieldValue(dataField);
 		Object columnValueFromObjectRecord = sdc.recordMap.get(obj.getClass()).get(obj.getId()).get(columnName);
-		Object fieldValueFromObjectRecord = FieldColumnConversion.column2FieldValue(dataField.getType(), columnValueFromObjectRecord);
+		Object fieldValueFromObjectRecord = Conversion.column2FieldValue(dataField.getType(), columnValueFromObjectRecord);
 
 		if (!objectsEqual(fieldValue, fieldValueFromObjectRecord)) {
 			log.warn("SDC: Data field '{}' of object '{}' has unsaved changed value {} which will be overridden by value {} from database!", dataField.getName(), obj.name(),
@@ -435,9 +407,10 @@ public abstract class LoadHelpers extends Common {
 				String foreignKeyColumnName = ((SqlRegistry) sdc.registry).getColumnFor(refField).name;
 
 				boolean hasValueChanged = databaseChangesMap.containsKey(foreignKeyColumnName);
-
+				Number parentIdNumber = (Number) databaseChangesMap.get(foreignKeyColumnName);
 				SqlDomainObject currentParentObject = (SqlDomainObject) obj.getFieldValue(refField);
-				Long parentObjectId = (hasValueChanged ? (Long) databaseChangesMap.get(foreignKeyColumnName) : currentParentObject != null ? currentParentObject.getId() : null);
+
+				Long parentObjectId = (hasValueChanged ? (parentIdNumber != null ? parentIdNumber.longValue() : null) : currentParentObject != null ? currentParentObject.getId() : null);
 
 				if (hasValueChanged && !isNew) {
 					assignFieldWarningOnUnsavedReferenceChange(sdc, obj, refField, foreignKeyColumnName, parentObjectId);
@@ -484,7 +457,13 @@ public abstract class LoadHelpers extends Common {
 				if (!isNew) {
 					assignFieldWarningOnUnsavedValueChange(sdc, obj, dataField, columnName, columnValueFromDatabase /* only for logging */);
 				}
-				obj.setFieldValue(dataField, FieldColumnConversion.column2FieldValue(dataField.getType(), columnValueFromDatabase));
+				Object fieldValue = Conversion.column2FieldValue(dataField.getType(), columnValueFromDatabase);
+				
+				//	Set value for field
+				obj.setFieldValue(dataField, fieldValue);
+				
+				//	Replace loaded column value by field value in database changes map - which will be used to update object record
+				databaseChangesMap.put(columnName, fieldValue);
 			}
 
 			// Complex (table related) fields: set field values of object to collection or map (conversion from entry table record was already done directly after loading entry records)
@@ -493,19 +472,19 @@ public abstract class LoadHelpers extends Common {
 
 				String entryTableName = ((SqlRegistry) sdc.registry).getEntryTableFor(complexField).name;
 				boolean isCollection = Collection.class.isAssignableFrom(complexField.getType());
-				Object collectionOrMapFromFieldValue = obj.getFieldValue(complexField);
+				Object collectionOrMapFromObject = obj.getFieldValue(complexField);
 
 				if (!isNew) {
-					assignFieldWarningOnUnsavedComplexFieldChange(sdc, obj, complexField, entryTableName, collectionOrMapFromFieldValue, isCollection);
+					assignFieldWarningOnUnsavedComplexFieldChange(sdc, obj, complexField, entryTableName, collectionOrMapFromObject, isCollection);
 				}
 
 				if (isCollection) { // Collection
-					Collection<Object> colFromObject = (Collection<Object>) collectionOrMapFromFieldValue;
+					Collection<Object> colFromObject = (Collection<Object>) collectionOrMapFromObject;
 					colFromObject.clear();
 					colFromObject.addAll((Collection<Object>) databaseChangesMap.get(entryTableName));
 				}
 				else { // Map
-					Map<Object, Object> mapFromObject = (Map<Object, Object>) collectionOrMapFromFieldValue;
+					Map<Object, Object> mapFromObject = (Map<Object, Object>) collectionOrMapFromObject;
 					mapFromObject.clear();
 					mapFromObject.putAll((Map<Object, Object>) databaseChangesMap.get(entryTableName));
 				}

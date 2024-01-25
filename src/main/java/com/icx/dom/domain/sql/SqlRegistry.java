@@ -64,7 +64,6 @@ public class SqlRegistry extends Registry<SqlDomainObject> {
 	// Basic domain class/table and field/column association
 	private Map<Class<? extends SqlDomainObject>, SqlDbTable> sqlTableByDomainClassMap = new HashMap<>();
 	private Map<Field, Column> sqlColumnByFieldMap = new HashMap<>();
-	private Map<Column, Class<?>> sqlReqiredJdbcTypeByColumnMap = new HashMap<>();
 
 	// Table and column associations for both element collection and key/value map (together called 'table related') fields
 	private Map<Field, SqlDbTable> sqlTableByComplexFieldMap = new HashMap<>();
@@ -167,33 +166,6 @@ public class SqlRegistry extends Registry<SqlDomainObject> {
 		return refIdColumn;
 	}
 
-	// Get field type for column - to retrieve SELECT results with correct type
-	public Class<?> getRequiredJdbcTypeFor(Column column) {
-
-		if (column == null) {
-			log.error("SRG: Internal error! Column to get field for is null!");
-			return null;
-		}
-
-		if (Const.ID_COL.equals(column.name)) {
-			return Reflection.getBoxingWrapperType(idField.getType());
-		}
-		else if (Const.LAST_MODIFIED_COL.equals(column.name)) {
-			return lastModifiedInDbField.getType();
-		}
-		else if (Const.DOMAIN_CLASS_COL.equals(column.name)) {
-			return String.class;
-		}
-
-		Class<?> fieldClass = sqlReqiredJdbcTypeByColumnMap.get(column);
-		if (fieldClass == null) {
-			log.error("SRG: Internal error! No field associated to column  '{}'!", column.name);
-			return null;
-		}
-
-		return fieldClass;
-	}
-
 	// Get field for column - only used in error handling
 	public Field getFieldFor(Column column) {
 		for (Entry<Field, Column> entry : sqlColumnByFieldMap.entrySet()) {
@@ -273,7 +245,6 @@ public class SqlRegistry extends Registry<SqlDomainObject> {
 
 					// Store [ field : column ] relation
 					sqlColumnByFieldMap.put(field, column);
-					sqlReqiredJdbcTypeByColumnMap.put(column, FieldColumnConversion.requiredJdbcTypeFor(isReferenceField(field) ? idField.getType() : field.getType()));
 					log.info("SRG: \t\t[ {} ({}) : {} ]", Reflection.qualifiedName(field), field.getType().getSimpleName(), column.toStringWithoutTable(field.getType()));
 				}
 				else { // If associated column does not exist...

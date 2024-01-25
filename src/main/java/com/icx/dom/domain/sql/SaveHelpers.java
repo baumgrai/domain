@@ -65,7 +65,7 @@ public abstract class SaveHelpers extends Common {
 				Object fieldValue = object.getFieldValue(dataField);
 				Object columnValue = objectRecord.get(sqlRegistry.getColumnFor(dataField).name);
 
-				if (!logicallyEqual(fieldValue, FieldColumnConversion.column2FieldValue(dataField.getType(), columnValue))) {
+				if (!objectsEqual(fieldValue, columnValue)) {
 					fieldChangesMap.put(dataField, fieldValue);
 				}
 			}
@@ -73,8 +73,9 @@ public abstract class SaveHelpers extends Common {
 			// Reference fields
 			for (Field refField : sqlRegistry.getReferenceFields(domainClass)) {
 				SqlDomainObject parentObject = (SqlDomainObject) object.getFieldValue(refField);
-				Long refObjIdFromField = (parentObject == null ? null : parentObject.getId());
-				Long refObjIdFromColumn = (Long) objectRecord.get(sqlRegistry.getColumnFor(refField).name);
+				Long refObjIdFromField = (parentObject != null ? parentObject.getId() : null);
+				Number refObjIdFromColumnNumber = (Number) objectRecord.get(sqlRegistry.getColumnFor(refField).name);
+				Long refObjIdFromColumn = (refObjIdFromColumnNumber != null ? refObjIdFromColumnNumber.longValue() : null);
 
 				if (!objectsEqual(refObjIdFromField, refObjIdFromColumn)) {
 					fieldChangesMap.put(refField, parentObject);
@@ -138,8 +139,7 @@ public abstract class SaveHelpers extends Common {
 					columnValue = ((String) fieldValue).substring(0, column.maxlen);
 				}
 				else {
-					// Convert field value to appropriate value to set in table column (Enum, BigInteger, BigDecimal, File)
-					columnValue = FieldColumnConversion.field2ColumnValue(fieldValue);
+					columnValue = fieldValue;
 				}
 				columnValueMap.put(column.name, columnValue);
 			}
@@ -165,19 +165,11 @@ public abstract class SaveHelpers extends Common {
 			boolean isList = List.class.isAssignableFrom(complexField.getType());
 			boolean isSet = Set.class.isAssignableFrom(complexField.getType());
 
-			Object complexColumnObject = objectRecord.computeIfAbsent(entryTableName, (isMap ? m -> new HashMap<>() : isList ? m -> new ArrayList<>() : isSet ? m -> new HashSet<>() : null));
-			Object complexFieldObject = fieldChangesMap.get(complexField);
-
-			// Ignore unchanged complex object
-			if (objectsEqual(complexFieldObject, complexColumnObject)) {
-				continue;
-			}
-
 			// DELETE, UPDATE and/or INSERT entry records for maps, sets and lists
 			try {
 				if (isMap) {
-					Map<?, ?> oldMap = (Map<?, ?>) complexColumnObject;
-					Map<?, ?> newMap = (Map<?, ?>) complexFieldObject;
+					Map<?, ?> oldMap = (Map<?, ?>) objectRecord.computeIfAbsent(entryTableName, m -> new HashMap<>());
+					Map<?, ?> newMap = (Map<?, ?>) fieldChangesMap.get(complexField);
 
 					Set<Object> mapKeysToRemove = new HashSet<>();
 					Map<Object, Object> mapEntriesToInsert = new HashMap<>();
@@ -227,16 +219,19 @@ public abstract class SaveHelpers extends Common {
 					// Update entry records for changed map entries
 					for (Object key : mapEntriesToChange.keySet()) {
 						SortedMap<String, Object> updateMap = CMap.newSortedMap(Const.VALUE_COL, ComplexFieldHelpers.element2ColumnValue(mapEntriesToChange.get(key)));
-						Object columnKey = FieldColumnConversion.field2ColumnValue(key);
+						Object columnKey = key;
 
 						// UPDATE <entry table> SET ENTRY_VALUE=<converted entry value> WHERE <object reference column>=<objectid> AND ENTRY_KEY=<converted entry key>
 						sdc.sqlDb.update(cn, entryTableName, updateMap,
 								refIdColumnName + "=" + object.getId() + " AND " + Const.KEY_COL + "=" + (columnKey instanceof String ? "'" + columnKey + "'" : columnKey));
 					}
+
+					// Update object record by new complex object
+					objectRecord.put(entryTableName, newMap);// Do not use field map itself to allow detecting changes in map against map in object record
 				}
 				else if (isSet) {
-					Set<?> oldSet = (Set<?>) complexColumnObject;
-					Set<?> newSet = (Set<?>) complexFieldObject;
+					Set<?> oldSet = (Set<?>) objectRecord.computeIfAbsent(entryTableName, m -> new HashSet<>());
+					Set<?> newSet = (Set<?>) fieldChangesMap.get(complexField);
 
 					Set<Object> elementsToRemove = new HashSet<>();
 					Set<Object> elementsToInsert = new HashSet<>();
@@ -277,19 +272,24 @@ public abstract class SaveHelpers extends Common {
 						// (batch) INSERT INTO <entry table> (<object reference column>, ELEMENT) VALUES (<objectid>, <converted set element>)
 						sdc.sqlDb.insertInto(cn, entryTableName, ComplexFieldHelpers.collection2EntryRecords(refIdColumnName, object.getId(), elementsToInsert));
 					}
+
+					// Update object record by new complex object
+					objectRecord.put(entryTableName, new HashSet<>(newSet)); // Do not use field set itself to allow detecting changes in set against set in object record
 				}
-				else if (isList) { // List
+				else if (isList) { // List - clear and rebuild list from scratch to avoid complexity if only order of list elements changed
+					List<?> newList = (List<?>) fieldChangesMap.get(complexField);
+
 					// DELETE FROM <entry table> WHERE <object reference column>=<objectid>
 					SqlDb.deleteFrom(cn, entryTableName, refIdColumnName + "=" + object.getId());
 					// (batch) INSERT INTO <entry table> (<object reference column>, ELEMENT, ELEMENT_ORDER) VALUES (<objectid>, <converted list element>, <order>)
-					sdc.sqlDb.insertInto(cn, entryTableName, ComplexFieldHelpers.collection2EntryRecords(refIdColumnName, object.getId(), (List<?>) complexFieldObject));
+					sdc.sqlDb.insertInto(cn, entryTableName, ComplexFieldHelpers.collection2EntryRecords(refIdColumnName, object.getId(), newList));
+
+					// Update object record by new complex object
+					objectRecord.put(entryTableName, new ArrayList<>(newList)); // Do not use field list itself to allow detecting changes in list against list in object record
 				}
 				else {
 					log.error("SDC: Value of field '{}' is of unsupported type '{}'!", complexField.getName(), complexField.getType().getName());
 				}
-
-				// Update object record by new complex object
-				objectRecord.put(entryTableName, complexFieldObject);
 			}
 			catch (SQLException sqlex) {
 				log.error("SDC: Exception on updating entry table '{}' for {} field '{}' of object '{}'", entryTableName, (isMap ? "map" : "collection"), complexField.getName(), object.name());
@@ -417,12 +417,12 @@ public abstract class SaveHelpers extends Common {
 
 			// Build UPDATE statement for one column only
 			String columnName = it.next();
-			Object columnValue = columnValueMap.get(columnName);
+			Object fieldValue = columnValueMap.get(columnName);
 
 			String whereClause = Const.ID_COL + "=" + obj.getId();
-			log.info("SDC: UPDATE {} SET {}={} WHERE {}", table.name, columnName, (columnValue instanceof Number ? columnValue : "'" + columnValue + "'"), whereClause);
+			log.info("SDC: UPDATE {} SET {}={} WHERE {}", table.name, columnName, (fieldValue instanceof Number ? fieldValue : "'" + fieldValue + "'"), whereClause);
 			oneCVMap.clear();
-			oneCVMap.put(columnName, columnValue);
+			oneCVMap.put(columnName, fieldValue);
 			try {
 				// Update column
 				sdc.sqlDb.update(cn, table.name, oneCVMap, whereClause);
@@ -437,9 +437,9 @@ public abstract class SaveHelpers extends Common {
 					// Reset field and column value in column value map to original values
 					try {
 						List<SortedMap<String, Object>> results = sdc.sqlDb.selectFrom(cn, table.name, columnName, Const.ID_COL + "=" + obj.getId(), null, null);
-						columnValue = results.get(0).get(columnName);
-						columnValueMap.put(columnName, columnValue);
-						obj.setFieldValue(field, FieldColumnConversion.column2FieldValue(field.getType(), columnValue));
+						fieldValue = Conversion.column2FieldValue(field.getType(), results.get(0).get(columnName));
+						obj.setFieldValue(field, fieldValue);
+						columnValueMap.put(columnName, fieldValue);
 					}
 					catch (SQLException | SqlDbException e) {
 						log.error("SDC: SELECT failed by exception! '{}.{}' cannot be read for object {}", table.name, columnName, obj.name());
@@ -510,7 +510,15 @@ public abstract class SaveHelpers extends Common {
 				}
 				wasChanged = true;
 
-				log.info("SDC: Insert for class {}: {} ({})", domainClass.getSimpleName(), columnValueMap, obj.universalId());
+				SortedMap<String, Object> columnValueMapForLogging = new TreeMap<>();
+				for (Entry<String, Object> entry : columnValueMap.entrySet()) {
+					Object value = entry.getValue();
+					if (value instanceof byte[]) {
+						value = "<bytes>";
+					}
+					columnValueMapForLogging.put(entry.getKey(), value);
+				}
+				log.info("SDC: Insert for class {}: {} ({})", domainClass.getSimpleName(), columnValueMapForLogging, obj.universalId());
 
 				try {
 					// Insert record into table associated to this domain class

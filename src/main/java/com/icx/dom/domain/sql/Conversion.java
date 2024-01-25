@@ -7,58 +7,17 @@ import java.math.BigInteger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.common.Reflection;
 import com.icx.common.base.CLog;
 import com.icx.common.base.Common;
 
 /**
- * Field/column type and value conversion
+ * Conversion of column values retrieved from database to values of fields of domain objects
  * 
  * @author baumgrai
  */
-public abstract class FieldColumnConversion extends Common {
+public abstract class Conversion extends Common {
 
-	static final Logger log = LoggerFactory.getLogger(FieldColumnConversion.class);
-
-	// Determine required JDBC type for field type - will be used on SELECT's to
-	static Class<?> requiredJdbcTypeFor(Class<?> fieldClass) {
-
-		if (fieldClass == BigInteger.class) {
-			return Long.class;
-		}
-		else if (fieldClass == BigDecimal.class) {
-			return Double.class;
-		}
-		else if (Enum.class.isAssignableFrom(fieldClass)) {
-			return String.class;
-		}
-		else if (File.class.isAssignableFrom(fieldClass)) {
-			return String.class;
-		}
-		else {
-			return Reflection.getBoxingWrapperType(fieldClass);
-		}
-	}
-
-	// Convert field value to value to store in database
-	static Object field2ColumnValue(Object fieldValue) {
-
-		if (fieldValue instanceof Enum) {
-			return fieldValue.toString();
-		}
-		else if (fieldValue instanceof BigInteger) {
-			return ((BigInteger) fieldValue).longValue();
-		}
-		else if (fieldValue instanceof BigDecimal) {
-			return ((BigDecimal) fieldValue).doubleValue();
-		}
-		else if (fieldValue instanceof File) {
-			return ((File) fieldValue).getPath();
-		}
-		else {
-			return fieldValue;
-		}
-	}
+	static final Logger log = LoggerFactory.getLogger(Conversion.class);
 
 	// Convert value retrieved from database to value for field
 	@SuppressWarnings({ "unchecked", "rawtypes" })
@@ -75,18 +34,30 @@ public abstract class FieldColumnConversion extends Common {
 			else if (Enum.class.isAssignableFrom(fieldType)) {
 				return (T) Enum.valueOf((Class<? extends Enum>) fieldType, (String) columnValue);
 			}
+			else if (fieldType == Integer.class || fieldType == int.class) {
+				return (T) Integer.valueOf(((Number) columnValue).intValue());
+			}
+			else if (fieldType == Long.class || fieldType == long.class) {
+				return (T) Long.valueOf(((Number) columnValue).longValue());
+			}
+			else if (fieldType == Double.class || fieldType == double.class) {
+				return (T) Double.valueOf(((Number) columnValue).doubleValue());
+			}
 			else if (fieldType == BigInteger.class) {
-				return (T) BigInteger.valueOf((long) columnValue);
+				return (T) BigInteger.valueOf(((Number) columnValue).longValue());
 			}
 			else if (fieldType == BigDecimal.class) {
 
-				Double d = (double) columnValue;
-				if (d % 1.0 == 0 && d < Long.MAX_VALUE) { // Avoid artifacts BigDecimal@4 -> BigDecimal@4.0
-					return (T) BigDecimal.valueOf(d.longValue());
+				Number number = (Number) columnValue;
+				if (number.doubleValue() % 1.0 == 0 && number.longValue() < Long.MAX_VALUE) { // Avoid artifacts BigDecimal@4 -> BigDecimal@4.0
+					return (T) BigDecimal.valueOf(number.longValue());
 				}
 				else {
-					return (T) BigDecimal.valueOf(d);
+					return (T) BigDecimal.valueOf(number.doubleValue());
 				}
+			}
+			else if (Boolean.class.isAssignableFrom(fieldType) || boolean.class.isAssignableFrom(fieldType)) {
+				return (T) Boolean.valueOf((String) columnValue);
 			}
 			else if (File.class.isAssignableFrom(fieldType)) {
 				return (T) new File((String) columnValue);
