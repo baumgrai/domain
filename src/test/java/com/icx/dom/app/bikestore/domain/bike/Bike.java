@@ -19,7 +19,7 @@ import com.icx.dom.domain.sql.SqlDomainObject;
 /**
  * Bike model with properties and availability by size.
  * 
- * @author RainerBaumgärtel
+ * @author baumgrai
  */
 @SqlTable(uniqueConstraints = { "manufacturer, model" }) // Define multi column constraints here
 public abstract class Bike extends SqlDomainObject {
@@ -44,7 +44,7 @@ public abstract class Bike extends SqlDomainObject {
 
 	// Data members
 
-	// Define text column size different from default 256 - extending size forces awareness of DB specific limits!
+	// Define text column size different from default 1024 - increasing size forces awareness of DB specific limits!
 	@SqlColumn(notNull = true, charsize = 64)
 	public String model;
 
@@ -58,7 +58,7 @@ public abstract class Bike extends SqlDomainObject {
 
 	public Double weight; // null for unknown
 
-	public boolean isForWoman = false; // boolean/Boolean field -> text column with 'TRUE' or 'FALSE', primitive type 'boolean' forces NOT NULL constraint
+	public boolean isForWoman = false; // boolean/Boolean field -> text column with 'true' or 'false', primitive type 'boolean' forces NOT NULL constraint
 
 	// Note: Set, List and Map fields are automatically initialized (with empty collections/maps) on object registration (but only if they are not initialized explicitly here)
 
@@ -70,12 +70,12 @@ public abstract class Bike extends SqlDomainObject {
 	@SqlColumn(notNull = true) // Forces NOT NULL constraint for assigned column
 	public BigDecimal price;
 
-	public byte[] picture; // byte array forces BLOB
+	public byte[] picture; // byte array forces BLOB or related column type
 
 	// References (to other domain objects)
 
 	@SqlColumn(notNull = true)
-	public Manufacturer manufacturer; // Reference to other domain object will be realized in database by FOREIGN KEY to (automatically generated) record id
+	public Manufacturer manufacturer; // Reference to other domain object will be realized in database by FOREIGN KEY to (automatically generated) object/record id
 
 	// Accumulations
 
@@ -89,8 +89,8 @@ public abstract class Bike extends SqlDomainObject {
 
 	// Constructors
 
-	// Default constructor must exist. It will be used by domain controller for instantiation of objects loaded from database.
-	// Note: If you have specific constructor(s) you have to define default constructor explicitly!
+	// Default constructor must exist. It will be used by domain controller for instantiation of objects loaded from database and within create() and createAndSave() methods.
+	// You have to define default constructor explicitly only if there are specific constructor(s) too!
 	public Bike() {
 	}
 

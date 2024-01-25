@@ -31,7 +31,7 @@ import com.icx.dom.domain.sql.SqlDomainObject;
 /**
  * Clients of different countries ordering bikes if different types.
  * 
- * @author RainerBaumgärtel
+ * @author baumgrai
  */
 @SqlTable(uniqueConstraints = { "firstName, country" }, indexes = "bikeSize") // Define multi column UNIQUE constraints and indexes here
 public class Client extends SqlDomainObject {
@@ -42,7 +42,7 @@ public class Client extends SqlDomainObject {
 		MALE, FEMALE, DIVERSE
 	}
 
-	// 'Country' and 'Region' enums must be defined here (and not in inner 'RegionInUse' class) because doing otherwise leads to Java 8 compiler error
+	// Note: 'Country' and 'Region' enums must be defined here (and not in inner 'RegionInUse' class) because doing otherwise leads to Java 8 compiler error
 	public enum Country {
 		ALGERIA, ARGENTINA, AUSTRALIA, AUSTRIA, BANGLADESH, BELGIUM, BRAZIL, CANADA, CHILE, CHINA, COLOMBIA, CUBA, DENMARK, ECUADOR, EGYPT, ENGLAND, ETHIOPIA, FINLAND, FRANCE, GERMANY, GHANA, GREECE,
 		HONG_KONG, HUNGARY, INDIA, INDONESIA, IRAN, IRAQ, IRELAND, ISRAEL, ITALY, JAMAICA, JAPAN, JORDAN, KAZAKHSTAN, KENYA, SOUTH_KOREA, LIBYA, LUXEMBOURG, MALAYSIA, MEXICO, MOROCCO, NEPAL,
@@ -56,7 +56,7 @@ public class Client extends SqlDomainObject {
 
 	// Inner classes
 
-	public static class RegionInProgress extends SqlDomainObject {
+	public static class RegionInProgress extends SqlDomainObject { // Domain object class may be an inner class (but only on first level)
 
 		//@formatter:off
 		private static final Map<Region, List<Country>> regionCountryMap = CMap.newMap(
@@ -206,9 +206,9 @@ public class Client extends SqlDomainObject {
 
 	public Map<String, Double> wantedBikesMaxPriceMap; // Map is saved in separate table
 
-	// Note: If no specific constructor is defined the necessary default constructor is automatically available (Java behavior).
+	// Note: If no specific constructor is defined, the necessary default constructor is automatically available (Java behavior).
 
-	// Accumulations
+	// Accumulations (see Bike.java)
 
 	@Accumulation
 	public Set<Order> orders;
@@ -242,14 +242,6 @@ public class Client extends SqlDomainObject {
 		bikeTypesStillNotOrdered.add(MTB.class);
 
 		clients.add(this);
-	}
-
-	public boolean isAddressValid() {
-		return (!Common.isEmpty(firstName) && country != null);
-	}
-
-	public boolean alreadyOrdered(String bikeClassName) {
-		return (BikeStoreApp.sdc.hasAny(Order.class, o -> o.client == this && Common.objectsEqual(bikeClassName, o.bike.getClass().getSimpleName())));
 	}
 
 	// Client thread
@@ -292,6 +284,7 @@ public class Client extends SqlDomainObject {
 						if (orderedBike == null && bike.sizes.contains(bikeSize) && bike.availabilityMap.get(bikeSize) > 0) {
 							bike.availabilityMap.put(bikeSize, bike.availabilityMap.get(bikeSize) - 1); // Decrement availability count
 							orderedBike = bike;
+							// Do not break; here to ensure releasing checked bike from exclusive use
 						}
 					}
 				}
@@ -307,13 +300,14 @@ public class Client extends SqlDomainObject {
 			}
 
 			// Save ordered bike with decremented availability count
-			BikeStoreApp.sdc.save(orderedBike);
+			orderedBike.save(); // save() method of domain object itself does not throw an exception but logs (SQL) exception occurred
 			log.info("'{}' orders bike '{}' ({})", client, orderedBike, bikeSize);
 
-			// Create order (using constructor)
+			// Create order using constructor and register and save it explicitly - so ensuring that only a fully initialized order will be registered and can be found by order processing thread
+			// Note: Because of 'orderedBike is not 'static' enough create() ad createAndSave() using init function for setting bike of order would not compile
 			Order order = new Order(orderedBike, client);
 			BikeStoreApp.sdc.register(order);
-			BikeStoreApp.sdc.save(order);
+			BikeStoreApp.sdc.save(order); // save() method of domain controller throws and logs (SQL) exception occurred - using both methods here is only for demonstration
 			counters.numberOfOrdersCreated++;
 
 			return order;
@@ -334,8 +328,7 @@ public class Client extends SqlDomainObject {
 				log.info("Cancel order '{}' because client is not able to pay the price of {}$. (disposable money is only: {}$)", order, order.bike.price, disposableMoney);
 				order.bike.incrementAvailableCount(bikeSize); // Give bike free again for ordering after client was unable to pay bike
 				order.wasCanceled = true;
-				// BikeStoreApp.sdc.save(order);
-				BikeStoreApp.sdc.delete(order);
+				order.delete(); // domain object's delete() method used here does not throw SQLException but logs it, delete() method of domain controller throws and logs SQLException occurred
 				counters.numberOfOrdersCanceledByInabilityToPay++;
 				return false;
 			}
@@ -354,14 +347,14 @@ public class Client extends SqlDomainObject {
 			}
 
 			try {
-				// Try to order one bike of any bike type...
+				// Try to order one bike of any of the three bike types...
 				Iterator<Class<? extends Bike>> it = bikeTypesStillNotOrdered.iterator();
 				while (it.hasNext()) {
 
 					// Try to find orderable bike of wanted type
 					Order order = orderBike(it.next());
 					if (order != null) {
-						it.remove(); // Bike of this type now was ordered
+						it.remove(); // Bike of this type now was ordered and shall not be ordered again by this client
 
 						// Wait until invoice was sent
 						int i;
@@ -370,12 +363,12 @@ public class Client extends SqlDomainObject {
 							Thread.sleep(LOOP_DELAY);
 						}
 						if (order.invoiceDate == null) {
-							log.warn("Order processing time exceeded ");
+							log.warn("Order processing time exceeded!");
 							Order.orderProcessingExceededCount++;
 						}
 						else {
 							int delay = i * LOOP_DELAY;
-							synchronized (Order.orderProcessingDurationMap) {
+							synchronized (Order.orderProcessingDurationMap) { // Protocol order processing duration
 								Order.orderProcessingDurationMap.put(delay, Order.orderProcessingDurationMap.computeIfAbsent(delay, v -> 0) + 1);
 							}
 						}
@@ -387,13 +380,13 @@ public class Client extends SqlDomainObject {
 								BikeStoreApp.sdc.reload(order);
 								Thread.sleep(LOOP_DELAY);
 							}
-							if (order.invoiceDate == null) {
+							if (order.deliveryDate == null) {
 								log.warn("Bike delivery time exceeded ");
 								Order.bikeDeliveryExceededCount++;
 							}
 							else {
 								int delay = i * LOOP_DELAY;
-								synchronized (Order.bikeDeliveryDurationMap) {
+								synchronized (Order.bikeDeliveryDurationMap) { // Protocol delivery duration
 									Order.bikeDeliveryDurationMap.put(delay, Order.bikeDeliveryDurationMap.computeIfAbsent(delay, v -> 0) + 1);
 								}
 							}

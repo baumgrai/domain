@@ -36,7 +36,7 @@ public class Initialize {
 
 		log.info("Delete existing objects...");
 
-		// Note: To speed up initialization use one transaction to delete all existing objects. So possible exceptions on DELETE will stop test
+		// Note: To speed up initialization use one transaction to delete all existing objects. Potential exceptions on DELETE will stop test
 
 		try (SqlConnection sqlcn = SqlConnection.open(BikeStoreApp.sdc.sqlDb.pool, false)) {
 
@@ -140,7 +140,8 @@ public class Initialize {
 		// Save bikes
 
 		// Note: it's generally recommended to save new and changed objects as soon as possible to avoid unsaved invalid objects in object store
-		// Note: if an object is saved which has an unsaved parent object this parent object is saved automatically before saving object itself
+		// Note: if an object is saved which has an parent object which is not yet stored in persistence database this parent object is saved automatically before saving object itself (to have valid
+		// child/parent relation realized by FOREIGN KEY column with parent id in database)
 
 		try (SqlConnection sqlcn = SqlConnection.open(BikeStoreApp.sdc.sqlDb.pool, false)) {
 			for (Bike bike : BikeStoreApp.sdc.all(Bike.class)) {

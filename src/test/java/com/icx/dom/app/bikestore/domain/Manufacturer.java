@@ -24,7 +24,7 @@ public class Manufacturer extends SqlDomainObject {
 
 	// Constructors
 
-	public Manufacturer() { // Default constructor must exist! It will be used by domain controller for instantiation of objects loaded from database
+	public Manufacturer() { // Default constructor must exist! It will be used by domain controller for instantiation of objects loaded from database and within create() and createAndSave() methods.
 	}
 
 	// Application specific constructor without internal domain object registration - instantiated object must be registered afterwards!

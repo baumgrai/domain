@@ -22,15 +22,15 @@ import com.icx.dom.app.bikestore.domain.client.Order;
 import com.icx.dom.domain.sql.SqlDomainController;
 
 /**
- * International bike store. Test simulates bike ordering by different clients, order processing and and bike delivery.
+ * International bike store. Test app simulates bike ordering by different clients, order processing and and bike delivery.
  * 
  * Code demonstrates how to register domain classes and associate them with tables of (existing) persistence database, how to load and save domain objects and also most of the additional features
  * provided by Domain persistence mechanism. See comments in {@code Java2Sql.java} for how to create persistence database from domain classes.
  * 
- * One instance of this test program processes orders from clients of world regions ({@link Client#country}, {@link RegionInProgress#region}). So one can run six parallel instances to cover whole
- * world. Parallel database operations are synchronized by database synchronization using unique shadow records for records to update exclusively.
+ * One instance of this test program processes orders from clients of one of six world regions ({@link Client#country}, {@link RegionInProgress#region}). So one can run six parallel instances to cover
+ * whole world. Parallel database operations are synchronized by database synchronization using unique shadow 'in-progress' records for records of objects to update exclusively.
  * 
- * @author RainerBaumgärtel
+ * @author baumgrai
  */
 public class BikeStoreApp {
 
@@ -38,17 +38,17 @@ public class BikeStoreApp {
 
 	public static final File BIKE_PICTURE = new File("src/test/resources/bike.jpg");
 
-	// Delay time between client bike order requests. One client tries to order bikes of 3 different types. Acts also as delay time for start of client order threads.
+	// Delay time between client bike order requests. One client tries to order bikes of 3 different types. Acts also as delay time for start of client's ordering threads.
 	public static final long ORDER_DELAY_TIME_MS = 200;
 
-	// Domain controller
+	// Domain controller object
 	public static SqlDomainController sdc = new SqlDomainController();
 
 	// List of bike models with availabilities for different sizes
 	protected static List<Bike> bikes = null;
 
 	static int n = 0;
-	static RegionInProgress regionInProgress = null;
+	static RegionInProgress regionInProgress = null; // Client of this region will be processed by this application instance
 
 	// To check order processing
 	public static class Counters {
@@ -68,7 +68,9 @@ public class BikeStoreApp {
 		// Associate domain classes and database tables
 		sdc.initialize(dbProps, domainProps, Manufacturer.class.getPackage().getName() /* use any class directly in 'domain' package to find all domain classes */);
 
-		// Initially load existing domain objects from database - exclude historical data from loading (SELECT statements are performed here)
+		// Initially load existing domain objects from database (SELECT statements are performed here)
+		// Note - (historical) orders are generally excluded from loading here - without excluding Order class from loading only orders newer than start time minus data horizon (see Order.java) would
+		// be loaded on startup
 		sdc.synchronize(Order.class);
 
 		// Select and reserve world region for this instance
@@ -90,7 +92,7 @@ public class BikeStoreApp {
 
 		log.info("Process orders for clients in region {}", regionInProgress.region);
 
-		// Cleanup database on start of first instance
+		// Cleanup persistence database on start of first instance
 		if (regionInProgress.region == Region.values()[0]) {
 			Initialize.deleteExistingObjects();
 			Initialize.createObjects();
@@ -113,9 +115,9 @@ public class BikeStoreApp {
 		bikeDeliveryThread.setName("-DELIVER-");
 		bikeDeliveryThread.start();
 
+		// Create clients for region and start client threads to order bikes
 		List<Thread> clientThreads = new ArrayList<>();
 		try {
-			// Create clients for region and start client threads to order bikes
 			for (Country country : RegionInProgress.getRegionCountryMap().get(regionInProgress.region)) {
 				for (String clientName : Client.getCountryNamesMap().get(country)) {
 
