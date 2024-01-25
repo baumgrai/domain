@@ -185,7 +185,7 @@ public abstract class DomainObject extends Common implements Comparable<DomainOb
 	/**
 	 * To override by specific domain class to check if object can be deleted.
 	 * <p>
-	 * If this method returns false for any object in a deletion process (of an object and direct an indirect child objects) no object will be deleted at all.
+	 * If this method returns false for any object in a deletion process (deleting an object and direct an indirect child objects) no object will be deleted at all.
 	 * 
 	 * @return true if object can be deleted, false otherwise
 	 */
