@@ -127,11 +127,6 @@ public abstract class Bike extends SqlDomainObject {
 		return Common.compare(manufacturer + model, ((Bike) o).manufacturer + ((Bike) o).model);
 	}
 
-	@Override
-	public boolean canBeDeleted() {
-		return (availabilityMap.isEmpty() || availabilityMap.values().stream().allMatch(v -> v == 0));
-	}
-
 	public Bike forWoman() {
 		this.isForWoman = true;
 		return this;
