@@ -809,7 +809,7 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 
 		// Recursively check if this object and all direct and indirect children can be deleted
 		if (!canBeDeletedRecursive(obj, new ArrayList<>())) {
-			log.info("SDC: {} cannot be deleted because overriden #canBeDeleted() of {} returned false!", obj.name(), obj.getClass().getSimpleName());
+			log.info("SDC: {} cannot be deleted because #canBeDeletedRecursive() returned false!", obj.name());
 			return false;
 		}
 

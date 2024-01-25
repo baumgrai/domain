@@ -358,6 +358,7 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 	public boolean canBeDeletedRecursive(T obj, List<DomainObject> objectsToCheck) {
 
 		if (!obj.canBeDeleted()) {
+			log.info("SDC: {} cannot be deleted because overriden #canBeDeleted() of {} class or any base class returned false!", obj.name(), obj.getClass().getSimpleName());
 			return false;
 		}
 
