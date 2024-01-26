@@ -262,7 +262,9 @@ public abstract class LoadHelpers extends Common {
 			if (!sdc.registerById(obj, id)) { // An object of this domain class already exists and is registered
 				return null;
 			}
-			log.info("SDC: Created {} with id {}", obj.name(), id);
+			if (log.isDebugEnabled()) {
+				log.debug("SDC: Created {} with given id", obj.name());
+			}
 		}
 		return obj;
 	}
@@ -458,11 +460,11 @@ public abstract class LoadHelpers extends Common {
 					assignFieldWarningOnUnsavedValueChange(sdc, obj, dataField, columnName, columnValueFromDatabase /* only for logging */);
 				}
 				Object fieldValue = Conversion.column2FieldValue(dataField.getType(), columnValueFromDatabase);
-				
-				//	Set value for field
+
+				// Set value for field
 				obj.setFieldValue(dataField, fieldValue);
-				
-				//	Replace loaded column value by field value in database changes map - which will be used to update object record
+
+				// Replace loaded column value by field value in database changes map - which will be used to update object record
 				databaseChangesMap.put(columnName, fieldValue);
 			}
 
@@ -504,8 +506,8 @@ public abstract class LoadHelpers extends Common {
 	static boolean buildObjectsFromLoadedRecords(SqlDomainController sdc, Map<Class<? extends SqlDomainObject>, Map<Long, SortedMap<String, Object>>> loadedRecordsMap,
 			Set<SqlDomainObject> loadedObjects, Set<SqlDomainObject> objectsWhereReferencesChanged, List<UnresolvedReference> unresolvedReferences) {
 
-		if (!CMap.isEmpty(loadedRecordsMap)) {
-			log.info("SDC: Build objects from loaded records...");
+		if (!CMap.isEmpty(loadedRecordsMap) && log.isTraceEnabled()) {
+			log.trace("SDC: Build objects from loaded records...");
 		}
 
 		Set<SqlDomainObject> newObjects = new HashSet<>(); // Only for logging
@@ -549,8 +551,8 @@ public abstract class LoadHelpers extends Common {
 
 						// Add column/value entry to changes map if current and loaded values differ - ignore last modified column; consider only logical changes
 						if (!objectsEqual(col, Const.LAST_MODIFIED_COL) && !logicallyEqual(oldValue, newValue)) {
-							if (log.isDebugEnabled()) {
-								log.debug("SDC: Column {}: loaded value {} differs from current value {}", col, CLog.forSecretLogging(col, newValue), CLog.forSecretLogging(col, oldValue));
+							if (log.isTraceEnabled()) {
+								log.trace("SDC: Column {}: loaded value {} differs from current value {}", col, CLog.forSecretLogging(col, newValue), CLog.forSecretLogging(col, oldValue));
 							}
 							databaseChangesMap.put(col, newValue);
 						}
@@ -558,10 +560,12 @@ public abstract class LoadHelpers extends Common {
 
 					// Check if object was changed in database
 					if (!databaseChangesMap.isEmpty()) {
-						log.info("SDC: Loaded record for '{}@{}' differs from current record. New values: {}", objectDomainClass.getSimpleName(), id,
-								JdbcHelpers.forLoggingSqlResult(databaseChangesMap, columnNames));
-						if (log.isTraceEnabled()) {
-							log.info("SDC: Current object record: {}", JdbcHelpers.forLoggingSqlResult(objectRecord, columnNames));
+						if (log.isDebugEnabled()) {
+							log.debug("SDC: Loaded record for '{}@{}' differs from current record. New values: {}", objectDomainClass.getSimpleName(), id,
+									JdbcHelpers.forLoggingSqlResult(databaseChangesMap, columnNames));
+							if (log.isTraceEnabled()) {
+								log.trace("SDC: Current object record: {}", JdbcHelpers.forLoggingSqlResult(objectRecord, columnNames));
+							}
 						}
 
 						databaseChangesMap.put(Const.LAST_MODIFIED_COL, loadedRecord.get(Const.LAST_MODIFIED_COL)); // Change last modification date if any logical change was detected
@@ -578,8 +582,10 @@ public abstract class LoadHelpers extends Common {
 			}
 		}
 
-		log.info("SDC: Loaded: #'s of new objects: {}, #'s of changed objects: {} (#'s of total loaded objects: {})", Helpers.groupCountsByDomainClassName(newObjects),
-				Helpers.groupCountsByDomainClassName(changedObjects), Helpers.groupCountsByDomainClassName(loadedObjects));
+		if (log.isDebugEnabled()) {
+			log.debug("SDC: Loaded: #'s of new objects: {}, #'s of changed objects: {} (#'s of total loaded objects: {})", Helpers.groupCountsByDomainClassName(newObjects),
+					Helpers.groupCountsByDomainClassName(changedObjects), Helpers.groupCountsByDomainClassName(loadedObjects));
+		}
 
 		return (!changedObjects.isEmpty() || !newObjects.isEmpty()); // true if any changes in database were detected
 	}
@@ -613,7 +619,9 @@ public abstract class LoadHelpers extends Common {
 	private static Class<? extends SqlDomainObject> determineObjectDomainClass(Connection cn, SqlDomainController sdc, Class<? extends SqlDomainObject> domainClass, long id)
 			throws SQLException, SqlDbException {
 
-		log.info("SDC: Domain class '{}' is not an object domain class -> determine object domain class for missing object(s).", domainClass.getSimpleName());
+		if (log.isDebugEnabled()) {
+			log.debug("SDC: Domain class '{}' is not an object domain class -> determine object domain class for missing object(s).", domainClass.getSimpleName());
+		}
 
 		// Determine object domain class of missing referenced object by retrieving domain class name from loaded record for object record
 		String tableName = ((SqlRegistry) sdc.registry).getTableFor(domainClass).name;
@@ -624,7 +632,9 @@ public abstract class LoadHelpers extends Common {
 		}
 		else {
 			String objectDomainClassName = (String) records.get(0).get(Const.DOMAIN_CLASS_COL); // Assume JDBC type of column is String for String field
-			log.info("SDC: Object domain class for {}@{} is: '{}'", domainClass.getSimpleName(), id, objectDomainClassName);
+			if (log.isDebugEnabled()) {
+				log.debug("SDC: Object domain class for {}@{} is: '{}'", domainClass.getSimpleName(), id, objectDomainClassName);
+			}
 			return sdc.getDomainClassByName(objectDomainClassName);
 		}
 	}
@@ -658,7 +668,9 @@ public abstract class LoadHelpers extends Common {
 
 			Class<? extends SqlDomainObject> objectDomainClass = missingObjectsEntry.getKey();
 			Set<Long> missingObjectIds = missingObjectsEntry.getValue();
-			log.info("SDC: Load {} missing '{}' object(s){}", missingObjectIds.size(), objectDomainClass.getSimpleName(), (missingObjectIds.size() <= 32 ? " " + missingObjectIds : "..."));
+			if (log.isDebugEnabled()) {
+				log.debug("SDC: Load {} missing '{}' object(s){}", missingObjectIds.size(), objectDomainClass.getSimpleName(), (missingObjectIds.size() <= 32 ? " " + missingObjectIds : "..."));
+			}
 
 			// Build WHERE clause(s) with IDs and load missing objects
 			Map<Long, SortedMap<String, Object>> collectedRecordMap = new HashMap<>();
@@ -688,8 +700,8 @@ public abstract class LoadHelpers extends Common {
 				}
 			}
 		}
-		if (!CCollection.isEmpty(unresolvedReferences)) {
-			log.info("SDC: Resolved {} references which remained unresolved during last load cycle.", unresolvedReferences.size());
+		if (!CCollection.isEmpty(unresolvedReferences) && (log.isDebugEnabled())) {
+			log.debug("SDC: Resolved {} references which remained unresolved during last load cycle.", unresolvedReferences.size());
 		}
 	}
 
@@ -718,9 +730,11 @@ public abstract class LoadHelpers extends Common {
 			List<UnresolvedReference> furtherUnresolvedReferences = new ArrayList<>();
 			while (!unresolvedReferences.isEmpty()) {
 
-				log.info("SDC: There were in total {} unresolved reference(s) of {} objects referenced by {} objects detected in {}. load cycle", unresolvedReferences.size(),
-						unresolvedReferences.stream().map(ur -> ur.refField.getType().getSimpleName()).distinct().collect(Collectors.toList()),
-						unresolvedReferences.stream().map(ur -> ur.obj.getClass().getSimpleName()).distinct().collect(Collectors.toList()), c++);
+				if (log.isDebugEnabled()) {
+					log.debug("SDC: There were in total {} unresolved reference(s) of {} objects referenced by {} objects detected in {}. load cycle", unresolvedReferences.size(),
+							unresolvedReferences.stream().map(ur -> ur.refField.getType().getSimpleName()).distinct().collect(Collectors.toList()),
+							unresolvedReferences.stream().map(ur -> ur.obj.getClass().getSimpleName()).distinct().collect(Collectors.toList()), c++);
+				}
 
 				// Load and instantiate missing objects of unresolved references
 				missingRecordsMap = loadMissingObjects(sqlcn.cn, sdc, unresolvedReferences);

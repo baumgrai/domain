@@ -755,7 +755,9 @@ public class SqlDb extends Common {
 		}
 
 		if (columnValueMaps.isEmpty()) {
-			log.info("SQL: No records to insert");
+			if (log.isDebugEnabled()) {
+				log.debug("SQL: No records to insert");
+			}
 			return new int[0];
 		}
 
@@ -905,7 +907,10 @@ public class SqlDb extends Common {
 		catch (SQLException sqlex) {
 
 			if (preparedStatementString.contains("IN_PROGRESS")) {
-				log.info("In-progress record used for access synchronization in Domain persistence system could not be inserted - associated object is currently used exclusivly by another thread!");
+				if (log.isDebugEnabled()) {
+					log.debug(
+							"In-progress record used for access synchronization in Domain persistence system could not be inserted - associated object is currently used exclusivly by another thread!");
+				}
 			}
 			else {
 				log.error("SQL: {} '{}' on... ", sqlex.getClass().getSimpleName(), sqlex.getMessage().trim()); // Log SQL statement(s) on exception
@@ -954,7 +959,9 @@ public class SqlDb extends Common {
 		}
 
 		if (columnValueMap.isEmpty()) {
-			log.info("SQL: Column/value map empty - nothing to update");
+			if (log.isDebugEnabled()) {
+				log.debug("SQL: Column/value map empty - nothing to update");
+			}
 			return 0;
 		}
 

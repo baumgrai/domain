@@ -175,7 +175,9 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 		}
 		obj.dc = this;
 		register(obj);
-		log.info("DC: Created {}.", obj.name());
+		if (log.isDebugEnabled()) {
+			log.debug("DC: Created {}.", obj.name());
+		}
 		return obj;
 	}
 
@@ -261,7 +263,7 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 
 		Class<? extends T> objectDomainClass = registry.getCastedDomainClass(obj);
 		if (objectMap.get(objectDomainClass).containsKey(id)) {
-			log.info("{} is an already registered object", obj);
+			log.info("DC: {} is an already registered object", obj);
 			return false;
 		}
 

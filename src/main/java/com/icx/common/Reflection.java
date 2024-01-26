@@ -235,7 +235,9 @@ public abstract class Reflection extends Common {
 			log.error("UnsupportedEncodingException: {}", StandardCharsets.UTF_8.name());
 		}
 
-		log.info("RFL: Got location of class '{}'. Source URL: '{}', path: '{}'", cls.getSimpleName(), sourceUrl, path);
+		if (log.isDebugEnabled()) {
+			log.debug("RFL: Got location of class '{}'. Source URL: '{}', path: '{}'", cls.getSimpleName(), sourceUrl, path);
+		}
 
 		return new File(path);
 	}

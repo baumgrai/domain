@@ -38,8 +38,10 @@ public class DeleteHelpers extends Common {
 
 					if (objectsEqual(objectToCheck.getFieldValue(refField), objectToDelete)) {
 
-						log.info("SDC: {}Circular reference detected: {}.{} references {}! Reset reference before deleting object.", CLog.tabs(stackSize), objectToCheck.name(), refField.getName(),
-								objectToDelete.name());
+						if (log.isDebugEnabled()) {
+							log.debug("SDC: {}Circular reference detected: {}.{} references {}! Reset reference before deleting object.", CLog.tabs(stackSize), objectToCheck.name(),
+									refField.getName(), objectToDelete.name());
+						}
 
 						// Set object's field value to null
 						objectToCheck.setFieldValue(refField, null);
@@ -77,7 +79,9 @@ public class DeleteHelpers extends Common {
 		if (objectsToCheck == null) {
 			objectsToCheck = new ArrayList<>();
 		}
-		log.info("SDC: {}Delete {}", CLog.tabs(stackSize), obj.name());
+		if (log.isDebugEnabled()) {
+			log.debug("SDC: {}Delete {}", CLog.tabs(stackSize), obj.name());
+		}
 
 		// Unregister this object
 		sdc.unregister(obj); // to avoid that this object can be found while deletion process runs

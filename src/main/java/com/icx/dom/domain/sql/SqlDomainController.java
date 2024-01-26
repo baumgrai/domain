@@ -199,7 +199,9 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 		// Re-insert object record
 		recordMap.get(obj.getClass()).put(obj.getId(), objectRecord);
 
-		log.info("DC: Re-registered {} (by original id)", obj.name());
+		if (log.isDebugEnabled()) {
+			log.debug("DC: Re-registered {} (by original id)", obj.name());
+		}
 	}
 
 	// Only for unit tests
@@ -315,7 +317,10 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	 */
 	public Set<SqlDomainObject> loadOnly(Class<? extends SqlDomainObject> objectDomainClass, String whereClause, int maxCount) throws SQLException, SqlDbException {
 
-		log.info("SDC: Load {}'{}' objects{}", (maxCount > 0 ? "max " + maxCount + " " : ""), objectDomainClass.getSimpleName(), (!isEmpty(whereClause) ? " WHERE " + whereClause.toUpperCase() : ""));
+		if (log.isDebugEnabled()) {
+			log.debug("SDC: Load {}'{}' objects{}", (maxCount > 0 ? "max " + maxCount + " " : ""), objectDomainClass.getSimpleName(),
+					(!isEmpty(whereClause) ? " WHERE " + whereClause.toUpperCase() : ""));
+		}
 		Set<SqlDomainObject> loadedObjects = new HashSet<>();
 		LoadHelpers.loadAssuringReferentialIntegrity(this, cn -> LoadHelpers.select(cn, this, objectDomainClass, whereClause, maxCount), loadedObjects);
 		return loadedObjects;
@@ -403,8 +408,10 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	public <S extends SqlDomainObject> Set<S> allocateObjectsExclusively(Class<S> objectDomainClass, Class<? extends SqlDomainObject> inProgressClass, String whereClause, int maxCount,
 			Consumer<? super S> update) throws SQLException, SqlDbException {
 
-		log.info("SDC: Allocate {}'{}' objects{} exclusively for this domain controller instance", (maxCount > 0 ? "max " + maxCount + " " : ""), objectDomainClass.getSimpleName(),
-				(!isEmpty(whereClause) ? " WHERE " + whereClause.toUpperCase() : ""));
+		if (log.isTraceEnabled()) {
+			log.trace("SDC: Allocate {}'{}' objects{} exclusively for this domain controller instance", (maxCount > 0 ? "max " + maxCount + " " : ""), objectDomainClass.getSimpleName(),
+					(!isEmpty(whereClause) ? " WHERE " + whereClause.toUpperCase() : ""));
+		}
 
 		// Load objects related to given object domain class
 		Set<S> allocatedObjects = new HashSet<>();
@@ -414,11 +421,16 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 		// Filter objects of object domain class itself (because loaded objects may contain referenced objects of other domain classes too)
 		allocatedObjects = allocatedObjects.stream().filter(o -> o.getClass().equals(objectDomainClass)).collect(Collectors.toSet());
 		if (!allocatedObjects.isEmpty()) {
-			log.info("SDC: {} '{}' objects exclusively allocated", allocatedObjects.size(), objectDomainClass.getSimpleName());
+			if (log.isDebugEnabled()) {
+				log.debug("SDC: {} '{}' objects exclusively allocated {} ", allocatedObjects.size(), objectDomainClass.getSimpleName(),
+						(!isEmpty(whereClause) ? " WHERE " + whereClause.toUpperCase() : ""));
+			}
 
 			// If update is specified: change object as defined by update parameter and UPDATE record in database by saving object, release object from exclusive use if specified
 			if (update != null) {
-				log.info("SDC: Update exclusively allocated objects...");
+				if (log.isTraceEnabled()) {
+					log.trace("SDC: Update exclusively allocated objects...");
+				}
 				for (S loadedObject : allocatedObjects) {
 					update.accept(loadedObject);
 					save(loadedObject);
@@ -426,7 +438,7 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 			}
 		}
 		else {
-			log.info("SDC: No '{}' objects could exclusively be allocated", objectDomainClass.getSimpleName());
+			log.debug("SDC: No '{}' objects could exclusively be allocated", objectDomainClass.getSimpleName());
 		}
 
 		return allocatedObjects;
@@ -492,7 +504,9 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 		}
 
 		// Change object as defined by update parameter and UPDATE record in database on saving object
-		log.info("SDC: Release {} from exclusive use ({})", obj, update);
+		if (log.isDebugEnabled()) {
+			log.debug("SDC: Release {} from exclusive use ({})", obj, update);
+		}
 		if (update != null) {
 			update.accept(obj);
 			save(obj);
@@ -628,8 +642,8 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 				if (wasChanged) {
 					log.debug("SDC: Saved {}", obj.name());
 				}
-				else {
-					log.debug("SDC: {} is up-to-date", obj.name());
+				else if (log.isTraceEnabled()) {
+					log.trace("SDC: {} is up-to-date", obj.name());
 				}
 			}
 
@@ -817,9 +831,11 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 		try {
 			// Delete object and children
 			DeleteHelpers.deleteRecursiveFromDatabase(cn, this, obj, unregisteredObjects, null, 0);
-			log.info("SDC: Deleted {}", obj.name());
 			if (log.isDebugEnabled()) {
-				log.debug("SDC: Deletion of {} and all children took: {}", obj.name(), ChronoUnit.MILLIS.between(now, LocalDateTime.now()) + "ms");
+				log.debug("SDC: Deleted {}", obj.name());
+				if (log.isTraceEnabled()) {
+					log.trace("SDC: Deletion of {} and all children took: {}", obj.name(), ChronoUnit.MILLIS.between(now, LocalDateTime.now()) + "ms");
+				}
 			}
 			return true;
 		}

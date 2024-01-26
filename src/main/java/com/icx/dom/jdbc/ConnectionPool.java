@@ -141,12 +141,16 @@ public class ConnectionPool extends Common {
 
 		for (Connection cn : connectionsInPool) {
 			cn.close();
-			log.info("SQL: Physically closed cached connection");
+			if (log.isDebugEnabled()) {
+				log.debug("SQL: Physically closed cached connection");
+			}
 		}
 
 		for (Connection cn : connectionsInUse) {
 			cn.close();
-			log.info("SQL: Physically closed connection in use");
+			if (log.isDebugEnabled()) {
+				log.debug("SQL: Physically closed connection in use");
+			}
 		}
 	}
 
