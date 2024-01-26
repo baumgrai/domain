@@ -119,12 +119,12 @@ public abstract class Bike extends SqlDomainObject {
 
 	@Override
 	public String toString() {
-		return (manufacturer + " " + model + " (" + price + "$)");
+		return (getClass().getSimpleName() + ": " + manufacturer + " " + model + " (" + price + "$)");
 	}
 
 	@Override
 	public int compareTo(DomainObject o) {
-		return Common.compare(manufacturer + model, ((Bike) o).manufacturer + ((Bike) o).model);
+		return Common.compare(getClass().getSimpleName(), ((Bike) o).getClass().getSimpleName()) + Common.compare(price, ((Bike) o).price);
 	}
 
 	public Bike forWoman() {
@@ -146,9 +146,4 @@ public abstract class Bike extends SqlDomainObject {
 		this.sizes = CList.newList(Size.XS, Size.S, Size.M, Size.L, Size.XL);
 		return this;
 	}
-
-	public void incrementAvailableCount(Bike.Size bikeSize) throws Exception {
-		BikeStoreApp.sdc.computeExclusivelyOnObject(this, Bike.InProgress.class, b -> ((Bike) b).availabilityMap.put(bikeSize, ((Bike) b).availabilityMap.get(bikeSize) + 1));
-	}
-
 }

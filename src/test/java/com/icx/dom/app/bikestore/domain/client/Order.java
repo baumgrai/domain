@@ -35,7 +35,7 @@ public class Order extends SqlDomainObject {
 	@SqlColumn(notNull = true)
 	public Bike bike;
 
-	boolean wasCanceled = false;
+	public boolean wasCanceled = false;
 
 	public LocalDateTime orderDate; // Java Date/LocalDateTime -> database specific date/time column
 	public LocalDateTime invoiceDate;
@@ -63,7 +63,7 @@ public class Order extends SqlDomainObject {
 
 	@Override
 	public String toString() {
-		return (client + " ordered " + bike.getClass().getSimpleName() + " '" + bike + "' (" + client.bikeSize + ")");
+		return (client + " ordered '" + bike + "' (" + client.bikeSize + ")");
 	}
 
 	// Override compareTo() to sort objects using DomanController#sort(). If not overridden compareTo() works on internal object id which follows date of object creation
@@ -94,13 +94,13 @@ public class Order extends SqlDomainObject {
 	// Send invoice
 	void sendInvoice() {
 		invoiceDate = LocalDateTime.now();
-		log.info("Invoice for order {} was sent", this);
+		log.info("Invoice for order '{}' was sent", this);
 	}
 
 	// Deliver bike
 	void deliverBike() {
 		deliveryDate = LocalDateTime.now();
-		log.info("Bike was delivered for order {}", this);
+		log.info("Bike was delivered for order '{}'", this);
 	}
 
 	// Thread

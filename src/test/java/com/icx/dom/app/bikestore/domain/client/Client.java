@@ -1,7 +1,9 @@
 package com.icx.dom.app.bikestore.domain.client;
 
+import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -18,7 +20,6 @@ import com.icx.common.base.CMap;
 import com.icx.common.base.CResource;
 import com.icx.common.base.Common;
 import com.icx.dom.app.bikestore.BikeStoreApp;
-import com.icx.dom.app.bikestore.BikeStoreApp.Counters;
 import com.icx.dom.app.bikestore.domain.bike.Bike;
 import com.icx.dom.app.bikestore.domain.bike.CityBike;
 import com.icx.dom.app.bikestore.domain.bike.MTB;
@@ -27,6 +28,7 @@ import com.icx.dom.domain.DomainAnnotations.Accumulation;
 import com.icx.dom.domain.DomainAnnotations.SqlColumn;
 import com.icx.dom.domain.DomainAnnotations.SqlTable;
 import com.icx.dom.domain.sql.SqlDomainObject;
+import com.icx.dom.jdbc.SqlDbException;
 
 /**
  * Clients of different countries ordering bikes if different types.
@@ -249,68 +251,53 @@ public class Client extends SqlDomainObject {
 	// Order bikes and pay (or cancel) orders
 	public class OrderBikes implements Runnable {
 
-		Counters counters = null;
 		Client client = null;
 
 		public OrderBikes(
-				Client client,
-				Counters counters) {
+				Client client) {
 
 			this.client = client;
-			this.counters = counters;
 		}
 
-		// Check if bike can be ordered, if yes order it and wait for order processing
-		private <T extends Bike> Order orderBike(Class<T> bikeType) throws Exception {
-
-			// Predicate<? super Bike> isBikeAvailableInSize = b -> !(gender == Gender.MALE && b.isForWoman) && b.price.doubleValue() <= wantedBikesMaxPriceMap.get(bikeType.getSimpleName())
-			// && b.sizes.contains(bikeSize) && b.availabilityMap.get(bikeSize) != null && b.availabilityMap.get(bikeSize) > 0;
+		// Check if bike of given type can be ordered, if yes order it and wait for order processing
+		private <T extends Bike> Order orderBike(Class<T> bikeType) throws SQLException, SqlDbException {
 
 			// Allocate exclusively (pre-select) small as possible amount of bikes matching order condition where one of them then will be ordered
 			String whereClause = "DOM_BIKE.PRICE <= " + wantedBikesMaxPriceMap.get(bikeType.getSimpleName());
 			if (gender == Gender.MALE) {
-				whereClause += " AND DOM_BIKE.IS_FOR_WOMAN = '0'";
+				whereClause += " AND DOM_BIKE.IS_FOR_WOMAN = 'false'";
+			}
+			Set<T> bikes = sdc().allocateObjectsExclusively(bikeType, Bike.InProgress.class, whereClause, 0, null);
+			log.info("{} allocated exclusively {} {}s", client, bikes.size(), bikeType.getSimpleName());
+
+			// Check if one of the exclusively allocated bike can be ordered - try most expensive bike first
+			Bike bike = bikes.stream().filter(b -> b.sizes.contains(bikeSize) && b.availabilityMap.get(bikeSize) > 0).unordered().max((b1, b2) -> b1.compareTo(b2)).orElse(null);
+			if (bike != null) {
+				int availableBikeCount = bike.availabilityMap.get(bikeSize);
+				bike.availabilityMap.put(bikeSize, availableBikeCount - 1); // Decrement availability count
+				boolean wasChanged = bike.save(); // save() method of domain object itself does not throw an exception but logs (SQL) exception occurred
+				if (!wasChanged) {
+					log.warn("Decremented available count for bike '{}' and size '{}' was not saved to database!", bike, bikeSize);
+				}
+				log.info("'{}' orders bike '{}' in size '{}' - available bikes now: {}", client, bike, bikeSize, bike.availabilityMap.get(bikeSize));
 			}
 
-			Set<T> bikes = BikeStoreApp.sdc.allocateObjectsExclusively(bikeType, Bike.InProgress.class, whereClause, 0, null);
-			Iterator<T> it = bikes.iterator();
+			// Release exclusively allocated bikes which will not be processed (as soon as possible)
+			bikes.remove(bike);
+			sdc().releaseObjects(bikes, Bike.InProgress.class);
 
-			// Check if one of the exclusively allocated bike can be ordered
-			Bike orderedBike = null;
-			while (it.hasNext()) {
-				Bike bike = it.next();
-				try {
-					synchronized (bike) {
-						if (orderedBike == null && bike.sizes.contains(bikeSize) && bike.availabilityMap.get(bikeSize) > 0) {
-							bike.availabilityMap.put(bikeSize, bike.availabilityMap.get(bikeSize) - 1); // Decrement availability count
-							orderedBike = bike;
-							// Do not break; here to ensure releasing checked bike from exclusive use
-						}
-					}
-				}
-				catch (Exception ex) {
-					log.error("{} - Bike: {}, availability map: {}, bike size: {}", ex.getClass().getSimpleName(), bike, bike.availabilityMap, bikeSize);
-				}
-				finally {
-					BikeStoreApp.sdc.releaseObject(bike, Bike.InProgress.class, null);
-				}
+			if (bike != null) {
+
+				// Create order using constructor and register and save it explicitly - so ensuring that only a fully initialized order will be registered and can be found by order processing thread
+				// Note: Because of 'orderedBike is not 'static' enough create() ad createAndSave() using init function for setting bike of order would not compile
+				Order order = new Order(bike, client);
+				sdc().register(order);
+				sdc().save(order); // save() method of domain controller throws and logs (SQL) exception occurred - using both methods here is only for demonstration
+				return order;
 			}
-			if (orderedBike == null) {
+			else {
 				return null;
 			}
-
-			// Save ordered bike with decremented availability count
-			orderedBike.save(); // save() method of domain object itself does not throw an exception but logs (SQL) exception occurred
-			log.info("'{}' orders bike '{}' ({})", client, orderedBike, bikeSize);
-
-			// Create order using constructor and register and save it explicitly - so ensuring that only a fully initialized order will be registered and can be found by order processing thread
-			// Note: Because of 'orderedBike is not 'static' enough create() ad createAndSave() using init function for setting bike of order would not compile
-			Order order = new Order(orderedBike, client);
-			BikeStoreApp.sdc.register(order);
-			BikeStoreApp.sdc.save(order); // save() method of domain controller throws and logs (SQL) exception occurred - using both methods here is only for demonstration
-			counters.numberOfOrdersCreated++;
-
-			return order;
 		}
 
 		// Pay bike and wait for delivery or cancel order on less money
@@ -318,18 +305,30 @@ public class Client extends SqlDomainObject {
 
 			if (order.bike.price.doubleValue() <= disposableMoney) {
 
-				log.info("Pay price for order '{}' ({}$). (resting disposable money: {}$)", order, order.bike.price, disposableMoney);
+				// Release ordered bike
+				sdc().releaseObject(order.bike, Bike.InProgress.class, null);
+
+				// Finalize order
 				order.payDate = LocalDateTime.now();
-				BikeStoreApp.sdc.save(order);
+				order.save();
+
+				// Reduce disposable money for client which ordered bike
 				disposableMoney -= order.bike.price.doubleValue();
+				Client.this.save();
+				log.info("Payed price for order '{}' ({}$). (resting disposable money: {}$)", order, order.bike.price, disposableMoney);
+
 				return true;
 			}
 			else {
-				log.info("Cancel order '{}' because client is not able to pay the price of {}$. (disposable money is only: {}$)", order, order.bike.price, disposableMoney);
-				order.bike.incrementAvailableCount(bikeSize); // Give bike free again for ordering after client was unable to pay bike
+				// Release bike which was tried to order incrementing availability counter again before
+				sdc().releaseObject(order.bike, Bike.InProgress.class, b -> b.availabilityMap.put(bikeSize, b.availabilityMap.get(bikeSize) + 1));
+
+				// Cancel order
 				order.wasCanceled = true;
-				order.delete(); // domain object's delete() method used here does not throw SQLException but logs it, delete() method of domain controller throws and logs SQLException occurred
-				counters.numberOfOrdersCanceledByInabilityToPay++;
+				order.save();
+				// order.delete(); domain object's delete() method used here does not throw SQLException but logs it, delete() method of domain controller throws and logs SQLException occurred
+				log.info("Order '{}' was canceled because client was not able to pay the price of {}$. (disposable money is only: {}$)", order, order.bike.price, disposableMoney);
+
 				return false;
 			}
 		}
@@ -342,13 +341,13 @@ public class Client extends SqlDomainObject {
 
 			MDC.put("name", firstName);
 
-			if (log.isDebugEnabled()) {
-				log.debug("Client thread for '{}' started", client);
-			}
+			log.info("Client thread for '{}' started", client);
 
 			try {
 				// Try to order one bike of any of the three bike types...
-				Iterator<Class<? extends Bike>> it = bikeTypesStillNotOrdered.iterator();
+				List<Class<? extends Bike>> shuffeledBikeTypes = new ArrayList<>(bikeTypesStillNotOrdered);
+				Collections.shuffle(shuffeledBikeTypes);
+				Iterator<Class<? extends Bike>> it = shuffeledBikeTypes.iterator();
 				while (it.hasNext()) {
 
 					// Try to find orderable bike of wanted type
@@ -359,7 +358,7 @@ public class Client extends SqlDomainObject {
 						// Wait until invoice was sent
 						int i;
 						for (i = 0; i < LOOP_COUNT && order.invoiceDate == null; i++) {
-							BikeStoreApp.sdc.reload(order);
+							sdc().reload(order);
 							Thread.sleep(LOOP_DELAY);
 						}
 						if (order.invoiceDate == null) {
@@ -377,7 +376,7 @@ public class Client extends SqlDomainObject {
 						boolean bikeWasPayed = payBikeOrCancelOrder(order);
 						if (bikeWasPayed) {
 							for (i = 0; i < LOOP_COUNT && order.deliveryDate == null; i++) {
-								BikeStoreApp.sdc.reload(order);
+								sdc().reload(order);
 								Thread.sleep(LOOP_DELAY);
 							}
 							if (order.deliveryDate == null) {

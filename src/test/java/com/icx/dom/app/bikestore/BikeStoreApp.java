@@ -3,8 +3,11 @@ package com.icx.dom.app.bikestore;
 import java.io.File;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,19 +53,11 @@ public class BikeStoreApp {
 	static int n = 0;
 	static RegionInProgress regionInProgress = null; // Client of this region will be processed by this application instance
 
-	// To check order processing
-	public static class Counters {
-		public int numberOfOrdersCreated = 0;
-		public int numberOfOrdersCanceledByInabilityToPay = 0;
-	}
-
 	// Main
 	public static void main(String[] args) throws Exception {
 
-		Counters counters = new Counters();
-
 		// Read JDBC and Domain properties. Note: you should not have multiple properties files with same name in your class path
-		Properties dbProps = Prop.readEnvironmentSpecificProperties(Prop.findPropertiesFile("db.properties"), "local/ms_sql/bikes", null);
+		Properties dbProps = Prop.readEnvironmentSpecificProperties(Prop.findPropertiesFile("db.properties"), "local/mysql/bikes", null);
 		Properties domainProps = Prop.readProperties(Prop.findPropertiesFile("domain.properties"));
 
 		// Associate domain classes and database tables
@@ -104,7 +99,7 @@ public class BikeStoreApp {
 
 		// Log bike store before ordering/buying bikes...
 		// Note: use groupBy() to group accumulated children by classifier or countBy() to get # of accumulated children grouped by classifier
-		bikes.forEach(b -> log.info("'{}': price: {}€, sizes: {}, availability: {}, orders: {}'", b, b.price, b.sizes, b.availabilityMap, sdc.countBy(b.orders, o -> o.client.bikeSize)));
+		bikes.forEach(b -> log.info("'{}': price: {}€, sizes: {}, availability: {}", b, b.price, b.sizes, b.availabilityMap));
 
 		// Start order processing and bike delivery thread
 		Thread orderProcessingThread = new Thread(new Order.SendInvoices());
@@ -123,17 +118,17 @@ public class BikeStoreApp {
 
 					// Use create() method of domain controller to instantiate, initialize and register new object or createAndSave() to additionally save object immediately after registration.
 					// Logical initialization by init routine will be performed before object registration.
-					// Note: Alternatively you may use specific constructors for object creation and register and save objects there or after creation explicitly - see examples in Initialize.java
+					// Note: Alternatively you may use specific constructors for object creation and register and save objects there or afterwards explicitly - see examples in Initialize.java
 
 					// Create client
-					Client client = sdc.create(Client.class, c -> c.init(clientName, ((n % 10) < 5 ? Gender.MALE : Gender.FEMALE), country, Size.values()[n % 5], 1000.0 * (1 + n % 20)));
+					Client client = sdc.create(Client.class, c -> c.init(clientName, ((n % 10) < 5 ? Gender.MALE : Gender.FEMALE), country, Size.values()[n % 5], 12000.0 + (n % 10) * 1000.0));
 					n++;
 
 					// Save client
 					sdc.save(client);
 
 					// Create client thread to order bikes
-					Thread clientThread = new Thread(client.new OrderBikes(client, counters));
+					Thread clientThread = new Thread(client.new OrderBikes(client));
 					clientThread.setName(client.firstName);
 					clientThread.start();
 					clientThreads.add(clientThread);
@@ -166,27 +161,44 @@ public class BikeStoreApp {
 			bikeDeliveryThread.join(10000);
 		}
 
+		// Log bike store after ordering/buying bikes...
+		// Note: use groupBy() to group accumulated children by classifier or countBy() to get # of accumulated children grouped by classifier
+		bikes.forEach(b -> log.info("'{}': price: {}€, sizes: {}, availability: {}, orders: {}'", b, b.price, b.sizes, b.availabilityMap,
+				sdc.countBy(b.orders.stream().filter(o -> !o.wasCanceled).collect(Collectors.toSet()), o -> o.client.bikeSize)));
+
+		// Check sum of ordered bikes and still available bikes
+		List<Order> orders = new ArrayList<>();
+		List<Bike> sortedBikes = new ArrayList<>(BikeStoreApp.sdc.all(Bike.class));
+		Collections.sort(sortedBikes);
+		for (Bike bike : sortedBikes) {
+			for (Size size : bike.sizes) {
+				long availableBikesInSizeCount = bike.availabilityMap.get(size);
+				List<Order> successfulOrdersForBikeInSize = bike.orders.stream().filter(o -> o.bike == bike && o.client.bikeSize == size && !o.wasCanceled).collect(Collectors.toList());
+				orders.addAll(successfulOrdersForBikeInSize);
+				if (availableBikesInSizeCount + successfulOrdersForBikeInSize.size() != 15) {
+					log.error("Sum of ordered and still avaliable {}s in size {} does differs from initial availability: {}+{} != {}!", bike, size, availableBikesInSizeCount,
+							successfulOrdersForBikeInSize.size(), 15);
+				}
+			}
+		}
+
 		// Log results
-		int numberOfPendingOrders = (int) sdc.count(Order.class, o -> RegionInProgress.getRegion(o.client.country) == regionInProgress.region && o.payDate != null && o.deliveryDate == null);
-		int numberOfInvoicesSent = (int) sdc.count(Order.class, o -> RegionInProgress.getRegion(o.client.country) == regionInProgress.region && o.invoiceDate != null);
-		int numberOfDeliveryNotesSent = (int) sdc.count(Order.class, o -> RegionInProgress.getRegion(o.client.country) == regionInProgress.region && o.deliveryDate != null);
-		log.info("{} clients of region '{}' created {} orders in total", sdc.count(Client.class, c -> true), regionInProgress.region, counters.numberOfOrdersCreated);
+		Predicate<Order> regionPredicate = o -> RegionInProgress.getRegion(o.client.country) == regionInProgress.region;
+		int totalNumberOfOrders = (int) sdc.count(Order.class, null);
+		int numberOfPendingOrders = (int) sdc.count(Order.class, o -> regionPredicate.test(o) && o.payDate != null && o.deliveryDate == null);
+		int numberOfInvoicesSent = (int) sdc.count(Order.class, o -> regionPredicate.test(o) && o.invoiceDate != null);
+		int numberOfDeliveryNotesSent = (int) sdc.count(Order.class, o -> regionPredicate.test(o) && o.deliveryDate != null);
+		int numberOfCanceledOrders = (int) sdc.count(Order.class, o -> regionPredicate.test(o) && o.wasCanceled);
+
+		log.info("# of total orders created : {}", totalNumberOfOrders);
 		log.info("# of invoices sent: {}", numberOfInvoicesSent);
 		log.info("# of bikes delivered: {}", numberOfDeliveryNotesSent);
 		log.info("# of pending orders: {}", numberOfPendingOrders);
-		log.info("# of orders canceled by inability to pay: {}", counters.numberOfOrdersCanceledByInabilityToPay);
+		log.info("# of orders canceled by inability to pay: {}", numberOfCanceledOrders);
 		log.info("# of orders where order processing exceeded timeout: {}", Order.orderProcessingExceededCount);
 		log.info("# of orders where bike delivery exceeded timeout: {}", Order.bikeDeliveryExceededCount);
 		log.info("Order processing time statistic (# of order processing operations in less than ? ms): {}", Order.orderProcessingDurationMap);
 		log.info("Bike delivery time statistic (# of bike delivery operations in less than ? ms): {}", Order.bikeDeliveryDurationMap);
-
-		// Check results
-		int sumOfCounters = numberOfDeliveryNotesSent + counters.numberOfOrdersCanceledByInabilityToPay + numberOfPendingOrders;
-		if (sumOfCounters != counters.numberOfOrdersCreated) {
-			log.error("");
-			log.error("Sum of # of delivered bikes, canceled and pending orders {} differs from total # of orders created {}!", sumOfCounters, counters.numberOfOrdersCreated);
-			log.error("");
-		}
 
 		// // Free region in use (to allow re-run test with multiple parallel instances)
 		sdc.delete(regionInProgress);

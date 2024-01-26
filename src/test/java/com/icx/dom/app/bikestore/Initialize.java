@@ -124,16 +124,14 @@ public class Initialize {
 		new MTB(canyon, "Grand Canyon 9", Frame.ALLOY, Breaks.DISK, 12, 1049.0, picture).wheels(WheelSize.W27_5).hardtail().setWeight(13.3).allSizes();
 		new MTB(cannondale, "Habit 4", Frame.ALLOY, Breaks.DISK, 12, 2899.0, picture).wheels(WheelSize.W29).setWeight(13.3).setSizes(Size.S, Size.M, Size.L, Size.XL);
 		new MTB(specialized, "Epic EVO", Frame.CARBON, Breaks.DISK, 12, 4500.0, picture).wheels(WheelSize.W29).setSizes(Size.S, Size.L);
-		new MTB(marin, "Wildcat Trail 3", Frame.ALLOY, Breaks.DISK, 16, 825.0, picture).wheels(WheelSize.W27_5).forWoman().setSizes(Size.XS, Size.S, Size.M, Size.M);
+		new MTB(marin, "Wildcat Trail 3", Frame.ALLOY, Breaks.DISK, 16, 825.0, picture).wheels(WheelSize.W27_5).forWoman().setSizes(Size.XS, Size.S, Size.M, Size.L);
 		new MTB(santacruz, "Tallboy", Frame.CARBON, Breaks.DISK, 12, 5399.0, picture).wheels(WheelSize.W29).downhill().setWeight(14.0).allSizes();
 		new MTB(rockymountain, "Instinct Alloy 10", Frame.ALLOY, Breaks.DISK, 12, 2607.14, picture).wheels(WheelSize.W27_5).forWoman().setWeight(16.0).setSizes(Size.XS, Size.S);
 
 		// Assign # of bikes available for sizes
-		n = 0;
 		for (Bike bike : BikeStoreApp.sdc.all(Bike.class)) {
 			for (Size size : bike.sizes) {
-				bike.availabilityMap.put(size, 10 + n % 10);
-				n++;
+				bike.availabilityMap.put(size, 15);
 			}
 		}
 
