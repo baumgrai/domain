@@ -155,16 +155,15 @@ public abstract class SqlDomainObject extends DomainObject {
 	/**
 	 * Convenience method to save object to database without throwing exception - see {@link SqlDomainController#save(SqlDomainObject)}.
 	 * 
-	 * @return this object
+	 * @return true if object's changes were saved to database, false if object was up-to-date
 	 */
-	public SqlDomainObject save() {
+	public boolean save() {
 		try {
-			sdc().save(this);
+			return sdc().save(this);
 		}
 		catch (SQLException | SqlDbException e) {
+			return false;
 		}
-
-		return this;
 	}
 
 	/**
