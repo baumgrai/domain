@@ -259,11 +259,13 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 	}
 
 	// Register domain object by given id for object domain class and all inherited domain classes
-	public final boolean registerById(T obj, long id) {
+	public final synchronized boolean registerById(T obj, long id) {
 
 		Class<? extends T> objectDomainClass = registry.getCastedDomainClass(obj);
 		if (objectMap.get(objectDomainClass).containsKey(id)) {
-			log.info("DC: {} is an already registered object", obj);
+			if (log.isDebugEnabled()) {
+				log.debug("DC: {} is an already registered object", obj);
+			}
 			return false;
 		}
 

@@ -269,6 +269,10 @@ public abstract class LoadHelpers extends Common {
 		return obj;
 	}
 
+	public static long successfulExclusiveAccessCount = 0L;
+	public static long inUseBySameInstanceAccessCount = 0L;
+	public static long inUseByDifferentInstanceAccessCount = 0L;
+
 	// Select supplier used for synchronization if multiple instances access one database and have to process distinct objects (like orders)
 	static Map<Class<? extends SqlDomainObject>, Map<Long, SortedMap<String, Object>>> selectExclusively(Connection cn, SqlDomainController sdc, Class<? extends SqlDomainObject> objectDomainClass,
 			Class<? extends SqlDomainObject> inProgressClass, String whereClause, int maxCount) {
@@ -295,13 +299,20 @@ public abstract class LoadHelpers extends Common {
 				if (inProgressObject != null) {
 					sdc.save(cn, inProgressObject);
 					loadedRecordsMap.put(id, entry.getValue());
+					successfulExclusiveAccessCount++;
 				}
 				else {
-					log.info("SDC: {}@{} is already in progress (by another thread)", objectDomainClass.getSimpleName(), id);
+					if (log.isDebugEnabled()) {
+						log.debug("SDC: {}@{} is already in progress (by another thread of same controller instance)", objectDomainClass.getSimpleName(), id);
+					}
+					inUseBySameInstanceAccessCount++;
 				}
 			}
 			catch (SQLException sqlex) {
-				log.info("SDC: {} record with id {} is already in progress (by another instance)", objectDomainClass.getSimpleName(), id);
+				if (log.isDebugEnabled()) {
+					log.info("SDC: {} record with id {} is already in progress (by another instance)", objectDomainClass.getSimpleName(), id);
+				}
+				inUseByDifferentInstanceAccessCount++;
 			}
 			catch (SqlDbException sqldbex) {
 				log.error("SDC: {} occurred trying to INSERT {} record", sqldbex, inProgressClass.getSimpleName());

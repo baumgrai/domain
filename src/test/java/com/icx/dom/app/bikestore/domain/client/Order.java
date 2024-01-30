@@ -11,6 +11,7 @@ import com.icx.dom.app.bikestore.domain.bike.Bike;
 import com.icx.dom.domain.DomainAnnotations.SqlColumn;
 import com.icx.dom.domain.DomainAnnotations.UseDataHorizon;
 import com.icx.dom.domain.DomainObject;
+import com.icx.dom.domain.sql.SqlDomainController;
 import com.icx.dom.domain.sql.SqlDomainObject;
 
 @UseDataHorizon
@@ -23,7 +24,7 @@ import com.icx.dom.domain.sql.SqlDomainObject;
 public class Order extends SqlDomainObject {
 
 	// Helper domain class for exclusive order selection - one in-progress object will be created with the same id as the order object on selecting it exclusively and because id field is unique this
-	// can be done only one time for one order - even if multiple domain controller instances operate on the same persistence database
+	// can be done only once for one order - even if multiple domain controller instances operate on the same persistence database
 	public static class InProgress extends SqlDomainObject {
 	}
 
@@ -88,7 +89,7 @@ public class Order extends SqlDomainObject {
 
 	@Override
 	public boolean canBeDeleted() {
-		return wasCanceled;
+		return (sdc() == BikeStoreApp.sdc || wasCanceled); // Allow initial deletion on startup of bike store app - otherwise only if order was canceled
 	}
 
 	// Send invoice
@@ -108,6 +109,13 @@ public class Order extends SqlDomainObject {
 	// Check for incoming orders and send invoices
 	public static class SendInvoices implements Runnable {
 
+		SqlDomainController sdc = null;
+
+		public SendInvoices(
+				SqlDomainController sdc) {
+			this.sdc = sdc;
+		}
+
 		@Override
 		public void run() {
 
@@ -116,7 +124,7 @@ public class Order extends SqlDomainObject {
 
 			while (true) {
 				try {
-					BikeStoreApp.sdc.computeExclusivelyOnObjects(Order.class, Order.InProgress.class, "INVOICE_DATE IS NULL", o -> o.sendInvoice());
+					sdc.computeExclusivelyOnObjects(Order.class, Order.InProgress.class, "INVOICE_DATE IS NULL", o -> o.sendInvoice());
 				}
 				catch (Exception e) {
 					log.error(" {} exception occured sending invoices!", e.getClass().getSimpleName());
@@ -137,6 +145,13 @@ public class Order extends SqlDomainObject {
 	// Check for payed orders and deliver bikes
 	public static class DeliverBikes implements Runnable {
 
+		SqlDomainController sdc = null;
+
+		public DeliverBikes(
+				SqlDomainController sdc) {
+			this.sdc = sdc;
+		}
+
 		@Override
 		public void run() {
 
@@ -146,7 +161,7 @@ public class Order extends SqlDomainObject {
 			while (true) {
 
 				try {
-					BikeStoreApp.sdc.computeExclusivelyOnObjects(Order.class, Order.InProgress.class, "PAY_DATE IS NOT NULL AND DELIVERY_DATE IS NULL", o -> o.deliverBike());
+					sdc.computeExclusivelyOnObjects(Order.class, Order.InProgress.class, "PAY_DATE IS NOT NULL AND DELIVERY_DATE IS NULL", o -> o.deliverBike());
 				}
 				catch (Exception e) {
 					log.error(" {} exception occured sending delivery notes!", e.getClass().getSimpleName());

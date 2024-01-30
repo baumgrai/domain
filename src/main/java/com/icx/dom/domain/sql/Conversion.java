@@ -57,7 +57,7 @@ public abstract class Conversion extends Common {
 				}
 			}
 			else if (Boolean.class.isAssignableFrom(fieldType) || boolean.class.isAssignableFrom(fieldType)) {
-				return (T) Boolean.valueOf((String) columnValue);
+				return (T) (columnValue instanceof Boolean ? columnValue : Boolean.valueOf((String) columnValue)); // JDBC getObject() may auto-convert 'true' and 'false' string to boolean
 			}
 			else if (File.class.isAssignableFrom(fieldType)) {
 				return (T) new File((String) columnValue);

@@ -261,7 +261,8 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	public final boolean synchronize(Class<? extends SqlDomainObject>... objectDomainClassesToExclude) throws SQLException, SqlDbException {
 
 		log.info("SDC: Synchronize with database... {}",
-				(objectDomainClassesToExclude != null ? " - domain classes to exclude from loading: " + Stream.of(objectDomainClassesToExclude).map(Class::getSimpleName).collect(Collectors.toList())
+				(objectDomainClassesToExclude != null && objectDomainClassesToExclude.length > 0
+						? " - domain classes to exclude from loading: " + Stream.of(objectDomainClassesToExclude).map(Class::getSimpleName).collect(Collectors.toList())
 						: ""));
 
 		// Save all new, un-stored objects to database (but do not save unsaved changes of already stored objects to avoid overriding database changes)
@@ -569,34 +570,6 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 		Set<S> loadedObjects = allocateObjectsExclusively(objectDomainClass, inProgressClass, whereClause, -1, update);
 		releaseObjects(loadedObjects, inProgressClass);
 		return loadedObjects;
-	}
-
-	/**
-	 * Allocate this object exclusively, compute an update function on this object, save changed object and releases object immediately from exclusive use.
-	 * 
-	 * @param obj
-	 *            object to compute function for
-	 * @param inProgressClass
-	 *            class for shadow records to ensure exclusivity of this operation - @see {@link #allocateObjectExclusively(SqlDomainObject, Class, Consumer)}
-	 * @param update
-	 *            update function to perform on this object or null (e.g. {@code o -> o.count++} -> COUNT = COUNT+1)
-	 * 
-	 * @return true if this object could be allocated exclusively, false otherwise
-	 * 
-	 * @throws SQLException
-	 *             exceptions thrown establishing connection or on executing SQL UPDATE statement on saving object
-	 * @throws SqlDbException
-	 *             on internal errors
-	 */
-	public boolean computeExclusivelyOnObject(SqlDomainObject obj, Class<? extends SqlDomainObject> inProgressClass, Consumer<? super SqlDomainObject> update) throws SQLException, SqlDbException {
-
-		if (allocateObjectExclusively(obj, inProgressClass, update)) {
-			releaseObject(obj, inProgressClass, null);
-			return true;
-		}
-		else {
-			return false;
-		}
 	}
 
 	// -------------------------------------------------------------------------

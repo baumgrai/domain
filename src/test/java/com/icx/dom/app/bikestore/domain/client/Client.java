@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.ResourceBundle;
 import java.util.Set;
+import java.util.SortedMap;
 import java.util.stream.Collectors;
 
 import org.slf4j.MDC;
@@ -248,6 +249,9 @@ public class Client extends SqlDomainObject {
 
 	// Client thread
 
+	public static long successfulTriesAllocatingBikesToOrderCount = 0L;
+	public static long unsuccessfulTriesAllocatingBikesToOrderCount = 0L;
+
 	// Order bikes and pay (or cancel) orders
 	public class OrderBikes implements Runnable {
 
@@ -268,7 +272,13 @@ public class Client extends SqlDomainObject {
 				whereClause += " AND DOM_BIKE.IS_FOR_WOMAN = 'false'";
 			}
 			Set<T> bikes = sdc().allocateObjectsExclusively(bikeType, Bike.InProgress.class, whereClause, 0, null);
-			log.info("{} allocated exclusively {} {}s", client, bikes.size(), bikeType.getSimpleName());
+			if (bikes.isEmpty()) {
+				unsuccessfulTriesAllocatingBikesToOrderCount++;
+				return null;
+			}
+
+			log.debug("'{}' allocated exclusively {} {}s", client, bikes.size(), bikeType.getSimpleName());
+			successfulTriesAllocatingBikesToOrderCount++;
 
 			// Check if one of the exclusively allocated bike can be ordered - try most expensive bike first
 			Bike bike = bikes.stream().filter(b -> b.sizes.contains(bikeSize) && b.availabilityMap.get(bikeSize) > 0).unordered().max((b1, b2) -> b1.compareTo(b2)).orElse(null);
@@ -288,7 +298,8 @@ public class Client extends SqlDomainObject {
 
 			if (bike != null) {
 
-				// Create order using constructor and register and save it explicitly - so ensuring that only a fully initialized order will be registered and can be found by order processing thread
+				// Create order using constructor and register and save it explicitly - so ensuring that only a fully initialized order will be registered and can be found by order processing
+				// thread
 				// Note: Because of 'orderedBike is not 'static' enough create() ad createAndSave() using init function for setting bike of order would not compile
 				Order order = new Order(bike, client);
 				sdc().register(order);
@@ -336,18 +347,27 @@ public class Client extends SqlDomainObject {
 		private int LOOP_DELAY = 100;
 		private int LOOP_COUNT = 50;
 
+		// Protocol order processing duration
+		private void protocollDuration(SortedMap<Integer, Integer> map, int loopCount) {
+
+			int delay = loopCount * LOOP_DELAY;
+			synchronized (map) {
+				map.put(delay, Order.orderProcessingDurationMap.computeIfAbsent(delay, v -> 0) + 1);
+			}
+		}
+
 		@Override
 		public void run() {
 
 			MDC.put("name", firstName);
 
-			log.info("Client thread for '{}' started", client);
+			log.debug("Client thread for '{}' started", client);
 
 			try {
 				// Try to order one bike of any of the three bike types...
-				List<Class<? extends Bike>> shuffeledBikeTypes = new ArrayList<>(bikeTypesStillNotOrdered);
-				Collections.shuffle(shuffeledBikeTypes);
-				Iterator<Class<? extends Bike>> it = shuffeledBikeTypes.iterator();
+				bikeTypesStillNotOrdered = CList.newList(RaceBike.class, CityBike.class, MTB.class);
+				Collections.shuffle(bikeTypesStillNotOrdered);
+				Iterator<Class<? extends Bike>> it = bikeTypesStillNotOrdered.iterator();
 				while (it.hasNext()) {
 
 					// Try to find orderable bike of wanted type
@@ -362,14 +382,11 @@ public class Client extends SqlDomainObject {
 							Thread.sleep(LOOP_DELAY);
 						}
 						if (order.invoiceDate == null) {
-							log.warn("Order processing time exceeded!");
+							log.warn("Order processing time {}ms exceeded!", LOOP_COUNT * LOOP_DELAY);
 							Order.orderProcessingExceededCount++;
 						}
 						else {
-							int delay = i * LOOP_DELAY;
-							synchronized (Order.orderProcessingDurationMap) { // Protocol order processing duration
-								Order.orderProcessingDurationMap.put(delay, Order.orderProcessingDurationMap.computeIfAbsent(delay, v -> 0) + 1);
-							}
+							protocollDuration(Order.orderProcessingDurationMap, i);
 						}
 
 						// Pay bike (or cancel order) and wait until delivery
@@ -380,14 +397,11 @@ public class Client extends SqlDomainObject {
 								Thread.sleep(LOOP_DELAY);
 							}
 							if (order.deliveryDate == null) {
-								log.warn("Bike delivery time exceeded ");
+								log.warn("Bike delivery time {}ms exceeded!", LOOP_COUNT * LOOP_DELAY);
 								Order.bikeDeliveryExceededCount++;
 							}
 							else {
-								int delay = i * LOOP_DELAY;
-								synchronized (Order.bikeDeliveryDurationMap) { // Protocol delivery duration
-									Order.bikeDeliveryDurationMap.put(delay, Order.bikeDeliveryDurationMap.computeIfAbsent(delay, v -> 0) + 1);
-								}
+								protocollDuration(Order.bikeDeliveryDurationMap, i);
 							}
 						}
 					}
@@ -395,8 +409,7 @@ public class Client extends SqlDomainObject {
 					Thread.sleep(BikeStoreApp.ORDER_DELAY_TIME_MS);
 				}
 
-				log.info("Client thread for '{}' ended. Still not ordered bike types: {}", client,
-						Client.this.bikeTypesStillNotOrdered.stream().map(Class::getSimpleName).collect(Collectors.toList()));
+				log.info("'{}' finished ordering bikes. Still not ordered bike types: {}", client, bikeTypesStillNotOrdered.stream().map(Class::getSimpleName).collect(Collectors.toList()));
 			}
 			catch (InterruptedException e) {
 				log.warn("Client thread for '{}' ended due to interruption", client);

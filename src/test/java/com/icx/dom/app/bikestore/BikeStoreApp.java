@@ -1,12 +1,14 @@
 package com.icx.dom.app.bikestore;
 
 import java.io.File;
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Properties;
-import java.util.function.Predicate;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
@@ -17,11 +19,10 @@ import com.icx.dom.app.bikestore.domain.Manufacturer;
 import com.icx.dom.app.bikestore.domain.bike.Bike;
 import com.icx.dom.app.bikestore.domain.bike.Bike.Size;
 import com.icx.dom.app.bikestore.domain.client.Client;
-import com.icx.dom.app.bikestore.domain.client.Client.Country;
-import com.icx.dom.app.bikestore.domain.client.Client.Gender;
 import com.icx.dom.app.bikestore.domain.client.Client.Region;
 import com.icx.dom.app.bikestore.domain.client.Client.RegionInProgress;
 import com.icx.dom.app.bikestore.domain.client.Order;
+import com.icx.dom.domain.sql.LoadHelpers;
 import com.icx.dom.domain.sql.SqlDomainController;
 
 /**
@@ -39,10 +40,15 @@ public class BikeStoreApp {
 
 	static final Logger log = LoggerFactory.getLogger(BikeStoreApp.class);
 
+	// Finals
+
 	public static final File BIKE_PICTURE = new File("src/test/resources/bike.jpg");
 
 	// Delay time between client bike order requests. One client tries to order bikes of 3 different types. Acts also as delay time for start of client's ordering threads.
 	public static final long ORDER_DELAY_TIME_MS = 200;
+
+	// Initially available bikes for any provided size
+	public static final int AVAILABLE_BIKES = 15;
 
 	// Domain controller object
 	public static SqlDomainController sdc = new SqlDomainController();
@@ -50,8 +56,29 @@ public class BikeStoreApp {
 	// List of bike models with availabilities for different sizes
 	protected static List<Bike> bikes = null;
 
-	static int n = 0;
-	static RegionInProgress regionInProgress = null; // Client of this region will be processed by this application instance
+	// Methods
+
+	private static void checkOrdersAndStock() {
+
+		List<Order> orders = new ArrayList<>();
+		List<Bike> sortedBikes = new ArrayList<>(BikeStoreApp.sdc.all(Bike.class));
+		Collections.sort(sortedBikes);
+
+		for (Bike bike : sortedBikes) {
+			for (Size size : bike.sizes) {
+
+				long availableBikesInSizeCount = bike.availabilityMap.get(size);
+				// Set<Order> successfulOrdersForBikeInSize = sdc.findAll(Order.class, o -> o.bike == bike && o.client.bikeSize == size && !o.wasCanceled);
+				Set<Order> successfulOrdersForBikeInSize = bike.orders.stream().filter(o -> o.client.bikeSize == size && !o.wasCanceled).collect(Collectors.toSet());
+				orders.addAll(successfulOrdersForBikeInSize);
+
+				if (availableBikesInSizeCount + successfulOrdersForBikeInSize.size() != AVAILABLE_BIKES) {
+					log.error("Sum of ordered and still avaliable {}s in size {} does differs from initial availability: {}+{} != {}!", bike, size, availableBikesInSizeCount,
+							successfulOrdersForBikeInSize.size(), AVAILABLE_BIKES);
+				}
+			}
+		}
+	}
 
 	// Main
 	public static void main(String[] args) throws Exception {
@@ -63,147 +90,103 @@ public class BikeStoreApp {
 		// Associate domain classes and database tables
 		sdc.initialize(dbProps, domainProps, Manufacturer.class.getPackage().getName() /* use any class directly in 'domain' package to find all domain classes */);
 
-		// Initially load existing domain objects from database (SELECT statements are performed here)
-		// Note - (historical) orders are generally excluded from loading here - without excluding Order class from loading only orders newer than start time minus data horizon (see Order.java) would
-		// be loaded on startup
-		sdc.synchronize(Order.class);
+		// Synchronize with database on startup to load potentially existing objects (manufacturers. bikes, orders, etc.) which will be deleted during initial cleanup
+		sdc.synchronize();
 
-		// Select and reserve world region for this instance
-		for (Region reg : Region.values()) {
-			if (!sdc.hasAny(RegionInProgress.class, r -> r.region == reg)) {
-				try {
-					regionInProgress = sdc.createAndSave(RegionInProgress.class, r -> r.region = reg);
-					break;
-				}
-				catch (SQLException sqlex) {
-					log.warn("Region {} already in use!", reg);
-				}
-			}
-		}
-		if (regionInProgress == null) {
-			log.warn("All regions already in use!");
-			return;
-		}
-
-		log.info("Process orders for clients in region {}", regionInProgress.region);
-
-		// Cleanup persistence database on start of first instance
-		if (regionInProgress.region == Region.values()[0]) {
-			Initialize.deleteExistingObjects();
-			Initialize.createObjects();
-		}
+		// Cleanup persistence database on startup
+		Initialize.deleteExistingObjects();
+		Initialize.createObjects();
 
 		// Sort bikes by manufacturer and model using overridden compareTo() method
 		// Note: No difference between all() and allValid() here - but generally, if domain objects exist which are not savable (by database constraint violation), they are marked as invalid
 		bikes = sdc.sort(sdc.allValid(Bike.class));
 
 		// Log bike store before ordering/buying bikes...
-		// Note: use groupBy() to group accumulated children by classifier or countBy() to get # of accumulated children grouped by classifier
 		bikes.forEach(b -> log.info("'{}': price: {}€, sizes: {}, availability: {}", b, b.price, b.sizes, b.availabilityMap));
 
-		// Start order processing and bike delivery thread
-		Thread orderProcessingThread = new Thread(new Order.SendInvoices());
-		orderProcessingThread.setName("--ORDER--");
-		orderProcessingThread.start();
-
-		Thread bikeDeliveryThread = new Thread(new Order.DeliverBikes());
-		bikeDeliveryThread.setName("-DELIVER-");
-		bikeDeliveryThread.start();
-
-		// Create clients for region and start client threads to order bikes
-		List<Thread> clientThreads = new ArrayList<>();
 		try {
-			for (Country country : RegionInProgress.getRegionCountryMap().get(regionInProgress.region)) {
-				for (String clientName : Client.getCountryNamesMap().get(country)) {
+			// Create and start bike store instances for world regions
+			Map<Region, Thread> instanceThreadMap = new HashMap<>();
+			Map<Region, Thread> orderThreadMap = new HashMap<>();
+			Map<Region, Thread> bikeDeliveryThreadMap = new HashMap<>();
 
-					// Use create() method of domain controller to instantiate, initialize and register new object or createAndSave() to additionally save object immediately after registration.
-					// Logical initialization by init routine will be performed before object registration.
-					// Note: Alternatively you may use specific constructors for object creation and register and save objects there or afterwards explicitly - see examples in Initialize.java
+			for (Region region : Region.values()) {
 
-					// Create client
-					Client client = sdc.create(Client.class, c -> c.init(clientName, ((n % 10) < 5 ? Gender.MALE : Gender.FEMALE), country, Size.values()[n % 5], 12000.0 + (n % 10) * 1000.0));
-					n++;
+				// Start order processing and bike delivery thread for region
+				// Note: there are separate order and bike delivery threads for every region but they have access to all orders independently in which region they were generated - this is only to
+				// force
+				// concurrent access collisions
+				Thread orderProcessingThread = new Thread(new Order.SendInvoices(sdc));
+				orderProcessingThread.setName("--ORDER (" + region + ") --");
+				orderProcessingThread.start();
+				orderThreadMap.put(region, orderProcessingThread);
 
-					// Save client
-					sdc.save(client);
+				Thread bikeDeliveryThread = new Thread(new Order.DeliverBikes(sdc));
+				bikeDeliveryThread.setName("-DELIVER (" + region + ")-");
+				bikeDeliveryThread.start();
+				bikeDeliveryThreadMap.put(region, bikeDeliveryThread);
 
-					// Create client thread to order bikes
-					Thread clientThread = new Thread(client.new OrderBikes(client));
-					clientThread.setName(client.firstName);
-					clientThread.start();
-					clientThreads.add(clientThread);
+				// Start bike store client thread for region
+				Thread instanceThread = new Thread(new ClientInstance(dbProps, domainProps, region));
+				instanceThread.setName("--INSTANCE for " + region + " --");
+				instanceThread.start();
+				instanceThreadMap.put(region, instanceThread);
 
-					Thread.sleep(ORDER_DELAY_TIME_MS);
-				}
+				Thread.sleep(1000);
 			}
+
+			// Wait until all client instances have finished
+			for (Entry<Region, Thread> entry : instanceThreadMap.entrySet()) {
+				Thread instanceThread = entry.getValue();
+				instanceThread.join(120000);
+			}
+
+			// Force ending order and bike delivery threads
+			for (Entry<Region, Thread> entry : orderThreadMap.entrySet()) {
+				Thread orderProcessingThread = entry.getValue();
+				orderProcessingThread.interrupt();
+				orderProcessingThread.join(10000);
+			}
+
+			for (Entry<Region, Thread> entry : bikeDeliveryThreadMap.entrySet()) {
+				Thread bikeDeliveryThread = entry.getValue();
+				bikeDeliveryThread.interrupt();
+				bikeDeliveryThread.join(10000);
+			}
+
+			// Synchronize with database to load orders generated from bike store instances
+			sdc.synchronize();
+
+			// Check sum of ordered bikes and still available bikes for any bike and size
+			checkOrdersAndStock();
+
+			// Log bike store after ordering/buying bikes...
+			// Note: use groupBy() to group accumulated children by classifier or countBy() to get # of accumulated children grouped by classifier
+			bikes.forEach(b -> log.info("'{}': price: {}€, sizes: {}, availability: {}, orders: {}'", b, b.price, b.sizes, b.availabilityMap,
+					sdc.countBy(b.orders.stream().filter(o -> !o.wasCanceled).collect(Collectors.toSet()), o -> o.client.bikeSize)));
+
+			// Log results
+			log.info("");
+			log.info("# of total orders created: {}", sdc.count(Order.class, null));
+			log.info("# of invoices sent: {}", sdc.count(Order.class, o -> o.invoiceDate != null));
+			log.info("# of bikes delivered: {}", sdc.count(Order.class, o -> o.deliveryDate != null));
+			log.info("# of pending orders: {}", sdc.count(Order.class, o -> o.payDate != null && o.deliveryDate == null));
+			log.info("# of orders canceled by inability to pay: {}", sdc.count(Order.class, o -> o.wasCanceled));
+			log.info("");
+			log.info("# of orders where order processing exceeded timeout: {}", Order.orderProcessingExceededCount);
+			log.info("# of orders where bike delivery exceeded timeout: {}", Order.bikeDeliveryExceededCount);
+			log.info("");
+			log.info("Order processing time statistic (# of order processing operations in less than ? ms): {}", Order.orderProcessingDurationMap);
+			log.info("Bike delivery time statistic (# of bike delivery operations in less than ? ms): {}", Order.bikeDeliveryDurationMap);
+			log.info("");
+			log.info("Concurrent access denied because of use by another thread of same controller instance: {}", LoadHelpers.inUseBySameInstanceAccessCount);
+			log.info("Concurrent access denied because of use by another controller instance: {}", LoadHelpers.inUseByDifferentInstanceAccessCount);
+			log.info("Unsuccessful tries allocating bikes to order: {}", Client.unsuccessfulTriesAllocatingBikesToOrderCount);
+			log.info("Successful tries allocating bikes to order: {}", Client.successfulTriesAllocatingBikesToOrderCount);
 		}
 		finally {
-			log.info("{} client threads started.", clientThreads.size());
-
-			// Wait until ordering bikes is completed...
-			for (Thread thread : clientThreads) {
-				thread.join(3000);
-				if (thread.isAlive()) {
-					log.warn("Timeout waiting for end of client thread ('{}')", thread.getName());
-				}
-				else {
-					log.info("Joined: '{}'", thread.getName());
-				}
-			}
-
-			log.info("{} client threads ended.", clientThreads.size());
-
-			// Force ending order threads
-			orderProcessingThread.interrupt();
-			orderProcessingThread.join(10000);
-
-			bikeDeliveryThread.interrupt();
-			bikeDeliveryThread.join(10000);
+			// Close potential open database connections
+			sdc.sqlDb.close();
 		}
-
-		// Log bike store after ordering/buying bikes...
-		// Note: use groupBy() to group accumulated children by classifier or countBy() to get # of accumulated children grouped by classifier
-		bikes.forEach(b -> log.info("'{}': price: {}€, sizes: {}, availability: {}, orders: {}'", b, b.price, b.sizes, b.availabilityMap,
-				sdc.countBy(b.orders.stream().filter(o -> !o.wasCanceled).collect(Collectors.toSet()), o -> o.client.bikeSize)));
-
-		// Check sum of ordered bikes and still available bikes
-		List<Order> orders = new ArrayList<>();
-		List<Bike> sortedBikes = new ArrayList<>(BikeStoreApp.sdc.all(Bike.class));
-		Collections.sort(sortedBikes);
-		for (Bike bike : sortedBikes) {
-			for (Size size : bike.sizes) {
-				long availableBikesInSizeCount = bike.availabilityMap.get(size);
-				List<Order> successfulOrdersForBikeInSize = bike.orders.stream().filter(o -> o.bike == bike && o.client.bikeSize == size && !o.wasCanceled).collect(Collectors.toList());
-				orders.addAll(successfulOrdersForBikeInSize);
-				if (availableBikesInSizeCount + successfulOrdersForBikeInSize.size() != 15) {
-					log.error("Sum of ordered and still avaliable {}s in size {} does differs from initial availability: {}+{} != {}!", bike, size, availableBikesInSizeCount,
-							successfulOrdersForBikeInSize.size(), 15);
-				}
-			}
-		}
-
-		// Log results
-		Predicate<Order> regionPredicate = o -> RegionInProgress.getRegion(o.client.country) == regionInProgress.region;
-		int totalNumberOfOrders = (int) sdc.count(Order.class, null);
-		int numberOfPendingOrders = (int) sdc.count(Order.class, o -> regionPredicate.test(o) && o.payDate != null && o.deliveryDate == null);
-		int numberOfInvoicesSent = (int) sdc.count(Order.class, o -> regionPredicate.test(o) && o.invoiceDate != null);
-		int numberOfDeliveryNotesSent = (int) sdc.count(Order.class, o -> regionPredicate.test(o) && o.deliveryDate != null);
-		int numberOfCanceledOrders = (int) sdc.count(Order.class, o -> regionPredicate.test(o) && o.wasCanceled);
-
-		log.info("# of total orders created : {}", totalNumberOfOrders);
-		log.info("# of invoices sent: {}", numberOfInvoicesSent);
-		log.info("# of bikes delivered: {}", numberOfDeliveryNotesSent);
-		log.info("# of pending orders: {}", numberOfPendingOrders);
-		log.info("# of orders canceled by inability to pay: {}", numberOfCanceledOrders);
-		log.info("# of orders where order processing exceeded timeout: {}", Order.orderProcessingExceededCount);
-		log.info("# of orders where bike delivery exceeded timeout: {}", Order.bikeDeliveryExceededCount);
-		log.info("Order processing time statistic (# of order processing operations in less than ? ms): {}", Order.orderProcessingDurationMap);
-		log.info("Bike delivery time statistic (# of bike delivery operations in less than ? ms): {}", Order.bikeDeliveryDurationMap);
-
-		// // Free region in use (to allow re-run test with multiple parallel instances)
-		sdc.delete(regionInProgress);
-
-		// Close open database connections
-		sdc.sqlDb.close();
 	}
 }

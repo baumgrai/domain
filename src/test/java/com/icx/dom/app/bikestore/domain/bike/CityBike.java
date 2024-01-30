@@ -1,5 +1,6 @@
 package com.icx.dom.app.bikestore.domain.bike;
 
+import java.util.HashSet;
 import java.util.Set;
 
 import com.icx.dom.app.bikestore.domain.Manufacturer;
@@ -14,7 +15,10 @@ public class CityBike extends Bike {
 
 	// Members
 
-	public Set<Feature> features;
+	// 'complex field' (of type Set here) must be initialized explicitly because in will be accessed before bike object was registered by domain controller
+	// Note: If object will be registered directly on creation - using #create() or #createAndSave() - explicit initialization of complex fields (Map, Set, List) is not necessary because it will be
+	// done automatically on registration
+	public Set<Feature> features = new HashSet<>();
 
 	// Methods
 

@@ -7,7 +7,6 @@ import java.util.Set;
 
 import com.icx.common.base.CList;
 import com.icx.common.base.Common;
-import com.icx.dom.app.bikestore.BikeStoreApp;
 import com.icx.dom.app.bikestore.domain.Manufacturer;
 import com.icx.dom.app.bikestore.domain.client.Order;
 import com.icx.dom.domain.DomainAnnotations.Accumulation;
@@ -111,8 +110,6 @@ public abstract class Bike extends SqlDomainObject {
 		this.gears = gears;
 		this.price = BigDecimal.valueOf(price);
 		this.picture = picture;
-
-		BikeStoreApp.sdc.register(this);
 	}
 
 	// Methods

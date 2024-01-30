@@ -2,6 +2,7 @@ package com.icx.dom.app.bikestore;
 
 import java.io.IOException;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -22,6 +23,8 @@ import com.icx.dom.app.bikestore.domain.bike.RaceBike.GroupSet;
 import com.icx.dom.app.bikestore.domain.bike.RaceBike.Rim;
 import com.icx.dom.app.bikestore.domain.client.Client;
 import com.icx.dom.app.bikestore.domain.client.Client.Country;
+import com.icx.dom.app.bikestore.domain.client.Client.RegionInProgress;
+import com.icx.dom.app.bikestore.domain.client.Order;
 import com.icx.dom.domain.sql.FieldError;
 import com.icx.dom.jdbc.ConfigException;
 import com.icx.dom.jdbc.SqlConnection;
@@ -41,6 +44,14 @@ public class Initialize {
 		try (SqlConnection sqlcn = SqlConnection.open(BikeStoreApp.sdc.sqlDb.pool, false)) {
 
 			// Delete means: remove Java object from object store and DELETE object records in database, and do so for all children too (behaves like ON DELETE CASCADE)!
+			for (RegionInProgress regionInProgress : BikeStoreApp.sdc.all(RegionInProgress.class)) {
+				BikeStoreApp.sdc.delete(sqlcn.cn, regionInProgress);
+			}
+
+			for (Order.InProgress orderInProgress : BikeStoreApp.sdc.all(Order.InProgress.class)) {
+				BikeStoreApp.sdc.delete(sqlcn.cn, orderInProgress);
+			}
+
 			for (Client client : BikeStoreApp.sdc.all(Client.class)) {
 				BikeStoreApp.sdc.delete(sqlcn.cn, client);
 			}
@@ -101,48 +112,54 @@ public class Initialize {
 		byte[] picture = CFile.readBinary(BikeStoreApp.BIKE_PICTURE);
 
 		// Create and initially save bikes - registration is done by constructor
-		new RaceBike(bianchi, "SPECIALISSIMA", Frame.CARBON, Breaks.DISK, 24, 11449.0, picture).groups(GroupSet.SHIMANO, GroupSet.CAMPAGNOLO, GroupSet.SRAM).allSizes();
-		new RaceBike(colnago, "C69 Titanium", Frame.CARBON, null, 0, 6430.0, picture).frameOnly().groups(GroupSet.SHIMANO, GroupSet.CAMPAGNOLO, GroupSet.SRAM).allSizes();
-		new RaceBike(cervelo, "S5 Rival eTap AXS", Frame.CARBON, Breaks.DISK, 24, 13000.0, picture).aero().groups(GroupSet.SRAM).electricGearShift().allSizes();
-		new RaceBike(derosa, "Corum", Frame.STEEL, Breaks.DISK, 24, 6588.0, picture).groups(GroupSet.CAMPAGNOLO).setWeight(8.5).allSizes();
-		new RaceBike(canyon, "Ultimate CFR Di2", Frame.CARBON, Breaks.DISK, 24, 10499.0, picture).groups(GroupSet.SHIMANO).electricGearShift().setWeight(6.2).setSizes(Size.S, Size.M, Size.L);
-		new RaceBike(cannondale, "CAAD Optimo 1", Frame.ALLOY, Breaks.CALIPER, 22, 1499.0, picture).groups(GroupSet.SHIMANO).setRim(Rim.ALLOY).allSizes();
-		new RaceBike(cannondale, "CAAD Disk Women's", Frame.ALLOY, Breaks.DISK, 22, 2299.0, picture).groups(GroupSet.SHIMANO).setRim(Rim.ALLOY).forWoman().setSizes(Size.XS, Size.S, Size.M);
-		new RaceBike(specialized, "Allez Elite", Frame.ALLOY, Breaks.CALIPER, 22, 1800.0, picture).groups(GroupSet.SHIMANO).setRim(Rim.ALLOY).setSizes(Size.M);
-		new RaceBike(trek, "Domane SL 5", Frame.ALLOY, Breaks.CALIPER, 22, 3249.0, picture).groups(GroupSet.SHIMANO).setRim(Rim.ALLOY).forWoman().setWeight(9.2).setSizes(Size.S);
-		new RaceBike(bmc, "Roadmachine X One petrol", Frame.ALLOY, Breaks.DISK, 12, 5999.0, picture).groups(GroupSet.SHIMANO, GroupSet.SRAM).setWeight(8.6).setSizes(Size.M, Size.L);
+		List<Bike> bikes = new ArrayList<>();
 
-		new CityBike(peugeot, "LC01 N7", Frame.STEEL, Breaks.CALIPER, 7, 699.0, picture).hasMudguards().forWoman().setWeight(16.1).setSizes(Size.S, Size.M);
-		new CityBike(peugeot, "LR01 Legend", Frame.STEEL, Breaks.CALIPER, 16, 749.0, picture).hasLight().setWeight(11.3).setSizes(Size.S, Size.M, Size.L);
-		new CityBike(specialized, "City Sirrus X 4.0", Frame.ALLOY, Breaks.DISK, 12, 1850.0, picture).isClassic().setSizes(Size.S, Size.L);
-		new CityBike(koga, "F3 7.0", Frame.ALLOY, Breaks.DISK, 30, 2199.0, picture).forWoman().setWeight(15.0).allSizes();
+		bikes.add(new RaceBike(bianchi, "SPECIALISSIMA", Frame.CARBON, Breaks.DISK, 24, 11449.0, picture).groups(GroupSet.SHIMANO, GroupSet.CAMPAGNOLO, GroupSet.SRAM).allSizes());
+		bikes.add(new RaceBike(colnago, "C69 Titanium", Frame.CARBON, null, 0, 6430.0, picture).frameOnly().groups(GroupSet.SHIMANO, GroupSet.CAMPAGNOLO, GroupSet.SRAM).allSizes());
+		bikes.add(new RaceBike(cervelo, "S5 Rival eTap AXS", Frame.CARBON, Breaks.DISK, 24, 13000.0, picture).aero().groups(GroupSet.SRAM).electricGearShift().allSizes());
+		bikes.add(new RaceBike(derosa, "Corum", Frame.STEEL, Breaks.DISK, 24, 6588.0, picture).groups(GroupSet.CAMPAGNOLO).setWeight(8.5).allSizes());
+		bikes.add(
+				new RaceBike(canyon, "Ultimate CFR Di2", Frame.CARBON, Breaks.DISK, 24, 10499.0, picture).groups(GroupSet.SHIMANO).electricGearShift().setWeight(6.2).setSizes(Size.S, Size.M, Size.L));
+		bikes.add(new RaceBike(cannondale, "CAAD Optimo 1", Frame.ALLOY, Breaks.CALIPER, 22, 1499.0, picture).groups(GroupSet.SHIMANO).setRim(Rim.ALLOY).allSizes());
+		bikes.add(new RaceBike(cannondale, "CAAD Disk Women's", Frame.ALLOY, Breaks.DISK, 22, 2299.0, picture).groups(GroupSet.SHIMANO).setRim(Rim.ALLOY).forWoman().setSizes(Size.XS, Size.S, Size.M));
+		bikes.add(new RaceBike(specialized, "Allez Elite", Frame.ALLOY, Breaks.CALIPER, 22, 1800.0, picture).groups(GroupSet.SHIMANO).setRim(Rim.ALLOY).setSizes(Size.M));
+		bikes.add(new RaceBike(trek, "Domane SL 5", Frame.ALLOY, Breaks.CALIPER, 22, 3249.0, picture).groups(GroupSet.SHIMANO).setRim(Rim.ALLOY).forWoman().setWeight(9.2).setSizes(Size.S));
+		bikes.add(new RaceBike(bmc, "Roadmachine X One petrol", Frame.ALLOY, Breaks.DISK, 12, 5999.0, picture).groups(GroupSet.SHIMANO, GroupSet.SRAM).setWeight(8.6).setSizes(Size.M, Size.L));
 
-		new MTB(lapierre, "Edge 5.7 Women", Frame.ALLOY, Breaks.DISK, 16, 759.0, picture).forWoman().setSizes(Size.XS, Size.S, Size.M);
-		new MTB(lapierre, "Trekking 1.0", Frame.ALLOY, Breaks.CALIPER, 21, 499.0, picture).setWeight(14.3).setSizes(Size.S, Size.M, Size.L, Size.XL);
-		new MTB(scott, "Contessa Spark RC", Frame.CARBON, Breaks.DISK, 12, 7999.0, picture).wheels(WheelSize.W29).forWoman().setWeight(10.7).setSizes(Size.S, Size.L);
-		new MTB(trek, "Top Fuel 7", Frame.ALLOY, Breaks.DISK, 12, 3399.0, picture).wheels(WheelSize.W29).setWeight(14.4).setSizes(Size.S, Size.M, Size.L);
-		new MTB(canyon, "Grand Canyon 9", Frame.ALLOY, Breaks.DISK, 12, 1049.0, picture).wheels(WheelSize.W27_5).hardtail().setWeight(13.3).allSizes();
-		new MTB(cannondale, "Habit 4", Frame.ALLOY, Breaks.DISK, 12, 2899.0, picture).wheels(WheelSize.W29).setWeight(13.3).setSizes(Size.S, Size.M, Size.L, Size.XL);
-		new MTB(specialized, "Epic EVO", Frame.CARBON, Breaks.DISK, 12, 4500.0, picture).wheels(WheelSize.W29).setSizes(Size.S, Size.L);
-		new MTB(marin, "Wildcat Trail 3", Frame.ALLOY, Breaks.DISK, 16, 825.0, picture).wheels(WheelSize.W27_5).forWoman().setSizes(Size.XS, Size.S, Size.M, Size.L);
-		new MTB(santacruz, "Tallboy", Frame.CARBON, Breaks.DISK, 12, 5399.0, picture).wheels(WheelSize.W29).downhill().setWeight(14.0).allSizes();
-		new MTB(rockymountain, "Instinct Alloy 10", Frame.ALLOY, Breaks.DISK, 12, 2607.14, picture).wheels(WheelSize.W27_5).forWoman().setWeight(16.0).setSizes(Size.XS, Size.S);
+		bikes.add(new CityBike(peugeot, "LC01 N7", Frame.STEEL, Breaks.CALIPER, 7, 699.0, picture).hasMudguards().forWoman().setWeight(16.1).setSizes(Size.S, Size.M));
+		bikes.add(new CityBike(peugeot, "LR01 Legend", Frame.STEEL, Breaks.CALIPER, 16, 749.0, picture).hasLight().setWeight(11.3).setSizes(Size.S, Size.M, Size.L));
+		bikes.add(new CityBike(specialized, "City Sirrus X 4.0", Frame.ALLOY, Breaks.DISK, 12, 1850.0, picture).isClassic().setSizes(Size.S, Size.L));
+		bikes.add(new CityBike(koga, "F3 7.0", Frame.ALLOY, Breaks.DISK, 30, 2199.0, picture).forWoman().setWeight(15.0).allSizes());
 
-		// Assign # of bikes available for sizes
-		for (Bike bike : BikeStoreApp.sdc.all(Bike.class)) {
-			for (Size size : bike.sizes) {
-				bike.availabilityMap.put(size, 15);
-			}
-		}
+		bikes.add(new MTB(lapierre, "Edge 5.7 Women", Frame.ALLOY, Breaks.DISK, 16, 759.0, picture).forWoman().setSizes(Size.XS, Size.S, Size.M));
+		bikes.add(new MTB(lapierre, "Trekking 1.0", Frame.ALLOY, Breaks.CALIPER, 21, 499.0, picture).setWeight(14.3).setSizes(Size.S, Size.M, Size.L, Size.XL));
+		bikes.add(new MTB(scott, "Contessa Spark RC", Frame.CARBON, Breaks.DISK, 12, 7999.0, picture).wheels(WheelSize.W29).forWoman().setWeight(10.7).setSizes(Size.S, Size.L));
+		bikes.add(new MTB(trek, "Top Fuel 7", Frame.ALLOY, Breaks.DISK, 12, 3399.0, picture).wheels(WheelSize.W29).setWeight(14.4).setSizes(Size.S, Size.M, Size.L));
+		bikes.add(new MTB(canyon, "Grand Canyon 9", Frame.ALLOY, Breaks.DISK, 12, 1049.0, picture).wheels(WheelSize.W27_5).hardtail().setWeight(13.3).allSizes());
+		bikes.add(new MTB(cannondale, "Habit 4", Frame.ALLOY, Breaks.DISK, 12, 2899.0, picture).wheels(WheelSize.W29).setWeight(13.3).setSizes(Size.S, Size.M, Size.L, Size.XL));
+		bikes.add(new MTB(specialized, "Epic EVO", Frame.CARBON, Breaks.DISK, 12, 4500.0, picture).wheels(WheelSize.W29).setSizes(Size.S, Size.L));
+		bikes.add(new MTB(marin, "Wildcat Trail 3", Frame.ALLOY, Breaks.DISK, 16, 825.0, picture).wheels(WheelSize.W27_5).forWoman().setSizes(Size.XS, Size.S, Size.M, Size.L));
+		bikes.add(new MTB(santacruz, "Tallboy", Frame.CARBON, Breaks.DISK, 12, 5399.0, picture).wheels(WheelSize.W29).downhill().setWeight(14.0).allSizes());
+		bikes.add(new MTB(rockymountain, "Instinct Alloy 10", Frame.ALLOY, Breaks.DISK, 12, 2607.14, picture).wheels(WheelSize.W27_5).forWoman().setWeight(16.0).setSizes(Size.XS, Size.S));
 
-		// Save bikes
+		// Register and save bikes
+
+		// Note: On object registration fields of type List, Set or Map are initialized by empty ArrayList, HashSet and HashMap objects automatically if they are not already initialized. Accumulation
+		// fields will be initialized by empty Concurrent set.
 
 		// Note: it's generally recommended to save new and changed objects as soon as possible to avoid unsaved invalid objects in object store
 		// Note: if an object is saved which has an parent object which is not yet stored in persistence database this parent object is saved automatically before saving object itself (to have valid
 		// child/parent relation realized by FOREIGN KEY column with parent id in database)
 
 		try (SqlConnection sqlcn = SqlConnection.open(BikeStoreApp.sdc.sqlDb.pool, false)) {
-			for (Bike bike : BikeStoreApp.sdc.all(Bike.class)) {
+			for (Bike bike : bikes) {
+
+				BikeStoreApp.sdc.register(bike);
+
+				for (Size size : bike.sizes) { // availability map can be accessed now because it will be initialized automatically on registration if not done on object creation
+					bike.availabilityMap.put(size, BikeStoreApp.AVAILABLE_BIKES);
+				}
+
 				BikeStoreApp.sdc.save(sqlcn.cn, bike);
 			}
 		}
@@ -152,9 +169,6 @@ public class Initialize {
 			List<FieldError> fieldErrors = BikeStoreApp.sdc.all(Bike.class).stream().filter(b -> !b.isValid()).flatMap(b -> b.getErrorsAndWarnings().stream()).collect(Collectors.toList());
 			throw new ConfigException("Not all bikes could be saved! (" + fieldErrors + ")");
 		}
-
-		// Note: On object registration object class fields of type List, Set or Map are initialized by empty ArrayList, HashSet and HashMap objects automatically if they are not already
-		// initialized. Accumulation fields will be initialized by empty Concurrent set.
 
 		log.info("Objects created and saved.");
 	}
