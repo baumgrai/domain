@@ -15,7 +15,9 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.SortedMap;
+import java.util.SortedSet;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
@@ -155,12 +157,15 @@ public abstract class SaveHelpers extends Common {
 
 		// Consider complex, table related fields...
 		for (Field complexField : fieldChangesMap.keySet().stream().filter(f -> sdc.registry.isComplexField(f)).collect(Collectors.toList())) {
+
 			String entryTableName = ((SqlRegistry) sdc.registry).getEntryTableFor(complexField).name;
 			String refIdColumnName = ((SqlRegistry) sdc.registry).getMainTableRefIdColumnFor(complexField).name;
 
 			boolean isMap = Map.class.isAssignableFrom(complexField.getType());
+			boolean isSortedMap = SortedMap.class.isAssignableFrom(complexField.getType());
 			boolean isList = List.class.isAssignableFrom(complexField.getType());
 			boolean isSet = Set.class.isAssignableFrom(complexField.getType());
+			boolean isSortedSet = SortedSet.class.isAssignableFrom(complexField.getType());
 
 			// DELETE, UPDATE and/or INSERT entry records for maps, sets and lists
 			try {
@@ -223,9 +228,8 @@ public abstract class SaveHelpers extends Common {
 								+ (columnKey instanceof String || columnKey instanceof Enum || columnKey instanceof File ? "'" + columnKey + "'" : columnKey));
 					}
 
-					// Update object record by new complex object
-					// TODO: Differ between Map and SortedMap
-					objectRecord.put(entryTableName, new HashMap<>(newMap));// Do not use field map itself to allow detecting changes in map against map in object record
+					// Update object record by new complex object - do not use field map itself to allow detecting changes in map against map in object record
+					objectRecord.put(entryTableName, isSortedMap ? new TreeMap<>(newMap) : new HashMap<>(newMap));
 				}
 				else if (isSet) {
 					Set<?> oldSet = (Set<?>) objectRecord.computeIfAbsent(entryTableName, m -> new HashSet<>());
@@ -271,8 +275,8 @@ public abstract class SaveHelpers extends Common {
 						sdc.sqlDb.insertInto(cn, entryTableName, ComplexFieldHelpers.collection2EntryRecords(refIdColumnName, object.getId(), elementsToInsert));
 					}
 
-					// Update object record by new complex object
-					objectRecord.put(entryTableName, new HashSet<>(newSet)); // Do not use field set itself to allow detecting changes in set against set in object record
+					// Update object record by new complex object - do not use field set itself to allow detecting changes in set against set in object record
+					objectRecord.put(entryTableName, isSortedSet ? new TreeSet<>(newSet) : new HashSet<>(newSet));
 				}
 				else if (isList) { // List - clear and rebuild list from scratch to avoid complexity if only order of list elements changed
 					List<?> newList = (List<?>) fieldChangesMap.get(complexField);
@@ -508,8 +512,8 @@ public abstract class SaveHelpers extends Common {
 			if (!fieldChangesMap.isEmpty()) {
 				wasChanged = true;
 			}
-			
-			//  Build column value map for INSERT or UPDATE - ignore changes of complex fields which are not associated with a column (but with an 'entry' table)
+
+			// Build column value map for INSERT or UPDATE - ignore changes of complex fields which are not associated with a column (but with an 'entry' table)
 			SortedMap<String, Object> columnValueMap = fieldChangesMap2ColumnValueMap(((SqlRegistry) sdc.registry), fieldChangesMap, obj);
 
 			if (!obj.isStored) { // INSERT
