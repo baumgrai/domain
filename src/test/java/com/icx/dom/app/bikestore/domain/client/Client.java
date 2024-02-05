@@ -415,7 +415,7 @@ public class Client extends SqlDomainObject {
 				log.warn("Client thread for '{}' ended due to interruption", client);
 				Thread.currentThread().interrupt();
 			}
-			catch (Exception e) { // TODO: Exception handling
+			catch (Exception e) {
 				log.error(Common.exceptionStackToString(e));
 			}
 		}
