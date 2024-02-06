@@ -150,10 +150,10 @@ public abstract class LoadHelpers extends Common {
 					if (limit > 0) {
 
 						// If # of loaded object records is limited SELECT only entry records for actually loaded object records
-						List<String> idsLists = Helpers.buildMax1000IdsLists(loadedRecordMap.keySet());
-						for (String idsList : idsLists) {
-							String limitWhereClause = (!isEmpty(whereClause) ? "(" + whereClause + ") AND " : "") + objectTableName + ".ID IN (" + idsList + ")";
-							loadedEntryRecords.addAll(sdc.sqlDb.selectFrom(cn, sde.joinedTableExpression, sde.allColumnNames, limitWhereClause, sde.orderByClause, null));
+						String whereClauseBase = (!isEmpty(whereClause) ? "(" + whereClause + ") AND " : "");
+						for (String idsList : Helpers.buildIdsListsWithMaxIdCount(loadedRecordMap.keySet(), 1000)) { // Oracle limitation max 1000 elements in lists
+							String idListWhereClause = whereClauseBase + objectTableName + ".ID IN (" + idsList + ")";
+							loadedEntryRecords.addAll(sdc.sqlDb.selectFrom(cn, sde.joinedTableExpression, sde.allColumnNames, idListWhereClause, sde.orderByClause, null));
 						}
 					}
 					else {
@@ -685,8 +685,9 @@ public abstract class LoadHelpers extends Common {
 
 			// Build WHERE clause(s) with IDs and load missing objects
 			Map<Long, SortedMap<String, Object>> collectedRecordMap = new HashMap<>();
-			for (String idsList : Helpers.buildMax1000IdsLists(missingObjectIds)) {
-				String idListWhereClause = ((SqlRegistry) sdc.registry).getTableFor(objectDomainClass).name + ".ID IN (" + idsList + ")";
+			String tableName = ((SqlRegistry) sdc.registry).getTableFor(objectDomainClass).name;
+			for (String idsList : Helpers.buildIdsListsWithMaxIdCount(missingObjectIds, 1000)) { // Oracle limitation max 1000 elements in lists
+				String idListWhereClause = tableName + ".ID IN (" + idsList + ")";
 				collectedRecordMap.putAll(retrieveRecordsFromDatabase(cn, sdc, 0, objectDomainClass, idListWhereClause, null));
 			}
 			loadedMissingRecordsMap.put(objectDomainClass, collectedRecordMap);

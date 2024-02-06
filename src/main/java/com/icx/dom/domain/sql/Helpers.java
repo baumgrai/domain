@@ -30,7 +30,7 @@ public abstract class Helpers extends Common {
 	}
 
 	// Build "(<ids>)" lists with at maximum 1000 ids (Oracle limit for # of elements in WHERE IN (...) clause = 1000)
-	static List<String> buildMax1000IdsLists(Set<Long> ids) {
+	static List<String> buildIdsListsWithMaxIdCount(Set<Long> ids, int max) {
 
 		List<String> idStringLists = new ArrayList<>();
 		if (ids == null || ids.isEmpty()) {
@@ -41,13 +41,13 @@ public abstract class Helpers extends Common {
 		int i = 0;
 		for (long id : ids) {
 
-			if (i % 1000 != 0) {
+			if (i % max != 0) {
 				sb.append(",");
 			}
 
 			sb.append(id);
 
-			if (i % 1000 == 999) {
+			if (i % max == max - 1) {
 				idStringLists.add(sb.toString());
 				sb.setLength(0);
 			}
@@ -63,14 +63,18 @@ public abstract class Helpers extends Common {
 	}
 
 	// Build string list of elements for WHERE clause (of DELETE statement)
-	static String buildElementList(Set<Object> elements) {
+	static List<String> buildElementListsWithMaxElementCount(Set<Object> elements, int max) {
 
+		List<String> elementLists = new ArrayList<>();
 		StringBuilder sb = new StringBuilder();
-		sb.append("(");
 
+		int i = 0;
 		for (Object element : elements) {
 
-			// element = FieldColumnConversion.field2ColumnValue(element);
+			if (i % max != 0) {
+				sb.append(",");
+			}
+
 			if (element instanceof String || element instanceof Enum || element instanceof Boolean || element instanceof File) {
 				sb.append("'" + element + "'");
 			}
@@ -78,12 +82,19 @@ public abstract class Helpers extends Common {
 				sb.append(element);
 			}
 
-			sb.append(",");
+			if (i % max == max - 1) {
+				elementLists.add(sb.toString());
+				sb.setLength(0);
+			}
+
+			i++;
 		}
 
-		sb.replace(sb.length() - 1, sb.length(), ")");
+		if (!sb.isEmpty()) {
+			elementLists.add(sb.toString());
+		}
 
-		return sb.toString();
+		return elementLists;
 	}
 
 }

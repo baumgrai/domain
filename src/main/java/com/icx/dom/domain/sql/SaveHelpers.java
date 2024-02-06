@@ -202,9 +202,11 @@ public abstract class SaveHelpers extends Common {
 
 					// Delete entry records for removed map entries
 					if (!mapKeysToRemove.isEmpty()) {
-						// TODO: Multiple DELETES with lists of max 1000 elements (Oracle)
-						// DELETE FROM <entry table> WHERE <object reference column>=<objectid> AND ENTRY_KEY IN <keys of entries to remove>
-						SqlDb.deleteFrom(cn, entryTableName, refIdColumnName + "=" + object.getId() + " AND " + Const.KEY_COL + " IN " + Helpers.buildElementList(mapKeysToRemove));
+						// Multiple deletes with lists of max 1000 elements (Oracle limitation)
+						for (String idsList : Helpers.buildElementListsWithMaxElementCount(mapKeysToRemove, 1000)) {
+							// DELETE FROM <entry table> WHERE <object reference column>=<objectid> AND ENTRY_KEY IN <keys of entries to remove>
+							SqlDb.deleteFrom(cn, entryTableName, refIdColumnName + "=" + object.getId() + " AND " + Const.KEY_COL + " IN (" + idsList + ")");
+						}
 					}
 
 					if (hasOldMapNullKey) {
@@ -260,13 +262,16 @@ public abstract class SaveHelpers extends Common {
 
 					// Delete entry records for removed elements
 					if (!elementsToRemove.isEmpty()) {
-						// DELETE FROM <entry table> WHERE <object reference column>=<objectid> AND ELEMENT IN <elements to remove>
-						SqlDb.deleteFrom(cn, entryTableName, refIdColumnName + "=" + object.getId() + " AND ELEMENT IN " + Helpers.buildElementList(elementsToRemove));
+						// Multiple deletes with lists of max 1000 elements (Oracle limitation)
+						for (String idsList : Helpers.buildElementListsWithMaxElementCount(elementsToRemove, 1000)) {
+							// DELETE FROM <entry table> WHERE <object reference column>=<objectid> AND ENTRY_KEY IN <keys of entries to remove>
+							SqlDb.deleteFrom(cn, entryTableName, refIdColumnName + "=" + object.getId() + " AND " + Const.ELEMENT_COL + " IN (" + idsList + ")");
+						}
 					}
 
 					if (hasNullElement) {
 						// DELETE FROM <entry table> WHERE <object reference column>=<objectid> AND ELEMENT IS NULL
-						SqlDb.deleteFrom(cn, entryTableName, refIdColumnName + "=" + object.getId() + " AND ELEMENT IS NULL");
+						SqlDb.deleteFrom(cn, entryTableName, refIdColumnName + "=" + object.getId() + " AND " + Const.ELEMENT_COL + " IS NULL");
 					}
 
 					// Insert entry records for new elements
