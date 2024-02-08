@@ -26,12 +26,12 @@ public abstract class Conversion extends Common {
 		if (fieldType == null) {
 			return (T) columnValue;
 		}
+		else if (columnValue == null) {
+			return null;
+		}
 
 		try {
-			if (columnValue == null) {
-				return null;
-			}
-			else if (Enum.class.isAssignableFrom(fieldType)) {
+			if (Enum.class.isAssignableFrom(fieldType)) {
 				return (T) Enum.valueOf((Class<? extends Enum>) fieldType, (String) columnValue);
 			}
 			else if (fieldType == Integer.class || fieldType == int.class) {
@@ -60,7 +60,7 @@ public abstract class Conversion extends Common {
 				return (T) (columnValue instanceof Boolean ? columnValue : Boolean.valueOf((String) columnValue)); // JDBC getObject() may auto-convert 'true' and 'false' string to boolean
 			}
 			else if (File.class.isAssignableFrom(fieldType)) {
-				return (T) new File((String) columnValue);
+				return (T) (columnValue instanceof File ? columnValue : new File((String) columnValue)); // JDBC getObject() may auto-convert file path to File
 			}
 			else {
 				return (T) columnValue;
@@ -70,7 +70,7 @@ public abstract class Conversion extends Common {
 			log.error("SQL: Column value {} cannot be converted to enum type '{}'! ({})", CLog.forAnalyticLogging(columnValue), ((Class<? extends Enum>) fieldType).getName(), iaex.getMessage());
 		}
 		catch (ClassCastException ex) {
-			log.error("SQL: Column value {} cannot be converted to  '{}'! ({})", CLog.forAnalyticLogging(columnValue), fieldType.getName(), ex);
+			log.error("SQL: Column value of type {} cannot be converted to  '{}'! ({})", columnValue.getClass().getSimpleName(), fieldType.getName(), ex);
 		}
 
 		return null;
