@@ -68,7 +68,7 @@ class RegistryTest extends TestHelpers {
 		relevantDomainClasses.add(RemovedClass.class);
 
 		List<Field> dataFieldsOfA = fields(A.class, "bool", "booleanValue", "i", "integerValue", "l", "longValue", "d", "doubleValue", "bigIntegerValue", "bigDecimalValue", "datetime", "s",
-				"deprecatedField", "bytes", "picture", "file", "type");
+				"deprecatedField", "bytes", "picture", "file", "type", "secretString", "pwd");
 		List<Field> complexFieldsOfA = fields(A.class, "strings", "doubleSet", "bigDecimalMap", "listOfLists", "listOfMaps", "mapOfLists", "mapOfMaps");
 		List<Field> referenceFieldsOfA = fields(A.class, "o");
 		List<Field> accumulationFieldsOfA = fields(A.class, "inners", "xs");

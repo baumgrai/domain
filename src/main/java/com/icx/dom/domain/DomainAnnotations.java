@@ -312,4 +312,14 @@ public abstract class DomainAnnotations {
 		public String refField() default "";
 	}
 
+	/**
+	 * Defines a field as secret.
+	 * <p>
+	 * Suppresses logging of field value or of values of all registered fields of domain class using all log levels upper than TRACE.
+	 */
+	@Retention(RetentionPolicy.RUNTIME)
+	@Target({ ElementType.TYPE, ElementType.FIELD })
+	public @interface Secret {
+	}
+
 }

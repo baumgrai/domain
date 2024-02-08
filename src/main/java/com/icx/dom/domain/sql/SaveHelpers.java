@@ -137,7 +137,8 @@ public abstract class SaveHelpers extends Common {
 
 				// Assign field value
 				if (fieldValue instanceof String && ((String) fieldValue).length() > column.maxlen) { // String field exceeds text column size
-					log.warn("SDC: Value '{}' exceeds maximum size {} of column '{}' for object {}! Truncate before saving object...", fieldValue, column.maxlen, column.name, object.name());
+					log.warn("SDC: Value '{}' exceeds maximum size {} of column '{}' for object {}! Truncate before saving object...", CLog.forSecretLogging(field, fieldValue), column.maxlen,
+							column.name, object.name());
 					object.setFieldWarning(field, "CONTENT_TRUNCATED_IN_DATABASE");
 					columnValue = ((String) fieldValue).substring(0, column.maxlen);
 				}
@@ -442,7 +443,8 @@ public abstract class SaveHelpers extends Common {
 				sdc.sqlDb.update(cn, table.name, oneCVMap, whereClause);
 			}
 			catch (SQLException sqlex) {
-				log.error("SDC: UPDATE failed by exception! Column '{}' cannot be updated to {} for object {}", columnName, CLog.forAnalyticLogging(oneCVMap.get(columnName)), obj.name());
+				log.error("SDC: UPDATE failed by exception! Column '{}' cannot be updated to {} for object {}", columnName, CLog.forSecretLogging(table.name, columnName, oneCVMap.get(columnName)),
+						obj.name());
 				obj.currentException = sqlex;
 				Field field = ((SqlRegistry) sdc.registry).getFieldFor(table.findColumnByName(columnName));
 				if (field != null) {
@@ -450,7 +452,7 @@ public abstract class SaveHelpers extends Common {
 
 					// Reset field and column value in column value map to original values
 					try {
-						List<SortedMap<String, Object>> results = sdc.sqlDb.selectFrom(cn, table.name, columnName, Const.ID_COL + "=" + obj.getId(), null, null);
+						List<SortedMap<String, Object>> results = sdc.sqlDb.selectFrom(cn, table.name, columnName, Const.ID_COL + "=" + obj.getId(), null, 0);
 						fieldValue = Conversion.column2FieldValue(field.getType(), results.get(0).get(columnName));
 						obj.setFieldValue(field, fieldValue);
 						columnValueMap.put(columnName, fieldValue);

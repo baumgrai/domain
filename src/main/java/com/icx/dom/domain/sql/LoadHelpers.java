@@ -127,7 +127,7 @@ public abstract class LoadHelpers extends Common {
 		try {
 			// Load (main) object records and build up loaded records by id map
 			SelectDescription sd = buildSelectDescriptionForMainObjectRecords(((SqlRegistry) sdc.registry), objectDomainClass);
-			List<SortedMap<String, Object>> loadedRecords = sdc.sqlDb.selectFrom(cn, sd.joinedTableExpression, sd.allColumnNames, whereClauseIncludingSyncCondition, null, limit, null, null);
+			List<SortedMap<String, Object>> loadedRecords = sdc.sqlDb.selectFrom(cn, sd.joinedTableExpression, sd.allColumnNames, whereClauseIncludingSyncCondition, null, limit);
 			if (CList.isEmpty(loadedRecords)) {
 				return loadedRecordMap;
 			}
@@ -153,12 +153,12 @@ public abstract class LoadHelpers extends Common {
 						String whereClauseBase = (!isEmpty(whereClause) ? "(" + whereClause + ") AND " : "");
 						for (String idsList : Helpers.buildIdsListsWithMaxIdCount(loadedRecordMap.keySet(), 1000)) { // Oracle limitation max 1000 elements in lists
 							String idListWhereClause = whereClauseBase + objectTableName + ".ID IN (" + idsList + ")";
-							loadedEntryRecords.addAll(sdc.sqlDb.selectFrom(cn, sde.joinedTableExpression, sde.allColumnNames, idListWhereClause, sde.orderByClause, null));
+							loadedEntryRecords.addAll(sdc.sqlDb.selectFrom(cn, sde.joinedTableExpression, sde.allColumnNames, idListWhereClause, sde.orderByClause, 0));
 						}
 					}
 					else {
 						// SELECT all entry records
-						loadedEntryRecords.addAll(sdc.sqlDb.selectFrom(cn, sde.joinedTableExpression, sde.allColumnNames, whereClause, sde.orderByClause, null));
+						loadedEntryRecords.addAll(sdc.sqlDb.selectFrom(cn, sde.joinedTableExpression, sde.allColumnNames, whereClause, sde.orderByClause, 0));
 					}
 
 					// Group entry records by objects where they belong to
@@ -202,6 +202,7 @@ public abstract class LoadHelpers extends Common {
 		catch (SQLException | SqlDbException e) { // Method is indirectly used in Java functional interface (as part of select supplier) and therefore may not throw exceptions
 			log.error("SDC: {} loading objects of domain class '{}' from database: {}", e.getClass().getSimpleName(), objectDomainClass.getName(), e.getMessage());
 		}
+
 		return loadedRecordMap;
 	}
 
@@ -378,9 +379,9 @@ public abstract class LoadHelpers extends Common {
 
 		if (!objectsEqual(fieldValue, fieldValueFromObjectRecord)) {
 			log.warn("SDC: Data field '{}' of object '{}' has unsaved changed value {} which will be overridden by value {} from database!", dataField.getName(), obj.name(),
-					CLog.forSecretLogging(dataField.getName(), fieldValue), CLog.forSecretLogging(dataField.getName(), columnValueFromDatabase));
+					CLog.forSecretLogging(dataField, fieldValue), CLog.forSecretLogging(dataField, columnValueFromDatabase));
 			obj.setFieldWarning(dataField,
-					"Discarded unsaved changed value " + CLog.forSecretLogging(dataField.getName(), fieldValue) + " of field '" + dataField.getName() + "' on loading object from database");
+					"Discarded unsaved changed value " + CLog.forSecretLogging(dataField, fieldValue) + " of field '" + dataField.getName() + "' on loading object from database");
 		}
 	}
 
@@ -392,7 +393,7 @@ public abstract class LoadHelpers extends Common {
 			Collection<?> colFromObjRecord = (Collection<?>) sdc.recordMap.get(obj.getClass()).get(obj.getId()).get(entryTableName);
 			if (!objectsEqual(collectionOrMapFromObject, colFromObjRecord)) {
 				log.warn("SDC: Collection field '{}' of object '{}' {} has unsaved changes and will be overridden by collection {} from database!", complexField.getName(), obj.name(),
-						collectionOrMapFromObject, colFromObjRecord);
+						CLog.forSecretLogging(complexField, collectionOrMapFromObject), CLog.forSecretLogging(complexField, colFromObjRecord));
 				obj.setFieldWarning(complexField,
 						"Discarded unsaved changed collection " + collectionOrMapFromObject + " of field '" + complexField.getName() + "' on loading collection from database");
 			}
@@ -401,7 +402,7 @@ public abstract class LoadHelpers extends Common {
 			Map<?, ?> mapFromObjRecord = (Map<?, ?>) sdc.recordMap.get(obj.getClass()).get(obj.getId()).get(entryTableName);
 			if (!objectsEqual(collectionOrMapFromObject, mapFromObjRecord)) {
 				log.warn("SDC: Key/value map field '{}' of object '{}' {} has unsaved changes and will be overridden by map {} from database!", complexField.getName(), obj.name(),
-						collectionOrMapFromObject, mapFromObjRecord);
+						CLog.forSecretLogging(complexField, collectionOrMapFromObject), CLog.forSecretLogging(complexField, mapFromObjRecord));
 				obj.setFieldWarning(complexField, "Discarded unsaved changed key/value map " + collectionOrMapFromObject + " of field '" + complexField.getName() + "' on loading map from database");
 			}
 		}
@@ -525,11 +526,24 @@ public abstract class LoadHelpers extends Common {
 		Set<SqlDomainObject> changedObjects = new HashSet<>();
 
 		// Filter object domain classes where records were loaded for and handle loaded objects in order of parent/child relationship to avoid unnecessary unresolved references
-		for (Class<? extends SqlDomainObject> objectDomainClass : sdc.registry.getRegisteredObjectDomainClasses().stream().filter(loadedRecordsMap::containsKey).collect(Collectors.toList())) {
-			List<String> columnNames = ((SqlRegistry) sdc.registry).getTableFor(objectDomainClass).columns.stream().map(c -> c.name).collect(Collectors.toList()); // For logging only
+		List<Class<? extends SqlDomainObject>> relevantObjectDomainClasses = sdc.registry.getRegisteredObjectDomainClasses().stream().filter(loadedRecordsMap::containsKey)
+				.collect(Collectors.toList());
+		for (Class<? extends SqlDomainObject> objectDomainClass : relevantObjectDomainClasses) {
+
+			// Determine table and column name association - only for secret logging
+			List<String> columnNames = new ArrayList<>();
+			Map<String, String> columnTableMap = new HashMap<>();
+			for (Class<? extends SqlDomainObject> domainClass : sdc.registry.getDomainClassesFor(objectDomainClass)) {
+				SqlDbTable table = ((SqlRegistry) sdc.registry).getTableFor(domainClass);
+				for (Column column : table.columns) {
+					columnNames.add(column.name);
+					columnTableMap.put(column.name, table.name);
+				}
+			}
 
 			// Handle loaded object records: instantiate new objects and assign loaded data to new and changed objects
 			for (Entry<Long, SortedMap<String, Object>> entry : loadedRecordsMap.get(objectDomainClass).entrySet()) {
+
 				long id = entry.getKey();
 				SortedMap<String, Object> loadedRecord = entry.getValue();
 				boolean isNew = false;
@@ -562,20 +576,18 @@ public abstract class LoadHelpers extends Common {
 
 						// Add column/value entry to changes map if current and loaded values differ - ignore last modified column; consider only logical changes
 						if (!objectsEqual(col, Const.LAST_MODIFIED_COL) && !logicallyEqual(oldValue, newValue)) {
-							if (log.isTraceEnabled()) {
-								log.trace("SDC: Column {}: loaded value {} differs from current value {}", col, CLog.forSecretLogging(col, newValue), CLog.forSecretLogging(col, oldValue));
-							}
 							databaseChangesMap.put(col, newValue);
 						}
 					}
 
 					// Check if object was changed in database
 					if (!databaseChangesMap.isEmpty()) {
+
 						if (log.isDebugEnabled()) {
 							log.debug("SDC: Loaded record for '{}@{}' differs from current record. New values: {}", objectDomainClass.getSimpleName(), id,
-									JdbcHelpers.forLoggingSqlResult(databaseChangesMap, columnNames));
+									JdbcHelpers.forSecretLoggingRecord(databaseChangesMap, columnNames, columnTableMap));
 							if (log.isTraceEnabled()) {
-								log.trace("SDC: Current object record: {}", JdbcHelpers.forLoggingSqlResult(objectRecord, columnNames));
+								log.trace("SDC: Current object record: {}", JdbcHelpers.forSecretLoggingRecord(objectRecord, columnNames, columnTableMap));
 							}
 						}
 
@@ -587,7 +599,7 @@ public abstract class LoadHelpers extends Common {
 				// Assign loaded data to corresponding fields of domain object and collect objects where references were changed
 				assignDataToDomainObject(sdc, obj, isNew, databaseChangesMap, objectsWhereReferencesChanged, unresolvedReferences);
 				if (log.isTraceEnabled()) {
-					log.trace("SDC: Loaded {}object '{}': {}", (isNew ? "new " : ""), obj.name(), JdbcHelpers.forLoggingSqlResult(loadedRecord, columnNames));
+					log.trace("SDC: Loaded {}object '{}': {}", (isNew ? "new " : ""), obj.name(), JdbcHelpers.forSecretLoggingRecord(loadedRecord, columnNames, columnTableMap));
 				}
 				loadedObjects.add(obj);
 			}
@@ -636,7 +648,7 @@ public abstract class LoadHelpers extends Common {
 
 		// Determine object domain class of missing referenced object by retrieving domain class name from loaded record for object record
 		String tableName = ((SqlRegistry) sdc.registry).getTableFor(domainClass).name;
-		List<SortedMap<String, Object>> records = sdc.sqlDb.selectFrom(cn, tableName, Const.DOMAIN_CLASS_COL, "ID=" + id, null, CList.newList(String.class));
+		List<SortedMap<String, Object>> records = sdc.sqlDb.selectFrom(cn, tableName, Const.DOMAIN_CLASS_COL, "ID=" + id, null, 0);
 		if (records.isEmpty()) {
 			log.error("No record found for object {}@{} which is referenced and therefore should exist", domainClass.getSimpleName(), id);
 			throw new SqlDbException("Could not determine referenced " + domainClass.getSimpleName() + "@" + id + " object's object domain class");

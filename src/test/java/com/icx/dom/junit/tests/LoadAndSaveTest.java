@@ -97,7 +97,7 @@ class LoadAndSaveTest extends TestHelpers {
 			SqlDb.deleteFrom(sqlcn.cn, "DOM_Z", null);
 			SqlDb.deleteFrom(sqlcn.cn, "DOM_Y", null);
 			SqlDb.deleteFrom(sqlcn.cn, "DOM_X", null);
-			SqlDb.deleteFrom(sqlcn.cn, "DOM_B", null);
+			SqlDb.deleteFrom(sqlcn.cn, "DOM_SEC_B", null);
 			SqlDb.deleteFrom(sqlcn.cn, "DOM_A", null);
 			SqlDb.deleteFrom(sqlcn.cn, "DOM_AA", null);
 		}
@@ -117,7 +117,10 @@ class LoadAndSaveTest extends TestHelpers {
 
 			assertEquals(A.class, sdc.getDomainClassByName("A"));
 
-			Helpers.dbType = DbType.ORACLE;
+			// -----------------------------------------
+			Helpers.dbType = DbType.MYSQL;
+			// -----------------------------------------
+
 			Properties dbProps = Prop.readEnvironmentSpecificProperties(Prop.findPropertiesFile("db.properties"), Helpers.getLocal(Helpers.dbType), CList.newList("dbConnectionString", "dbUser"));
 			Properties domainProps = Prop.readProperties(Prop.findPropertiesFile("domain.properties"));
 
@@ -501,6 +504,7 @@ class LoadAndSaveTest extends TestHelpers {
 			log.info("\tSynchronize with database to recognize and unregister externally deleted objects...");
 
 			sdc.synchronize(); // Determine and unregister X objects meanwhile deleted in database
+			// !!! Data horizon in domain.properties must be 1s (or lower) to run this test successfully !!!
 
 			log.info("\tAssertions on unregistered objects...");
 
@@ -513,7 +517,7 @@ class LoadAndSaveTest extends TestHelpers {
 
 			log.info("\tCreate and save a child of a data horizon controlled object which itself is not under data horizon control...");
 
-			B b1 = sdc.create(B.class, null); // Child of A which is not under data horizon control
+			B b1 = sdc.create(B.class, b -> b.name = "!!!value_in_secret_class!!!"); // Child of A which is not under data horizon control
 			b1.aa = aa1;
 			sdc.save(b1);
 

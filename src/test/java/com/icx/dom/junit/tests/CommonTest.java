@@ -48,6 +48,7 @@ import com.icx.common.base.Common;
 import com.icx.dom.app.bikestore.BikeStoreApp;
 import com.icx.dom.app.bikestore.domain.client.Client;
 import com.icx.dom.app.bikestore.domain.client.Client.RegionInProgress;
+import com.icx.dom.domain.DomainAnnotations.Secret;
 import com.icx.dom.junit.TestHelpers;
 
 @TestMethodOrder(OrderAnnotation.class)
@@ -249,7 +250,11 @@ class CommonTest extends TestHelpers {
 
 	}
 
-	@SuppressWarnings("static-method")
+	@Secret
+	String secret = "abcdefg";
+	String pwd = "123456";
+	String field = "value";
+
 	@Test
 	@Order(3)
 	void clog() throws Exception {
@@ -267,18 +272,13 @@ class CommonTest extends TestHelpers {
 		assertEquals("java.time.LocalTime", Common.untilFirst(CLog.forAnalyticLogging(LocalTime.now()), "@"), "analytic log local time");
 		assertEquals("java.util.GregorianCalendar", Common.untilFirst(CLog.forAnalyticLogging(new GregorianCalendar()), "@"), "analytic log local time");
 
-		assertEquals("[ \"a\", \"b\", \"c\" ]", CLog.forAnalyticLogging(CList.newList("a", "b", "c")), "analytic log list");
-
-		assertEquals("\"***\"", CLog.forSecretLogging("pwd", "abc"), "secret logging");
-		assertEquals("\"******\"", CLog.forSecretLogging("passwort", ""), "empty secret logging");
-
-		assertFalse(CLog.forSecretLogging("timestamp", new java.sql.Timestamp(0L)).isEmpty());
-		assertFalse(CLog.forSecretLogging("LocalDateTime", LocalDateTime.now()).isEmpty());
-		assertFalse(CLog.forSecretLogging("LocalDate", LocalDate.now()).isEmpty());
-		assertFalse(CLog.forSecretLogging("LocalTime", LocalTime.now()).isEmpty());
-		assertFalse(CLog.forSecretLogging("Calendar", new GregorianCalendar()).isEmpty());
-		assertFalse(CLog.forSecretLogging("boolean", true).isEmpty());
-
+		assertEquals("\"******\"", CLog.forSecretLogging(CommonTest.class.getDeclaredField("secret"), secret), "secret field logging");
+		assertEquals("\"******\"", CLog.forSecretLogging(CommonTest.class.getDeclaredField("pwd"), pwd), "password field logging");
+		assertEquals("\"******\"", CLog.forSecretLogging(CommonTest.class.getDeclaredField("pwd"), ""), "empty field logging");
+		assertEquals("\"value\"", CLog.forSecretLogging(CommonTest.class.getDeclaredField("field"), field), "non-secret field logging");
+		assertEquals("\"******\"", CLog.forSecretLogging("DOM_SEC_TABLE", "ANY_COLUMN", "secret_value"), "secret table logging");
+		assertEquals("\"******\"", CLog.forSecretLogging("DOM_ANY_TABLE", "SEC_COLUMN", "secret_value"), "secret column logging");
+		assertEquals("\"value\"", CLog.forSecretLogging("DOM_ANY_TABLE", "ANY_COLUMN", "value"), "non-secret column logging");
 	}
 
 	@SuppressWarnings("static-method")

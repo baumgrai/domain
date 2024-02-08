@@ -12,6 +12,7 @@ import com.icx.dom.domain.DomainAnnotations.Accumulation;
 import com.icx.dom.domain.DomainAnnotations.Changed;
 import com.icx.dom.domain.DomainAnnotations.Created;
 import com.icx.dom.domain.DomainAnnotations.Removed;
+import com.icx.dom.domain.DomainAnnotations.Secret;
 import com.icx.dom.domain.DomainAnnotations.SqlColumn;
 import com.icx.dom.domain.DomainAnnotations.SqlTable;
 import com.icx.dom.domain.sql.SqlDomainObject;
@@ -74,6 +75,10 @@ public abstract class A extends SqlDomainObject {
 
 	@Removed(version = "1.1")
 	public List<String> removedCollectionField;
+
+	@Secret
+	public String secretString = "!!!secret!!!";
+	public String pwd = "!!!password!!!";
 
 	// Collection and map fields
 

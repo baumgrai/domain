@@ -4,13 +4,11 @@ import java.sql.Connection;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
-import com.icx.common.base.CLog;
 import com.icx.common.base.Common;
 
 /**
@@ -539,40 +537,4 @@ public class SqlDbTable extends Common implements Comparable<SqlDbTable> {
 		return referencedTables;
 	}
 
-	/**
-	 * Log result map in order of column declaration
-	 * 
-	 * @param map
-	 *            result map
-	 * 
-	 * @return string with results for logging
-	 */
-	public String logColumnValueMap(Map<String, Object> map) {
-
-		// Log result map
-		StringBuilder resultMapString = new StringBuilder();
-		for (Column column : columns) {
-
-			if (!map.containsKey(column.name)) {
-				continue;
-			}
-
-			if (resultMapString.length() == 0) {
-				resultMapString.append("{ ");
-			}
-			else {
-				resultMapString.append(", ");
-			}
-
-			resultMapString.append(column.name);
-			resultMapString.append("=");
-			resultMapString.append(CLog.forSecretLogging(column.name, map.get(column.name)));
-		}
-
-		if (resultMapString.length() != 0) {
-			resultMapString.append(" }");
-		}
-
-		return resultMapString.toString();
-	}
 }

@@ -174,7 +174,7 @@ public abstract class DomainObject extends Common implements Comparable<DomainOb
 		}
 		catch (IllegalArgumentException | IllegalAccessException e) {
 			log.error("DC: {} '{}' oocurred trying to set field '{}' of object {} to {}", e.getClass().getSimpleName(), e.getMessage(), Reflection.qualifiedName(field), name(),
-					CLog.forAnalyticLogging(value));
+					CLog.forSecretLogging(field, value));
 		}
 	}
 

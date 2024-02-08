@@ -25,6 +25,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.icx.common.base.CDateTime;
+import com.icx.common.base.CLog;
 import com.icx.common.base.Common;
 import com.icx.dom.domain.DomainAnnotations.UseDataHorizon;
 import com.icx.dom.domain.DomainController;
@@ -289,7 +290,7 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Load objects of only one (primary) object domain class (selected by WHERE clause if specified) and also objects directly or indirectly referenced by these primarily loaded objects (to assure
+	 * Load objects of only one (primary) object domain class (selected by WHERE clause if specified) and also objects directly or indirectly referenced by these primarily loaded objects (to ensure
 	 * referential integrity).
 	 * <p>
 	 * Note: To provide a WHERE clause one needs knowledge of the relation of Java class/field names and associated SQL table/column names and also knowledge about column types associated to field
@@ -921,8 +922,8 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 			Object fieldValue = obj.getFieldValue(field);
 
 			if ((fieldValue instanceof String || fieldValue instanceof Enum) && column.maxlen < fieldValue.toString().length()) {
-				log.error("SDC: \tField  '{}': value '{}' is too long for associated column '{}' with maxlen {} for object {}!", field.getName(), fieldValue, column.name, column.maxlen,
-						DomainObject.name(obj));
+				log.error("SDC: \tField  '{}': value '{}' is too long for associated column '{}' with maxlen {} for object {}!", field.getName(), CLog.forSecretLogging(field, fieldValue), column.name,
+						column.maxlen, DomainObject.name(obj));
 				obj.setFieldError(field, "COLUMN_SIZE_VIOLATION");
 				isConstraintViolated = true;
 			}

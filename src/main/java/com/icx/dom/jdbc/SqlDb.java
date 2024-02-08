@@ -265,7 +265,7 @@ public class SqlDb extends Common {
 	public List<SortedMap<String, Object>> select(Connection cn, String sql, List<Object> valuesOfPlaceholders, List<Class<?>> requiredResultTypes) throws SQLException {
 
 		if (log.isDebugEnabled()) {
-			log.debug("SQL: {}", JdbcHelpers.forLoggingSelect(sql, valuesOfPlaceholders));
+			log.debug("SQL: {}", JdbcHelpers.forSecretLoggingSelect(sql, valuesOfPlaceholders));
 		}
 
 		try (PreparedStatement st = cn.prepareStatement(sql)) {
@@ -313,43 +313,25 @@ public class SqlDb extends Common {
 
 				// Build result structure
 				try {
-					return JdbcHelpers.buildAndLogResult(rs, requiredResultTypes);
+					List<SortedMap<String, Object>> resultRecords = JdbcHelpers.retrieveResultRecords(rs, requiredResultTypes);
+					ResultSetMetaData rsmd = rs.getMetaData();
+					if (rsmd != null && log.isDebugEnabled()) {
+						JdbcHelpers.logResultRecords(rsmd, sql, resultRecords);
+					}
+
+					return resultRecords;
 				}
 				catch (SQLException sqlex) {
-					log.error("SQL: {} '{}' on retrieving results '{}' ({})", sqlex.getClass().getSimpleName(), sqlex.getMessage().trim(), JdbcHelpers.forLoggingSelect(sql, valuesOfPlaceholders),
-							exceptionStackToString(sqlex));
+					log.error("SQL: {} '{}' on retrieving results '{}' ({})", sqlex.getClass().getSimpleName(), sqlex.getMessage().trim(),
+							JdbcHelpers.forSecretLoggingSelect(sql, valuesOfPlaceholders), exceptionStackToString(sqlex));
 					throw sqlex;
 				}
 			}
 		}
 		catch (SQLException sqlex) {
-			log.error("SQL: {} '{}' on '{}'", sqlex.getClass().getSimpleName(), sqlex.getMessage().trim(), JdbcHelpers.forLoggingSelect(sql, valuesOfPlaceholders)); // Log SQL statement on exception
+			log.error("SQL: {} '{}' on '{}'", sqlex.getClass().getSimpleName(), sqlex.getMessage().trim(), JdbcHelpers.forSecretLoggingSelect(sql, valuesOfPlaceholders));
 			throw sqlex;
 		}
-	}
-
-	/**
-	 * SELECT record count from given table for given WHERE clause.
-	 * 
-	 * @param cn
-	 *            database connection
-	 * @param tableName
-	 *            table name
-	 * @param whereClause
-	 *            WHERE clause (without "WHERE")
-	 * 
-	 * @return record count
-	 * 
-	 * @throws SQLException
-	 *             on JDBC or SQL errors
-	 * @throws SqlDbException
-	 *             (cannot be not be thrown here)
-	 */
-	public long selectCountFrom(Connection cn, String tableName, String whereClause) throws SQLException, SqlDbException {
-
-		List<SortedMap<String, Object>> records = selectFrom(cn, tableName, "count(*)", whereClause, null, 0, null, null);
-
-		return ((Number) records.iterator().next().values().iterator().next()).longValue();
 	}
 
 	/**
@@ -470,8 +452,8 @@ public class SqlDb extends Common {
 	 *            SQL where clause string (without "WHERE") or null
 	 * @param orderByClause
 	 *            SQL order by clause string (without "ORDER BY") or null
-	 * @param requiredResultTypes
-	 *            list of required types of results
+	 * @param limit
+	 *            maximum records to retrieve
 	 * 
 	 * @return result records as list of sorted column/value maps
 	 * 
@@ -480,10 +462,29 @@ public class SqlDb extends Common {
 	 * @throws SQLException
 	 *             on JDBC or SQL errors
 	 */
-	public List<SortedMap<String, Object>> selectFrom(Connection cn, String tableExpr, Object colExpr, String whereClause, String orderByClause, List<Class<?>> requiredResultTypes)
-			throws SQLException, SqlDbException {
+	public List<SortedMap<String, Object>> selectFrom(Connection cn, String tableExpr, Object colExpr, String whereClause, String orderByClause, int limit) throws SQLException, SqlDbException {
+		return selectFrom(cn, tableExpr, colExpr, whereClause, orderByClause, limit, null, null);
+	}
 
-		return selectFrom(cn, tableExpr, colExpr, whereClause, orderByClause, 0, null, requiredResultTypes);
+	/**
+	 * SELECT record count from given table for given WHERE clause.
+	 * 
+	 * @param cn
+	 *            database connection
+	 * @param tableName
+	 *            table name
+	 * @param whereClause
+	 *            WHERE clause (without "WHERE")
+	 * 
+	 * @return record count
+	 * 
+	 * @throws SQLException
+	 *             on JDBC or SQL errors
+	 * @throws SqlDbException
+	 *             (cannot be not be thrown here)
+	 */
+	public long selectCountFrom(Connection cn, String tableName, String whereClause) throws SQLException, SqlDbException {
+		return ((Number) selectFrom(cn, tableName, "count(*)", whereClause, null, 0).iterator().next().values().iterator().next()).longValue();
 	}
 
 	// -------------------------------------------------------------------------
@@ -594,7 +595,7 @@ public class SqlDb extends Common {
 	// String callableStatementString = sqlBuilder.toString();
 	//
 	// if (log.isTraceEnabled()) {
-	// log.trace("SQL: \t {}", callableStatementString);
+	// log.trace("SQL: {}", callableStatementString);
 	// }
 	//
 	// // Prepare callable statement
@@ -602,7 +603,7 @@ public class SqlDb extends Common {
 	// try (CallableStatement cst = cn.prepareCall(callableStatementString)) {
 	//
 	// if (log.isDebugEnabled()) {
-	// log.debug("SQL: \tStored procedure call statement '{}' prepared", callableStatementString);
+	// log.debug("SQL: Stored procedure call statement '{}' prepared", callableStatementString);
 	// }
 	//
 	// List<Integer> outputParameterIndexes = new ArrayList<>();
@@ -835,39 +836,36 @@ public class SqlDb extends Common {
 		String preparedStatementString = sqlBuilder.toString();
 
 		if (log.isTraceEnabled()) {
-			log.trace("SQL:  \t{}", preparedStatementString);
+			log.trace("SQL: {}", preparedStatementString);
 		}
 
 		try (PreparedStatement pst = cn.prepareStatement(preparedStatementString)) {
 
-			// Logically and/or formally convert values to SQL type (if necessary) and assign values to prepared statement
+			// Convert values to SQL type (if necessary) and assign values to prepared statement
 			for (Map<String, Object> columnValueMap : columnValueMaps) {
 
-				if (log.isTraceEnabled()) {
-					log.trace("SQL: \tColumn values to assign: {}", table.logColumnValueMap(columnValueMap));
-				}
+				for (int c = 0; c < columnsWithPlaceholders.size(); c++) {
+					Column column = columnsWithPlaceholders.get(c);
 
-				for (int i = 0; i < columnsWithPlaceholders.size(); i++) {
-
-					Object columnValue = columnValueMap.get(columnsWithPlaceholders.get(i).name);
+					Object columnValue = columnValueMap.get(column.name);
 					try {
 						if (columnValue == null) {
-							pst.setNull(i + 1, typeIntegerFromJdbcType(columnsWithPlaceholders.get(i).jdbcType));
+							pst.setNull(c + 1, typeIntegerFromJdbcType(column.jdbcType));
 						}
 						else if (columnValue instanceof Boolean || columnValue instanceof Enum || columnValue instanceof File) {
-							pst.setObject(i + 1, columnValue.toString());
+							pst.setObject(c + 1, columnValue.toString());
 						}
 						else { // Other value
-							pst.setObject(i + 1, columnValue);
+							pst.setObject(c + 1, columnValue);
 						}
 					}
 					catch (IllegalArgumentException iaex) {
-						log.error("SQL: Column {} could not be set to value {} ({})", columnsWithPlaceholders.get(i).name, CLog.forAnalyticLogging(columnValue), iaex);
+						log.error("SQL: Column {} could not be set to value {} ({})", column.name, CLog.forSecretLogging(tableName, column.name, columnValue), iaex);
 					}
 				}
 
 				if (log.isDebugEnabled()) {
-					log.debug("SQL: {}", JdbcHelpers.forLoggingInsertUpdate(preparedStatementString, columnValueMap, columnsToInsert));
+					log.debug("SQL: {}", JdbcHelpers.forSecretLoggingInsertUpdate(preparedStatementString, columnValueMap, columnsToInsert));
 				}
 
 				if (numberOfRecords > 1) {
@@ -915,7 +913,7 @@ public class SqlDb extends Common {
 			else {
 				log.error("SQL: {} '{}' on... ", sqlex.getClass().getSimpleName(), sqlex.getMessage().trim()); // Log SQL statement(s) on exception
 				for (Map<String, Object> columnValueMap : columnValueMaps) {
-					log.error("SQL: '{}'", JdbcHelpers.forLoggingInsertUpdate(preparedStatementString, columnValueMap, columnsToInsert));
+					log.error("SQL: '{}'", JdbcHelpers.forSecretLoggingInsertUpdate(preparedStatementString, columnValueMap, columnsToInsert));
 				}
 			}
 
@@ -1022,15 +1020,14 @@ public class SqlDb extends Common {
 
 		String preparedStatementString = sqlBuilder.toString();
 		if (log.isTraceEnabled()) {
-			log.trace("SQL: \t{}", preparedStatementString);
+			log.trace("SQL: {}", preparedStatementString);
 		}
 
 		try (PreparedStatement pst = cn.prepareStatement(preparedStatementString)) {
 
 			// Prepare update statement
 			if (log.isTraceEnabled()) {
-				log.trace("SQL: \tUpdate statement '{}' prepared", preparedStatementString);
-				log.trace("SQL: \tColumn values to assign: {}", table.logColumnValueMap(columnValueMap));
+				log.trace("SQL: Update statement '{}' prepared", preparedStatementString);
 			}
 
 			// Assign values to prepared statement
@@ -1048,12 +1045,8 @@ public class SqlDb extends Common {
 				}
 			}
 
-			if (log.isTraceEnabled()) {
-				log.trace("SQL: \tColumn values assigned: {}", table.logColumnValueMap(columnValueMap));
-			}
-
 			if (log.isDebugEnabled()) {
-				log.debug("SQL: {}", JdbcHelpers.forLoggingInsertUpdate(preparedStatementString, columnValueMap, columnsToUpdate));
+				log.debug("SQL: {}", JdbcHelpers.forSecretLoggingInsertUpdate(preparedStatementString, columnValueMap, columnsToUpdate));
 			}
 
 			// Execute UPDATE statement and get update count
@@ -1068,7 +1061,7 @@ public class SqlDb extends Common {
 		}
 		catch (SQLException sqlex) {
 			log.error("SQL: {} '{}' on '{}'", sqlex.getClass().getSimpleName(), sqlex.getMessage().trim(),
-					JdbcHelpers.forLoggingInsertUpdate(preparedStatementString, columnValueMap, columnsToUpdate));
+					JdbcHelpers.forSecretLoggingInsertUpdate(preparedStatementString, columnValueMap, columnsToUpdate));
 			throw sqlex;
 		}
 	}
@@ -1305,7 +1298,7 @@ public class SqlDb extends Common {
 			// Retrieve JDBC types of columns using dummy query
 			sql = String.format(DUMMY_QUERY_MASK, tableName);
 			if (log.isTraceEnabled()) {
-				log.trace("SQL: \t{}", JdbcHelpers.forLoggingInsertUpdate(sql, null, null));
+				log.trace("SQL: {}", JdbcHelpers.forSecretLoggingInsertUpdate(sql, null, null));
 			}
 
 			try (Statement st = cn.createStatement()) {

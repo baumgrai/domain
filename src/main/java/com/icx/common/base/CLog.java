@@ -1,15 +1,17 @@
 package com.icx.common.base;
 
+import java.lang.reflect.Field;
 import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Calendar;
-import java.util.Collection;
 
 import org.slf4j.Logger;
 import org.slf4j.event.Level;
+
+import com.icx.dom.domain.DomainAnnotations.Secret;
 
 /**
  * Logging helpers
@@ -79,10 +81,10 @@ public abstract class CLog {
 		}
 	}
 
-	// TODO: Field annotation to generally suppress logging of secret values
+	// TODO: Store secret values encrypted in database
 
 	// Secret field name prefix to avoid logging value of this field
-	public static final String SECRET = "secret_";
+	public static final String SECRET = "sec_";
 
 	/**
 	 * Convert object value to string containing also type of value for analytic logging.
@@ -127,6 +129,9 @@ public abstract class CLog {
 		else if (value instanceof java.util.Date) {
 			logString = value.getClass().getName() + "@" + new SimpleDateFormat(CDateTime.DATETIME_MS_FORMAT).format((java.util.Date) value);
 		}
+		else if (value instanceof Calendar) {
+			logString = value.getClass().getName() + "@" + new SimpleDateFormat(CDateTime.DATETIME_MS_FORMAT).format(((Calendar) value).getTime());
+		}
 		else if (value instanceof LocalDate) {
 			logString = value.getClass().getName() + "@" + ((LocalDate) value).format(DateTimeFormatter.ISO_LOCAL_DATE);
 		}
@@ -135,9 +140,6 @@ public abstract class CLog {
 		}
 		else if (value instanceof LocalDateTime) {
 			logString = value.getClass().getName() + "@" + ((LocalDateTime) value).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
-		}
-		else if (value instanceof Calendar) {
-			logString = value.getClass().getName() + "@" + new SimpleDateFormat(CDateTime.DATETIME_MS_FORMAT).format(((Calendar) value).getTime());
 		}
 		else if (value.toString().contains("@")) {
 			logString = value.toString();
@@ -150,53 +152,7 @@ public abstract class CLog {
 	}
 
 	/**
-	 * Convert collection of values to string for analytic logging.
-	 * <p>
-	 * See {@link #forAnalyticLogging(Object)}.
-	 * <p>
-	 * Method should only be used for trace and error logging because there is no mechanism to hide security critical values!
-	 * 
-	 * @param values
-	 *            values to log
-	 * 
-	 * @return string in '[' and ']' containing comma separated string representations of given values
-	 */
-	public static String forAnalyticLogging(Collection<Object> values) {
-
-		String valuesString = "[ ";
-		boolean first = true;
-		for (Object value : values) {
-			if (!first) {
-				valuesString += ", ";
-			}
-			first = false;
-			valuesString += forAnalyticLogging(value);
-		}
-		valuesString += " ]";
-
-		return valuesString;
-	}
-
-	/**
-	 * Grey out secret info.
-	 * 
-	 * @param secretInfo
-	 *            secret info to replace by '*'
-	 * 
-	 * @return '***' of length of secret info with max length 32
-	 */
-	public static String greyOut(String secretInfo) {
-
-		if (Common.isEmpty(secretInfo)) {
-			return "******";
-		}
-		else {
-			return "********************************".substring(0, Common.min(32, secretInfo.length()));
-		}
-	}
-
-	/**
-	 * Check if a name forces secret logging of value.
+	 * Check if a (field, column or table) name forces secret logging of value.
 	 * <p>
 	 * Secret logging of value is forced for names containing '_secret', 'pwd' and 'passwor'.
 	 * 
@@ -206,21 +162,37 @@ public abstract class CLog {
 	 * @return true if secret logging is forced, false otherwise
 	 */
 	public static boolean isSecret(String name) {
-		return (name != null && (name.contains(SECRET) || name.toLowerCase().contains("passwor") || name.toLowerCase().contains("pwd")));
+		return (name != null && (name.toLowerCase().contains(SECRET) || name.toLowerCase().contains("passwor") || name.toLowerCase().contains("pwd")));
 	}
 
 	/**
-	 * Build string for logging of value or '***' if expression given contains 'secret_' or 'passwor' or 'pwd'.
+	 * Build string for logging of value or '***' if associated field has {@link Secret} annotation or field name contains 'secret_' or 'passwor' or 'pwd'.
 	 * 
-	 * @param expr
-	 *            expression (may be name of value to log)
+	 * @param tableName
+	 *            associated table (for checking secret)
+	 * @param columnName
+	 *            associated column (for checking secret)
 	 * @param value
 	 *            value to log
 	 * 
-	 * @return string representation for logging of '***' for secret value
+	 * @return analytic string representation of value to log or '******' for secret value
 	 */
-	public static String forSecretLogging(String expr, Object value) {
-		return forAnalyticLogging((value instanceof String && isSecret(expr) ? greyOut((String) value) : value));
+	public static String forSecretLogging(String tableName, String columnName, Object value) {
+		return forAnalyticLogging((isSecret(tableName) || isSecret(columnName) ? "******" : value));
+	}
+
+	/**
+	 * Build string for logging of value or '***' if associated column or table name contain '_SEC_' or 'PASSWOR' or 'PWD'.
+	 * 
+	 * @param field
+	 *            field where value is assigned to
+	 * @param value
+	 *            value to log
+	 * 
+	 * @return analytic string representation of value to log or '******' for secret value
+	 */
+	public static String forSecretLogging(Field field, Object value) {
+		return forAnalyticLogging((field.getDeclaringClass().isAnnotationPresent(Secret.class) || field.isAnnotationPresent(Secret.class) || isSecret(field.getName()) ? "******" : value));
 	}
 
 	/**

@@ -15,6 +15,7 @@ import java.util.Map.Entry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.icx.dom.domain.DomainAnnotations.Secret;
 import com.icx.dom.domain.DomainAnnotations.SqlColumn;
 import com.icx.dom.domain.DomainAnnotations.SqlTable;
 import com.icx.common.Reflection;
@@ -38,6 +39,7 @@ public class SqlRegistry extends Registry<SqlDomainObject> {
 	static final Logger log = LoggerFactory.getLogger(SqlRegistry.class);
 
 	public static final String TABLE_PREFIX = "DOM_";
+	public static final String SECRET_PREFIX = "SEC_";
 
 	// -------------------------------------------------------------------------
 	// Statics
@@ -90,6 +92,9 @@ public class SqlRegistry extends Registry<SqlDomainObject> {
 			if (domainClass.isMemberClass()) {
 				prefix = CaseFormat.UPPER_CAMEL.to(CaseFormat.UPPER_UNDERSCORE, domainClass.getDeclaringClass().getSimpleName()) + "_";
 			}
+			if (domainClass.isAnnotationPresent(Secret.class)) {
+				prefix += SECRET_PREFIX;
+			}
 			tableName = TABLE_PREFIX + prefix + CaseFormat.UPPER_CAMEL.to(CaseFormat.UPPER_UNDERSCORE, domainClass.getSimpleName());
 		}
 
@@ -107,10 +112,14 @@ public class SqlRegistry extends Registry<SqlDomainObject> {
 			if (isSqlReferenceField(field)) {
 				columnName += "_ID";
 			}
+			else if (field.isAnnotationPresent(Secret.class)) {
+				columnName = SECRET_PREFIX + columnName;
+			}
 			else if (columnName.equals("START") || columnName.equals("END") || columnName.equals("COUNT") || columnName.equals("COMMENT") || columnName.equals("DATE") || columnName.equals("TYPE")
 					|| columnName.equals("GROUP") || columnName.equals("FILE")) {
 				columnName = TABLE_PREFIX + columnName;
 			}
+
 			return columnName;
 		}
 	}
