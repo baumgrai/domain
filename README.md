@@ -13,7 +13,7 @@ How to use it:
 
 What it supports:
 - different databasess - currently *Oracle*, *MS-SQL-Server*, *MySQL* and *MariaDB*
-- version control - version information can be annotated to new, changed and removed classes and fields - `Java2Sql` generates incremental database update scripts 
+- version control - version information annotated to new, changed and removed classes and fields let `Java2Sql` tool generate incremental database update scripts 
 - class inheritance - `Bike extends SqlDomainObject`, `RaceBike extends Bike`, `Bianchi extends RaceBike`
 - protection of sensitive data - store encrypted data in database using `@Crypt` annotation and suppress logging sensitive data for all log levels using `@Secret` annotation
 - house keeping - keep only relevant objects in heap (which are newer than a configurable time in the past) using `@UseDataHorizon` annotation and `dataHorizonPeriod` in `domain.properties`  
