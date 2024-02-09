@@ -3,8 +3,7 @@
 
 How to use it:
 1) In your code: Let all classes to persist extend `SqlDomainObject` class directly or indirectly (class inheritance is supported)
-2) Generate SQL scripts for persistence database using `Java2Sql` tool  
-3) Generate persistence database using these SQL scripts
+2) Generate SQL scripts for persistence database using `Java2Sql` tool  and generate persistence database
 4) Configure database connection in `db.properties`
 5) In your code:
    - Create `SqlDomainController` object on startup and call `SqlDomainController#synchronize()` to synchronize with persistence database
