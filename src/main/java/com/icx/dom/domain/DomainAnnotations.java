@@ -315,11 +315,23 @@ public abstract class DomainAnnotations {
 	/**
 	 * Defines a field as secret.
 	 * <p>
-	 * Suppresses logging of field value or of values of all registered fields of domain class using all log levels upper than TRACE.
+	 * Suppresses logging of value of annotated field or of values of all registered fields of annotated domain class for all log levels.
+	 * <p>
+	 * Attention! This annotation cannot suppress logging of complex field values like lists, sets and maps
 	 */
 	@Retention(RetentionPolicy.RUNTIME)
 	@Target({ ElementType.TYPE, ElementType.FIELD })
 	public @interface Secret {
+	}
+
+	/**
+	 * Defines that value of this string field will be stored encrypted in database.
+	 * <p>
+	 * Uses properties {@code encryption_password} and {@code encryption_salt} for AES encryption
+	 */
+	@Retention(RetentionPolicy.RUNTIME)
+	@Target({ ElementType.FIELD })
+	public @interface Crypt {
 	}
 
 }
