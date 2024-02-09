@@ -142,7 +142,7 @@ public abstract class Java2Sql extends JdbcHelpers {
 			// Add tables or columns related to fields
 			if (registry.isComplexField(field)) {
 
-				// Warn on useless @Secret annotation of complex field
+				// Warn on useless @Secret annotation on complex field
 				if (field.isAnnotationPresent(Secret.class)) {
 					log.warn(
 							"J2S: @Secret annotation is useless for {} field '{}'! Suppressing logging of values for all log levels is not supported for List, Set and Map fields, but values generally will not be logged using INFO log level.",
@@ -193,6 +193,7 @@ public abstract class Java2Sql extends JdbcHelpers {
 					}
 				}
 				else {
+					// Warn on useless @Crypt annotation
 					if (field.getType() != String.class && field.isAnnotationPresent(Crypt.class)) {
 						log.warn("J2S: @Crypt annotation is useless for {} field '{}'! @Crypt is only supported for string fields.", field.getType().getSimpleName(), field.getName());
 					}

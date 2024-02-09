@@ -112,7 +112,7 @@ public class SqlRegistry extends Registry<SqlDomainObject> {
 			if (isSqlReferenceField(field)) {
 				columnName += "_ID";
 			}
-			else if (field.isAnnotationPresent(Secret.class)) {
+			else if (field.isAnnotationPresent(Secret.class) && !(field.getGenericType() instanceof ParameterizedType)) { // Ignore @Secret annotation on List, Set, Map fields
 				columnName = SECRET_PREFIX + columnName;
 			}
 			else if (columnName.equals("START") || columnName.equals("END") || columnName.equals("COUNT") || columnName.equals("COMMENT") || columnName.equals("DATE") || columnName.equals("TYPE")
