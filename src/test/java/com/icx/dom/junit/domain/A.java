@@ -11,6 +11,7 @@ import java.util.Set;
 import com.icx.dom.domain.DomainAnnotations.Accumulation;
 import com.icx.dom.domain.DomainAnnotations.Changed;
 import com.icx.dom.domain.DomainAnnotations.Created;
+import com.icx.dom.domain.DomainAnnotations.Crypt;
 import com.icx.dom.domain.DomainAnnotations.Removed;
 import com.icx.dom.domain.DomainAnnotations.Secret;
 import com.icx.dom.domain.DomainAnnotations.SqlColumn;
@@ -47,7 +48,9 @@ public abstract class A extends SqlDomainObject {
 	public double d;
 	public Double doubleValue;
 
+	@Crypt // Useless here
 	public BigInteger bigIntegerValue;
+
 	public BigDecimal bigDecimalValue;
 
 	public LocalDateTime datetime;
@@ -78,12 +81,14 @@ public abstract class A extends SqlDomainObject {
 
 	@Secret
 	public String secretString = "!!!secret!!!";
+
 	public String pwd = "!!!password!!!";
 
 	// Collection and map fields
 
 	@Created(version = "1.1:collectionType=Set")
 	@Changed(versions = { "1.2:collectionType=List" })
+	@Secret // Useless here
 	public List<String> strings;
 	@Changed(versions = { "1.1:collectionType=List", "1.2:collectionType=Set" })
 	public Set<Double> doubleSet;
