@@ -9,11 +9,11 @@ import com.icx.common.base.CList;
 import com.icx.common.base.Common;
 import com.icx.dom.app.bikestore.domain.Manufacturer;
 import com.icx.dom.app.bikestore.domain.client.Order;
-import com.icx.dom.domain.DomainAnnotations.Accumulation;
-import com.icx.dom.domain.DomainAnnotations.SqlColumn;
-import com.icx.dom.domain.DomainAnnotations.SqlTable;
-import com.icx.dom.domain.DomainObject;
-import com.icx.dom.domain.sql.SqlDomainObject;
+import com.icx.domain.DomainAnnotations.Accumulation;
+import com.icx.domain.DomainAnnotations.SqlColumn;
+import com.icx.domain.DomainAnnotations.SqlTable;
+import com.icx.domain.DomainObject;
+import com.icx.domain.sql.SqlDomainObject;
 
 /**
  * Bike model with properties and availability by size.

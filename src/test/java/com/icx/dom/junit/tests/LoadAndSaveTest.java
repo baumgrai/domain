@@ -38,11 +38,6 @@ import com.icx.common.base.CMap;
 import com.icx.common.base.CResource;
 import com.icx.common.base.CSet;
 import com.icx.common.base.Common;
-import com.icx.dom.domain.sql.SqlDomainController;
-import com.icx.dom.domain.sql.SqlDomainObject;
-import com.icx.dom.jdbc.SqlConnection;
-import com.icx.dom.jdbc.SqlDb;
-import com.icx.dom.jdbc.SqlDb.DbType;
 import com.icx.dom.junit.TestHelpers;
 import com.icx.dom.junit.domain.A;
 import com.icx.dom.junit.domain.A.Type;
@@ -54,6 +49,11 @@ import com.icx.dom.junit.domain.O;
 import com.icx.dom.junit.domain.sub.X;
 import com.icx.dom.junit.domain.sub.Y;
 import com.icx.dom.junit.domain.sub.Z;
+import com.icx.domain.sql.SqlDomainController;
+import com.icx.domain.sql.SqlDomainObject;
+import com.icx.jdbc.SqlConnection;
+import com.icx.jdbc.SqlDb;
+import com.icx.jdbc.SqlDb.DbType;
 
 @TestMethodOrder(OrderAnnotation.class)
 class LoadAndSaveTest extends TestHelpers {

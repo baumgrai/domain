@@ -21,10 +21,10 @@ import com.icx.dom.app.survey.domain.config.Scale.Metric;
 import com.icx.dom.app.survey.domain.config.Survey;
 import com.icx.dom.app.survey.domain.config.Survey.Semaphore;
 import com.icx.dom.app.survey.domain.message.VoiceMessage;
-import com.icx.dom.domain.DomainObject;
-import com.icx.dom.domain.sql.SqlDomainController;
-import com.icx.dom.jdbc.SqlConnection;
-import com.icx.dom.jdbc.SqlDbException;
+import com.icx.domain.DomainObject;
+import com.icx.domain.sql.SqlDomainController;
+import com.icx.jdbc.SqlConnection;
+import com.icx.jdbc.SqlDbException;
 
 public class SurveyApp extends SqlDomainController {
 

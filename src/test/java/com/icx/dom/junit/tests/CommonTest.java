@@ -48,8 +48,8 @@ import com.icx.common.base.Common;
 import com.icx.dom.app.bikestore.BikeStoreApp;
 import com.icx.dom.app.bikestore.domain.client.Client;
 import com.icx.dom.app.bikestore.domain.client.Client.RegionInProgress;
-import com.icx.dom.domain.DomainAnnotations.Secret;
 import com.icx.dom.junit.TestHelpers;
+import com.icx.domain.DomainAnnotations.Secret;
 
 @TestMethodOrder(OrderAnnotation.class)
 class CommonTest extends TestHelpers {

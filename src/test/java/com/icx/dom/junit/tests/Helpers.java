@@ -1,6 +1,6 @@
 package com.icx.dom.junit.tests;
 
-import com.icx.dom.jdbc.SqlDb.DbType;
+import com.icx.jdbc.SqlDb.DbType;
 
 public class Helpers {
 

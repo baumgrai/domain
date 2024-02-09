@@ -1,8 +1,8 @@
 package com.icx.dom.junit.domain.sub;
 
-import com.icx.dom.domain.DomainAnnotations.SqlColumn;
-import com.icx.dom.domain.DomainAnnotations.UseDataHorizon;
-import com.icx.dom.domain.sql.SqlDomainObject;
+import com.icx.domain.DomainAnnotations.SqlColumn;
+import com.icx.domain.DomainAnnotations.UseDataHorizon;
+import com.icx.domain.sql.SqlDomainObject;
 
 @UseDataHorizon
 public class Y extends SqlDomainObject {

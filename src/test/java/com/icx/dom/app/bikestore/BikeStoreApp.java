@@ -22,8 +22,8 @@ import com.icx.dom.app.bikestore.domain.client.Client;
 import com.icx.dom.app.bikestore.domain.client.Client.Region;
 import com.icx.dom.app.bikestore.domain.client.Client.RegionInProgress;
 import com.icx.dom.app.bikestore.domain.client.Order;
-import com.icx.dom.domain.sql.LoadHelpers;
-import com.icx.dom.domain.sql.SqlDomainController;
+import com.icx.domain.sql.LoadHelpers;
+import com.icx.domain.sql.SqlDomainController;
 
 /**
  * International bike store. Test app simulates bike ordering by different clients, order processing and and bike delivery.

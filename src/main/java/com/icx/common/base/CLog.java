@@ -8,7 +8,7 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Calendar;
 
-import com.icx.dom.domain.DomainAnnotations.Secret;
+import com.icx.domain.DomainAnnotations.Secret;
 
 /**
  * Logging helpers

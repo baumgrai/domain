@@ -25,10 +25,10 @@ import com.icx.dom.app.bikestore.domain.client.Client;
 import com.icx.dom.app.bikestore.domain.client.Client.Country;
 import com.icx.dom.app.bikestore.domain.client.Client.RegionInProgress;
 import com.icx.dom.app.bikestore.domain.client.Order;
-import com.icx.dom.domain.sql.FieldError;
-import com.icx.dom.jdbc.ConfigException;
-import com.icx.dom.jdbc.SqlConnection;
-import com.icx.dom.jdbc.SqlDbException;
+import com.icx.domain.sql.FieldError;
+import com.icx.jdbc.ConfigException;
+import com.icx.jdbc.SqlConnection;
+import com.icx.jdbc.SqlDbException;
 
 public class Initialize {
 

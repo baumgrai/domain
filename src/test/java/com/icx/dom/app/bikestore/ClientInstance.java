@@ -16,7 +16,7 @@ import com.icx.dom.app.bikestore.domain.client.Client.Gender;
 import com.icx.dom.app.bikestore.domain.client.Client.Region;
 import com.icx.dom.app.bikestore.domain.client.Client.RegionInProgress;
 import com.icx.dom.app.bikestore.domain.client.Order;
-import com.icx.dom.domain.sql.SqlDomainController;
+import com.icx.domain.sql.SqlDomainController;
 
 public class ClientInstance extends Common implements Runnable {
 

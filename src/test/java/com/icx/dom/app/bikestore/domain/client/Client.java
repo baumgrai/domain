@@ -25,11 +25,11 @@ import com.icx.dom.app.bikestore.domain.bike.Bike;
 import com.icx.dom.app.bikestore.domain.bike.CityBike;
 import com.icx.dom.app.bikestore.domain.bike.MTB;
 import com.icx.dom.app.bikestore.domain.bike.RaceBike;
-import com.icx.dom.domain.DomainAnnotations.Accumulation;
-import com.icx.dom.domain.DomainAnnotations.SqlColumn;
-import com.icx.dom.domain.DomainAnnotations.SqlTable;
-import com.icx.dom.domain.sql.SqlDomainObject;
-import com.icx.dom.jdbc.SqlDbException;
+import com.icx.domain.DomainAnnotations.Accumulation;
+import com.icx.domain.DomainAnnotations.SqlColumn;
+import com.icx.domain.DomainAnnotations.SqlTable;
+import com.icx.domain.sql.SqlDomainObject;
+import com.icx.jdbc.SqlDbException;
 
 /**
  * Clients of different countries ordering bikes if different types.

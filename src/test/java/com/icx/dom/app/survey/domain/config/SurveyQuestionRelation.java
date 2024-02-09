@@ -5,12 +5,12 @@ import java.sql.SQLException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.dom.domain.DomainAnnotations.SqlColumn;
 import com.icx.dom.app.survey.SurveyApp;
-import com.icx.dom.domain.DomainObject;
-import com.icx.dom.domain.sql.SqlDomainObject;
-import com.icx.dom.jdbc.SqlConnection;
-import com.icx.dom.jdbc.SqlDbException;
+import com.icx.domain.DomainAnnotations.SqlColumn;
+import com.icx.domain.DomainObject;
+import com.icx.domain.sql.SqlDomainObject;
+import com.icx.jdbc.SqlConnection;
+import com.icx.jdbc.SqlDbException;
 
 public class SurveyQuestionRelation extends SqlDomainObject {
 

@@ -22,16 +22,6 @@ import org.slf4j.LoggerFactory;
 
 import com.icx.common.Prop;
 import com.icx.common.base.CList;
-import com.icx.dom.domain.Registry;
-import com.icx.dom.domain.sql.Const;
-import com.icx.dom.domain.sql.SqlDomainController;
-import com.icx.dom.domain.sql.SqlDomainObject;
-import com.icx.dom.domain.sql.SqlRegistry;
-import com.icx.dom.domain.sql.tools.Java2Sql;
-import com.icx.dom.jdbc.SqlDb.DbType;
-import com.icx.dom.jdbc.SqlDbTable;
-import com.icx.dom.jdbc.SqlDbTable.Column;
-import com.icx.dom.jdbc.SqlDbTable.UniqueConstraint;
 import com.icx.dom.junit.TestHelpers;
 import com.icx.dom.junit.domain.A;
 import com.icx.dom.junit.domain.AA;
@@ -43,6 +33,16 @@ import com.icx.dom.junit.domain.RemovedClass;
 import com.icx.dom.junit.domain.sub.X;
 import com.icx.dom.junit.domain.sub.Y;
 import com.icx.dom.junit.domain.sub.Z;
+import com.icx.domain.Registry;
+import com.icx.domain.sql.Const;
+import com.icx.domain.sql.SqlDomainController;
+import com.icx.domain.sql.SqlDomainObject;
+import com.icx.domain.sql.SqlRegistry;
+import com.icx.domain.sql.tools.Java2Sql;
+import com.icx.jdbc.SqlDb.DbType;
+import com.icx.jdbc.SqlDbTable;
+import com.icx.jdbc.SqlDbTable.Column;
+import com.icx.jdbc.SqlDbTable.UniqueConstraint;
 
 @TestMethodOrder(OrderAnnotation.class)
 class RegistryTest extends TestHelpers {

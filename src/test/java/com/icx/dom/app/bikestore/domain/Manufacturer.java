@@ -4,9 +4,9 @@ import java.util.Set;
 
 import com.icx.dom.app.bikestore.domain.bike.Bike;
 import com.icx.dom.app.bikestore.domain.client.Client.Country;
-import com.icx.dom.domain.DomainAnnotations.Accumulation;
-import com.icx.dom.domain.DomainAnnotations.SqlColumn;
-import com.icx.dom.domain.sql.SqlDomainObject;
+import com.icx.domain.DomainAnnotations.Accumulation;
+import com.icx.domain.DomainAnnotations.SqlColumn;
+import com.icx.domain.sql.SqlDomainObject;
 
 public class Manufacturer extends SqlDomainObject {
 

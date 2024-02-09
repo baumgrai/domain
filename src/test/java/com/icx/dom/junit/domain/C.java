@@ -1,6 +1,6 @@
 package com.icx.dom.junit.domain;
 
-import com.icx.dom.domain.sql.SqlDomainObject;
+import com.icx.domain.sql.SqlDomainObject;
 
 public class C extends SqlDomainObject {
 

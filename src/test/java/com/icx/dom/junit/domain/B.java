@@ -1,7 +1,7 @@
 package com.icx.dom.junit.domain;
 
-import com.icx.dom.domain.DomainAnnotations.Secret;
-import com.icx.dom.domain.sql.SqlDomainObject;
+import com.icx.domain.DomainAnnotations.Secret;
+import com.icx.domain.sql.SqlDomainObject;
 
 @Secret
 public class B extends SqlDomainObject {

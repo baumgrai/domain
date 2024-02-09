@@ -10,7 +10,7 @@ import com.icx.dom.app.survey.domain.config.Question;
 import com.icx.dom.app.survey.domain.config.Scale;
 import com.icx.dom.app.survey.domain.config.Survey;
 import com.icx.dom.app.survey.domain.message.VoiceMessage;
-import com.icx.dom.domain.DomainAnnotations.UseDataHorizon;
+import com.icx.domain.DomainAnnotations.UseDataHorizon;
 
 @UseDataHorizon
 public class PhoneCall extends Call {
