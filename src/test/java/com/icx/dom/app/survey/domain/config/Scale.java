@@ -3,16 +3,11 @@ package com.icx.dom.app.survey.domain.config;
 import java.util.List;
 import java.util.Map;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.icx.dom.app.survey.SurveyApp;
 import com.icx.domain.DomainAnnotations.SqlColumn;
 import com.icx.domain.sql.SqlDomainObject;
 
 public class Scale extends SqlDomainObject {
-
-	protected static final Logger log = LoggerFactory.getLogger(Scale.class);
 
 	// Statics
 

@@ -6,9 +6,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.icx.common.base.CRandom;
 import com.icx.dom.app.survey.SurveyApp;
 import com.icx.dom.app.survey.domain.call.Call;
@@ -19,8 +16,6 @@ import com.icx.domain.sql.SqlDomainObject;
 import com.icx.jdbc.SqlConnection;
 
 public class Survey extends SqlDomainObject {
-
-	static final Logger log = LoggerFactory.getLogger(Survey.class);
 
 	// Helper domain class avoid ordering more bikes than available
 	public static class InProgress extends SqlDomainObject {

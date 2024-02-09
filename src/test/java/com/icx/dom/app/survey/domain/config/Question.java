@@ -3,16 +3,11 @@ package com.icx.dom.app.survey.domain.config;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.icx.dom.app.survey.SurveyApp;
 import com.icx.domain.sql.SqlDomainObject;
 import com.icx.jdbc.SqlConnection;
 
 public class Question extends SqlDomainObject {
-
-	protected static final Logger log = LoggerFactory.getLogger(Question.class);
 
 	// Statics
 

@@ -1,15 +1,10 @@
 package com.icx.dom.app.survey.domain.call;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.icx.domain.DomainAnnotations.UseDataHorizon;
 import com.icx.domain.sql.SqlDomainObject;
 
 @UseDataHorizon
 public class Answer extends SqlDomainObject {
-
-	protected static final Logger log = LoggerFactory.getLogger(Answer.class);
 
 	// Members
 

@@ -2,9 +2,6 @@ package com.icx.dom.app.survey.domain.config;
 
 import java.sql.SQLException;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.icx.dom.app.survey.SurveyApp;
 import com.icx.domain.DomainAnnotations.SqlColumn;
 import com.icx.domain.DomainObject;
@@ -13,8 +10,6 @@ import com.icx.jdbc.SqlConnection;
 import com.icx.jdbc.SqlDbException;
 
 public class SurveyQuestionRelation extends SqlDomainObject {
-
-	static final Logger log = LoggerFactory.getLogger(SurveyQuestionRelation.class);
 
 	// Members
 
