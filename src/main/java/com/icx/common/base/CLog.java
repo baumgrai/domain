@@ -8,9 +8,6 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Calendar;
 
-import org.slf4j.Logger;
-import org.slf4j.event.Level;
-
 import com.icx.dom.domain.DomainAnnotations.Secret;
 
 /**
@@ -19,67 +16,6 @@ import com.icx.dom.domain.DomainAnnotations.Secret;
  * @author baumgrai
  */
 public abstract class CLog {
-
-	/**
-	 * Check if logging level is enabled for logger.
-	 * 
-	 * @param logger
-	 *            logger
-	 * @param level
-	 *            level to check
-	 * 
-	 * @return true if level is enabled, false otherwise
-	 */
-	public static boolean isEnabled(Logger logger, Level level) {
-
-		if (level == Level.TRACE) {
-			return logger.isTraceEnabled();
-		}
-		else if (level == Level.DEBUG) {
-			return logger.isDebugEnabled();
-		}
-		else if (level == Level.INFO) {
-			return logger.isInfoEnabled();
-		}
-		else if (level == Level.WARN) {
-			return logger.isWarnEnabled();
-		}
-		else if (level == Level.ERROR) {
-			return logger.isErrorEnabled();
-		}
-		else {
-			return false;
-		}
-	}
-
-	/**
-	 * Log text message using given logging level.
-	 * 
-	 * @param logger
-	 *            logger
-	 * @param level
-	 *            logging level
-	 * @param text
-	 *            text message to log
-	 */
-	public static void log(Logger logger, Level level, String text) {
-
-		if (level == Level.TRACE && logger.isTraceEnabled()) {
-			logger.trace(text);
-		}
-		else if (level == Level.DEBUG && logger.isDebugEnabled()) {
-			logger.debug(text);
-		}
-		else if (level == Level.INFO && logger.isInfoEnabled()) {
-			logger.info(text);
-		}
-		else if (level == Level.WARN && logger.isWarnEnabled()) {
-			logger.warn(text);
-		}
-		else if (level == Level.ERROR && logger.isErrorEnabled()) {
-			logger.error(text);
-		}
-	}
 
 	// TODO: Store secret values encrypted in database
 
@@ -90,8 +26,6 @@ public abstract class CLog {
 	 * Convert object value to string containing also type of value for analytic logging.
 	 * <p>
 	 * null: null, char: 'v', String: "v", Date/Time/Calendar types: type@formatted_value, others: type@v.toString()
-	 * <p>
-	 * Method should only be used for trace and error logging because there is no mechanism to hide security critical values!
 	 * 
 	 * @param value
 	 *            value to log
@@ -211,4 +145,5 @@ public abstract class CLog {
 		}
 		return sb.toString();
 	}
+
 }
