@@ -2,19 +2,20 @@
 **Lightweight SQL Persistence Layer for Java**
 
 How to use it:
-1) Let all classes to persist extend `SqlDomainObject` class directly or indirectly (class inheritance is supported)
+1) In your code: Let all classes to persist extend `SqlDomainObject` class directly or indirectly (class inheritance is supported)
 2) Generate SQL scripts for persistence database using `Java2Sql` tool  
 3) Generate persistence database using these SQL scripts
 4) Configure database connection in `db.properties`
 5) In your code:
-   - Create `SqlDomainController` object on statup and call `SqlDomainController#synchronize()` to synchronize object store in heap with persistence database
+   - Create `SqlDomainController` object on startup and call `SqlDomainController#synchronize()` to synchronize with persistence database
    - Create and register *domain* objects using `DomainController#create(Class, Consumer init)` or using individuell constructors and `DomainController#register(DomainObject)`
-   - Save domain objects in persistence database using `#save()` or create and save objects immediately with `SqlDomainController#createAndSave(Class, Consumer init)`
+   - Save domain objects using `#save()` or create and save objects immediately with `SqlDomainController#createAndSave(Class, Consumer init)`
 
 What it supports:
 - currently *Oracle*, *MS-SQL-Server*, *MySQL* and *MariaDB*
 - version control - version information can be annotated to new, changed and removed classes and fields - `Java2Sql` generates incremental database update scripts for consecutive versions 
 - inheritance - `Bike extends SqlDomainObject`, `RaceBike extends Bike`, `Bianchi extends RaceBike`
+- encrypting data in database using @Crypt annotation, suppressing of logging data for all log levels using @Secret annotation
 - circular references on class and object level - `class X { X next; }`, `class A { B b; }`, `class B { C c; }`, `class C { A a; }`
 - "NoSQL" selection - objects can be selected from object store using methods like `DomainController#findAll(Class, Predicate)`, `DomainController#findAny(Class, Predicate)` which do not need SQL where clauses
 - *data horizon* - only objects newer than a configurable time in the past (`dataHorizonPeriod` in `domain.properties`) will be loaded on synchronization, and older objects will be removed from object store for classes where `@UseDataHorizon` is annotated 
