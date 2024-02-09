@@ -49,6 +49,8 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 
 	static final Logger log = LoggerFactory.getLogger(SqlDomainController.class);
 
+	// TODO: Support direct file storing
+
 	// -------------------------------------------------------------------------
 	// Finals
 	// -------------------------------------------------------------------------
