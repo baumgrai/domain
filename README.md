@@ -7,9 +7,9 @@ How to use it:
 3) Generate persistence database using these SQL scripts
 4) Configure database connection in `db.properties`
 5) In your code:
-  a) Create `SqlDomainController` object on statup and call `SqlDomainController#synchronize()` to synchronize object store in heap with persistence database
-  b) Create and register *domain* objects using `DomainController#create(Class, Consumer init)` or using individuell constructors and `DomainController#register(DomainObject)`
-  c) Save domain objects in persistence database using `#save()` or create and save objects immediately with `SqlDomainController#createAndSave(Class, Consumer init)`
+  - Create `SqlDomainController` object on statup and call `SqlDomainController#synchronize()` to synchronize object store in heap with persistence database
+  - Create and register *domain* objects using `DomainController#create(Class, Consumer init)` or using individuell constructors and `DomainController#register(DomainObject)`
+  - Save domain objects in persistence database using `#save()` or create and save objects immediately with `SqlDomainController#createAndSave(Class, Consumer init)`
 
 What it supports:
 - currently *Oracle*, *MS-SQL-Server*, *MySQL* and *MariaDB*
