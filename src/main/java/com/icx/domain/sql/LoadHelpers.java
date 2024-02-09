@@ -25,12 +25,14 @@ import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.icx.common.AESCrypt;
 import com.icx.common.base.CCollection;
 import com.icx.common.base.CDateTime;
 import com.icx.common.base.CList;
 import com.icx.common.base.CLog;
 import com.icx.common.base.CMap;
 import com.icx.common.base.Common;
+import com.icx.domain.DomainAnnotations.Crypt;
 import com.icx.domain.DomainObject;
 import com.icx.jdbc.JdbcHelpers;
 import com.icx.jdbc.SqlConnection;
@@ -471,7 +473,29 @@ public abstract class LoadHelpers extends Common {
 				if (!isNew) {
 					assignFieldWarningOnUnsavedValueChange(sdc, obj, dataField, columnName, columnValueFromDatabase /* only for logging */);
 				}
-				Object fieldValue = Conversion.column2FieldValue(dataField.getType(), columnValueFromDatabase);
+
+				// Decrypt encrypted value
+				Object fieldValue = null;
+				if (dataField.isAnnotationPresent(Crypt.class) && dataField.getType() == String.class && columnValueFromDatabase != null) {
+
+					if (!isEmpty(sdc.cryptPassword)) {
+						try {
+							fieldValue = AESCrypt.decrypt((String) columnValueFromDatabase, sdc.cryptPassword, sdc.cryptSalt);
+						}
+						catch (Exception ex) {
+							log.error("SDC: Decryption of value of column '{}' failed for '{}' by {}", columnName, obj.name(), ex);
+							fieldValue = columnValueFromDatabase;
+							obj.setFieldError(dataField, "Value could not be decrypted on reading from database! " + ex);
+						}
+					}
+					else {
+						log.warn("SCD: Value of column '{}' cannot be decrypted because 'cryptPassword' is not configured in 'domain.properties'", columnName);
+						obj.setFieldError(dataField, "Value could not be decrypted on reading from database! Missing 'cryptPassword' property in 'domain.properties'");
+					}
+				}
+				else {
+					fieldValue = Conversion.column2FieldValue(dataField.getType(), columnValueFromDatabase);
+				}
 
 				// Set value for field
 				obj.setFieldValue(dataField, fieldValue);
@@ -650,7 +674,7 @@ public abstract class LoadHelpers extends Common {
 		String tableName = ((SqlRegistry) sdc.registry).getTableFor(domainClass).name;
 		List<SortedMap<String, Object>> records = sdc.sqlDb.selectFrom(cn, tableName, Const.DOMAIN_CLASS_COL, "ID=" + id, null, 0);
 		if (records.isEmpty()) {
-			log.error("No record found for object {}@{} which is referenced and therefore should exist", domainClass.getSimpleName(), id);
+			log.error("SDC: No record found for object {}@{} which is referenced and therefore should exist", domainClass.getSimpleName(), id);
 			throw new SqlDbException("Could not determine referenced " + domainClass.getSimpleName() + "@" + id + " object's object domain class");
 		}
 		else {

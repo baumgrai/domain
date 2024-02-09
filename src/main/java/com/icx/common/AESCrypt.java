@@ -4,10 +4,8 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.KeySpec;
-import java.util.Base64;
 
 import javax.crypto.Cipher;
-import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.IvParameterSpec;
@@ -21,15 +19,9 @@ import com.icx.common.base.Common;
  */
 public class AESCrypt {
 
+	private static final String ALGORITHM = "AES/CBC/PKCS5Padding";
+
 	// TODO: Support file encryption
-
-	public static SecretKey generateKey(int n) throws NoSuchAlgorithmException {
-
-		KeyGenerator keyGenerator = KeyGenerator.getInstance("AES");
-		keyGenerator.init(n);
-
-		return keyGenerator.generateKey();
-	}
 
 	public static SecretKey getKeyFromPassword(String password, String salt) throws NoSuchAlgorithmException, InvalidKeySpecException {
 
@@ -39,30 +31,32 @@ public class AESCrypt {
 		return new SecretKeySpec(factory.generateSecret(spec).getEncoded(), "AES");
 	}
 
-	public static IvParameterSpec generateIv() {
+	public static String encrypt(String algorithm, String input, SecretKey key) throws Exception {
 
 		byte[] iv = new byte[16];
 		new SecureRandom().nextBytes(iv);
-
-		return new IvParameterSpec(iv);
-	}
-
-	public static String encrypt(String algorithm, String input, SecretKey key, IvParameterSpec iv) throws Exception {
-
 		Cipher cipher = Cipher.getInstance(algorithm);
-		cipher.init(Cipher.ENCRYPT_MODE, key, iv);
+		cipher.init(Cipher.ENCRYPT_MODE, key, new IvParameterSpec(iv));
 		byte[] cipherText = cipher.doFinal(input.getBytes());
 
-		return Base64.getEncoder().encodeToString(cipherText);
+		return Common.byteArrayToHexString(iv) + Common.byteArrayToHexString(cipherText);
 	}
 
-	public static String decrypt(String algorithm, String cipherText, SecretKey key, IvParameterSpec iv) throws Exception {
+	public static String encrypt(String input, String cryptPassword, String cryptSalt) throws Exception {
+		return encrypt(ALGORITHM, input, getKeyFromPassword(cryptPassword, cryptSalt));
+	}
+
+	public static String decrypt(String algorithm, String cipherText, SecretKey key) throws Exception {
 
 		Cipher cipher = Cipher.getInstance(algorithm);
-		cipher.init(Cipher.DECRYPT_MODE, key, iv);
-		byte[] plainText = cipher.doFinal(Base64.getDecoder().decode(cipherText));
+		cipher.init(Cipher.DECRYPT_MODE, key, new IvParameterSpec(Common.hexStringToByteArray(cipherText.substring(0, 32))));
+		byte[] plainText = cipher.doFinal(Common.hexStringToByteArray(cipherText.substring(32)));
 
 		return new String(plainText);
+	}
+
+	public static String decrypt(String cipher, String cryptPassword, String cryptSalt) throws Exception {
+		return decrypt(ALGORITHM, cipher, getKeyFromPassword(cryptPassword, cryptSalt));
 	}
 
 	public static void main(String[] args) throws Exception {
@@ -70,24 +64,17 @@ public class AESCrypt {
 		String input = "abcdefghijklmnopqrstuvwxyz";
 		// SecretKey key = generateKey(128);
 		SecretKey key = getKeyFromPassword("XYZ", "1234567890");
-		IvParameterSpec ivParameterSpec = generateIv();
 		String algorithm = "AES/CBC/PKCS5Padding";
-		String cipherText = encrypt(algorithm, input, key, ivParameterSpec);
-		String plainText = decrypt(algorithm, cipherText, key, ivParameterSpec);
+		String cipherText = encrypt(algorithm, input, key);
+		String plainText = decrypt(algorithm, cipherText, key);
 		System.out.println(input);
 		System.out.println(cipherText);
 		System.out.println(plainText);
 		System.out.println();
 
-		for (int i = 0; i < 3; i++) {
-			key = generateKey(128);
-			System.out.println(Common.byteArrayToHexString(key.getEncoded()));
-		}
+		System.out.println(input);
+		System.out.println(decrypt(encrypt(input, "ABCDEFGH", "12345678"), "ABCDEFGH", "12345678"));
 		System.out.println();
 
-		for (int i = 0; i < 3; i++) {
-			ivParameterSpec = generateIv();
-			System.out.println(Common.byteArrayToHexString(ivParameterSpec.getIV()));
-		}
 	}
 }

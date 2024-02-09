@@ -23,6 +23,7 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.icx.common.AESCrypt;
 import com.icx.common.Reflection;
 import com.icx.common.base.CList;
 import com.icx.common.base.CLog;
@@ -30,6 +31,7 @@ import com.icx.common.base.CMap;
 import com.icx.common.base.Common;
 import com.icx.domain.DomainObject;
 import com.icx.domain.Registry;
+import com.icx.domain.DomainAnnotations.Crypt;
 import com.icx.jdbc.SqlDb;
 import com.icx.jdbc.SqlDbException;
 import com.icx.jdbc.SqlDbTable;
@@ -113,12 +115,14 @@ public abstract class SaveHelpers extends Common {
 
 	// Build column value map for SQL INSERT or UPDATE from field changes map - consider only fields where columns are associated with - ignore table related fields
 	// Note: Type conversion to column values will be done here
-	static SortedMap<String, Object> fieldChangesMap2ColumnValueMap(SqlRegistry sqlRegistry, Map<Field, Object> fieldChangesMap, SqlDomainObject object /* used only on error */) {
+	static SortedMap<String, Object> fieldChangesMap2ColumnValueMap(SqlDomainController sdc, Map<Field, Object> fieldChangesMap, SqlDomainObject obj /* used only on error */) {
 
 		SortedMap<String, Object> columnValueMap = new TreeMap<>();
 		if (CMap.isEmpty(fieldChangesMap)) {
 			return columnValueMap;
 		}
+
+		SqlRegistry sqlRegistry = (SqlRegistry) sdc.registry;
 
 		// Consider only column related fields (no complex, table related fields)
 		for (Field field : fieldChangesMap.keySet().stream().filter(f -> Registry.isDataField(f) || sqlRegistry.isReferenceField(f)).collect(Collectors.toList())) {
@@ -136,10 +140,28 @@ public abstract class SaveHelpers extends Common {
 				Object fieldValue = fieldChangesMap.get(field);
 
 				// Assign field value
-				if (fieldValue instanceof String && ((String) fieldValue).length() > column.maxlen) { // String field exceeds text column size
+				if (field.isAnnotationPresent(Crypt.class) && field.getType() == String.class && fieldValue != null) {
+
+					if (!isEmpty(sdc.cryptPassword)) {
+						try {
+							columnValue = AESCrypt.encrypt((String) fieldValue, sdc.cryptPassword, sdc.cryptSalt);
+						}
+						catch (Exception ex) {
+							log.error("SDC: Encryption of value of field {} failed for '{}' by {}", field.getName(), obj, ex);
+							obj.setFieldError(field, "Value could not be encrypted on writing to database!" + ex);
+						}
+					}
+					else {
+						log.warn("SCD: Value of field '{}' cannot be encrypted because 'cryptPassword' is not configured in 'domain.properties'", field.getName());
+						obj.setFieldError(field, "Value could not be encrypted on writing to database! Missing 'cryptPassword' property in 'domain.properties'");
+					}
+				}
+				else if (fieldValue instanceof String && ((String) fieldValue).length() > column.maxlen) { // String field exceeds text column size
+
 					log.warn("SDC: Value '{}' exceeds maximum size {} of column '{}' for object {}! Truncate before saving object...", CLog.forSecretLogging(field, fieldValue), column.maxlen,
-							column.name, object.name());
-					object.setFieldWarning(field, "CONTENT_TRUNCATED_IN_DATABASE");
+							column.name, obj.name());
+
+					obj.setFieldWarning(field, "CONTENT_TRUNCATED_IN_DATABASE");
 					columnValue = ((String) fieldValue).substring(0, column.maxlen);
 				}
 				else {
@@ -521,7 +543,7 @@ public abstract class SaveHelpers extends Common {
 			}
 
 			// Build column value map for INSERT or UPDATE - ignore changes of complex fields which are not associated with a column (but with an 'entry' table)
-			SortedMap<String, Object> columnValueMap = fieldChangesMap2ColumnValueMap(((SqlRegistry) sdc.registry), fieldChangesMap, obj);
+			SortedMap<String, Object> columnValueMap = fieldChangesMap2ColumnValueMap(sdc, fieldChangesMap, obj);
 
 			if (!obj.isStored) { // INSERT
 

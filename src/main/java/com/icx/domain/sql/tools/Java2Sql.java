@@ -193,7 +193,7 @@ public abstract class Java2Sql extends JdbcHelpers {
 					}
 				}
 				else {
-					// Warn on useless @Crypt annotation
+					// Warn on useless @Crypt annotation on non-string data fields
 					if (field.getType() != String.class && field.isAnnotationPresent(Crypt.class)) {
 						log.warn("J2S: @Crypt annotation is useless for {} field '{}'! @Crypt is only supported for string fields.", field.getType().getSimpleName(), field.getName());
 					}

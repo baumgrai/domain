@@ -82,6 +82,7 @@ public abstract class A extends SqlDomainObject {
 	@Secret
 	public String secretString = "!!!secret!!!";
 
+	@Crypt
 	public String pwd = "!!!password!!!";
 
 	// Collection and map fields

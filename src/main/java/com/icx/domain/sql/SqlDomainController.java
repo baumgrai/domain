@@ -50,6 +50,7 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	static final Logger log = LoggerFactory.getLogger(SqlDomainController.class);
 
 	// TODO: Support direct file storing
+	// TODO: Support file encryption
 
 	// -------------------------------------------------------------------------
 	// Finals
@@ -57,6 +58,8 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 
 	public static final String DOMAIN_PROPERIES_FILE = "domain.properties";
 	public static final String DATA_HORIZON_PERIOD_PROP = "dataHorizonPeriod";
+	public static final String CRYPT_PASSWORD_PROP = "cryptPassword";
+	public static final String CRYPT_SALT_PROP = "cryptSalt";
 
 	// -------------------------------------------------------------------------
 	// Members
@@ -67,6 +70,8 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 
 	// Config properties from 'domain.properties'
 	private String dataHorizonPeriod = "1M"; // Data horizon controlled objects will be loaded from database only if they are modified after data horizon ('now' minus data horizon period)
+	public String cryptPassword = null;
+	public String cryptSalt = null;
 
 	// Record map: map of object records by object domain class by object id
 	// Note: Objects of domain classes which are derived from other domain classes however have only object record with column content of all tables for derived classes
@@ -93,6 +98,12 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 		sqlDb = new SqlDb(dbProperties);
 		if (domainProperties != null) {
 			dataHorizonPeriod = domainProperties.getProperty(DATA_HORIZON_PERIOD_PROP, "1M");
+			cryptPassword = domainProperties.getProperty(CRYPT_PASSWORD_PROP, null);
+			cryptSalt = domainProperties.getProperty(CRYPT_SALT_PROP, "SALTSALT");
+			if (isEmpty(cryptPassword)) {
+				log.warn(
+						"SDC: Use of @Crypt annotation for fields or domain classes needs non-empty 'cryptPassword' property in 'domain.properties' file! If this property is not configured field values will be stored in database without encryption!");
+			}
 		}
 		try (SqlConnection sqlConnection = SqlConnection.open(sqlDb.pool, true)) {
 			((SqlRegistry) registry).registerDomainClassTableAssociation(sqlConnection.cn, sqlDb);
@@ -196,7 +207,7 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 		SortedMap<String, Object> objectRecord = new TreeMap<>();
 		for (Class<? extends SqlDomainObject> domainClass : registry.getDomainClassesFor(obj.getClass())) {
 			Map<Field, Object> fieldChangesMap = SaveHelpers.getFieldChangesForDomainClass(((SqlRegistry) registry), obj, objectRecord, domainClass);
-			objectRecord.putAll(SaveHelpers.fieldChangesMap2ColumnValueMap(((SqlRegistry) registry), fieldChangesMap, obj));
+			objectRecord.putAll(SaveHelpers.fieldChangesMap2ColumnValueMap(this, fieldChangesMap, obj));
 		}
 
 		// Re-insert object record

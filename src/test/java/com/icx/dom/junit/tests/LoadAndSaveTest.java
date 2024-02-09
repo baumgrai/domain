@@ -118,7 +118,7 @@ class LoadAndSaveTest extends TestHelpers {
 			assertEquals(A.class, sdc.getDomainClassByName("A"));
 
 			// -----------------------------------------
-			Helpers.dbType = DbType.MYSQL;
+			Helpers.dbType = DbType.ORACLE;
 			// -----------------------------------------
 
 			Properties dbProps = Prop.readEnvironmentSpecificProperties(Prop.findPropertiesFile("db.properties"), Helpers.getLocal(Helpers.dbType), CList.newList("dbConnectionString", "dbUser"));
@@ -241,6 +241,8 @@ class LoadAndSaveTest extends TestHelpers {
 			assertArrayEquals(CFile.readBinary(new File("src/test/resources/bike.jpg")), aa1.picture);
 			assertEquals(CResource.findFirstJavaResourceFile("x.txt"), aa1.file);
 			assertEquals(Type.A, aa1.type);
+			assertEquals("!!!secret!!!", aa1.secretString);
+			assertEquals("!!!password!!!", aa1.pwd);
 
 			assertEquals(CList.newList("A", "B", "C", "D", (Helpers.dbType == DbType.ORACLE ? null : ""), null), aa1.strings); // Oracle does not allow empty string values (stored as NULL instead)
 			assertEquals(CSet.newSet(0.0, 0.1, 0.2, null), aa1.doubleSet);
