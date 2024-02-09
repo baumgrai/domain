@@ -411,7 +411,7 @@ public class Registry<T extends DomainObject> extends Reflection {
 				}
 			}
 			else {
-				log.error("REG:\tCannot serialize field '{}' of type '{}'!", qualifiedName, type);
+				log.error("REG: Cannot serialize field '{}' of type '{}'!", qualifiedName, type);
 				if (Set.class.isAssignableFrom(field.getType())) {
 					Type type1 = ((ParameterizedType) field.getGenericType()).getActualTypeArguments()[0];
 					if (type1 instanceof Class<?> && baseClass.isAssignableFrom((Class<?>) type1)) {
