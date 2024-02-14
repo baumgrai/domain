@@ -13,6 +13,7 @@ import java.util.stream.Stream;
 
 import com.icx.common.base.Common;
 import com.icx.domain.sql.SqlDomainController;
+import com.icx.domain.sql.tools.Java2Sql;
 
 /**
  * Annotations for domain classes and fields for Domain object persistence mechanism.
@@ -275,7 +276,7 @@ public abstract class DomainAnnotations {
 		/**
 		 * @return size of character column associated with this (String, enum, List, Map) field (default 256) - to define column size
 		 */
-		public int charsize() default 256;
+		public int charsize() default Java2Sql.DEFAULT_CHARSIZE;
 
 		/**
 		 * @return true if content of (character) column can be treated as SQL text (cannot be used in where clause) - to set TEXT/CLOB data type for column
@@ -299,8 +300,25 @@ public abstract class DomainAnnotations {
 	}
 
 	/**
-	 * Defines <b>accumulation</b> field of - parent - domain class. An accumulation refer to a reference field of the child domain class referencing the domain class where the accumulation field is
-	 * defined.
+	 * Forces that values of annotated field shall be converted to string before storing in database and therefore forces {@link Java2Sql} tool to generate a string ((N)VARCHAR(size)) column
+	 * associated to this field.
+	 * <p>
+	 * Charsize of column for annotated field can be defined with {@link SqlColumn} annotation if it shall differ from default charsize 1024.
+	 * <p>
+	 * Note: For any type of fields to store as string a to-string and a from-string converter has to be registered using
+	 * {@link SqlDomainController#registerStringConvertersForType(Class, java.util.function.Function, java.util.function.Function)} (the to-string converter may also be {@link Object#toString()}
+	 * itself).
+	 */
+	@Retention(RetentionPolicy.RUNTIME)
+	@Target(ElementType.FIELD)
+	public @interface StoreAsString {
+	}
+
+	/**
+	 * Defines <b>accumulation</b> field.
+	 * <p>
+	 * An accumulation contains all children and therefore refers to a reference field of the child domain class referencing the domain class where the accumulation field is defined. Accumulation
+	 * fields are managed automatically and should only be read by applications.
 	 */
 	@Retention(RetentionPolicy.RUNTIME)
 	@Target(ElementType.FIELD)
