@@ -156,7 +156,7 @@ public abstract class SaveHelpers extends Common {
 						obj.setFieldError(field, "Value could not be encrypted on writing to database! Missing 'cryptPassword' property in 'domain.properties'");
 					}
 				}
-				else if (fieldValue instanceof String && ((String) fieldValue).length() > column.maxlen) { // String field exceeds text column size
+				else if (fieldValue instanceof String && ((String) fieldValue).length() > column.maxlen) { // Truncate if string field exceeds text column size
 
 					log.warn("SDC: Value '{}' exceeds maximum size {} of column '{}' for object {}! Truncate before saving object...", CLog.forSecretLogging(field, fieldValue), column.maxlen,
 							column.name, obj.name());
@@ -167,6 +167,7 @@ public abstract class SaveHelpers extends Common {
 				else {
 					columnValue = fieldValue;
 				}
+
 				columnValueMap.put(column.name, columnValue);
 			}
 		}
@@ -621,6 +622,7 @@ public abstract class SaveHelpers extends Common {
 			}
 
 			// Update local object record by changes of data and reference fields
+			// Note: Object record contains field values as they are. Necessary conversion for storing in database will be made in SqlDb::assigneValue() and will not be reflected in object record.
 			objectRecord.putAll(columnValueMap);
 
 			// Handle table related fields (collections and maps): Delete old entry records, update changed map entries and insert new entries
