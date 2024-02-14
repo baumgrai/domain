@@ -25,6 +25,7 @@ import com.icx.domain.DomainAnnotations.Removed;
 import com.icx.domain.DomainAnnotations.Secret;
 import com.icx.domain.DomainAnnotations.SqlColumn;
 import com.icx.domain.DomainAnnotations.SqlTable;
+import com.icx.domain.DomainException;
 import com.icx.domain.Registry;
 import com.icx.domain.sql.Const;
 import com.icx.domain.sql.SqlDomainObject;
@@ -145,7 +146,7 @@ public abstract class Java2Sql extends JdbcHelpers {
 				// Warn on useless @Secret annotation on complex field
 				if (field.isAnnotationPresent(Secret.class)) {
 					log.warn(
-							"J2S: @Secret annotation is useless for {} field '{}'! Suppressing logging of values for all log levels is not supported for List, Set and Map fields, but values generally will not be logged using INFO log level.",
+							"J2S: @Secret annotation is useless for {} field '{}'! Suppressing logging of values for all log levels is not supported for array, List, Set and Map fields, but values generally will not be logged using INFO log level.",
 							field.getType().getSimpleName(), field.getName());
 				}
 
@@ -538,17 +539,22 @@ public abstract class Java2Sql extends JdbcHelpers {
 				: Java2Sql.class.getPackage().getName());
 		String supposedAppName = Common.behindLast(Common.untilLast(packageName, "."), ".");
 
-		// Register domain classes
 		// Registry.register(SqlDomainObject.class, Xxx.class, Y.class, Z.class); // Only for test!
-		registry.registerDomainClasses(SqlDomainObject.class, packageName);
+		try {
+			// Register domain classes
+			registry.registerDomainClasses(SqlDomainObject.class, packageName);
 
-		// Determine circular references - to avoid setting ON DELETE CASCADE for foreign keys within circular references
-		circularReferences = registry.determineCircularReferences();
-		log.info("J2S: Circular references: {}", circularReferences);
+			// Determine circular references - to avoid setting ON DELETE CASCADE for foreign keys within circular references
+			circularReferences = registry.determineCircularReferences();
+			log.info("J2S: Circular references: {}", circularReferences);
 
-		// Generate SQL scripts for database generation and version specific updates for all supported database types
-		for (DbType dbType : DbType.values()) {
-			generateSqlScripts(supposedAppName, dbType);
+			// Generate SQL scripts for database generation and version specific updates for all supported database types
+			for (DbType dbType : DbType.values()) {
+				generateSqlScripts(supposedAppName, dbType);
+			}
+		}
+		catch (DomainException dex) {
+			log.error("REG: Registration could not be completed! '{}'", dex.getMessage());
 		}
 	}
 }
