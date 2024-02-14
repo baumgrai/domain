@@ -40,6 +40,7 @@ import com.icx.common.base.CSet;
 import com.icx.common.base.Common;
 import com.icx.dom.junit.TestHelpers;
 import com.icx.dom.junit.domain.A;
+import com.icx.dom.junit.domain.A.Stucture;
 import com.icx.dom.junit.domain.A.Type;
 import com.icx.dom.junit.domain.AA;
 import com.icx.dom.junit.domain.AB;
@@ -161,17 +162,29 @@ class LoadAndSaveTest extends TestHelpers {
 
 				aa.bool = true;
 				aa.booleanValue = false;
+
+				aa.sh = Short.MIN_VALUE;
+				aa.shortValue = Short.MAX_VALUE;
 				aa.i = Integer.MIN_VALUE;
 				aa.integerValue = Integer.MAX_VALUE;
 				aa.l = Long.MIN_VALUE;
 				aa.longValue = Long.MAX_VALUE;
 				aa.d = 123456789.123456789; // Double.MIN_VALUE: underflow with Oracle
 				aa.doubleValue = -0.0000123456789; // Double.MAX_VALUE: underflow with Oracle
+
+				aa.c = 'a';
+				aa.charValue = 'ß';
+
 				aa.bigIntegerValue = BigInteger.valueOf(Long.MAX_VALUE);
-				aa.bigDecimalValue = BigDecimal.valueOf(123456789.123456789); // Double.MAX_VALUE: underflow with Oracle
+				aa.bigDecimalValue = BigDecimal.valueOf(123456789.123456789); // BigDecimal.MAX_VALUE: underflow with Oracle
 				aa.datetime = now;
+				aa.date = now.toLocalDate();
+				aa.time = now.toLocalTime();
 
 				aa.s = "S";
+
+				aa.structure = new Stucture("abc", 100);
+
 				aa.bytes = Common.getBytesUTF8("ÄÖÜäöüß");
 				assertDoesNotThrow(() -> aa.picture = CFile.readBinary(new File("src/test/resources/bike.jpg")));
 
@@ -226,7 +239,8 @@ class LoadAndSaveTest extends TestHelpers {
 
 			assertEquals(true, aa1.bool);
 			assertEquals(false, aa1.booleanValue);
-			assertEquals(Integer.MIN_VALUE, aa1.i);
+			assertEquals(Short.MIN_VALUE, aa1.sh);
+			assertEquals(Short.MAX_VALUE, aa1.shortValue);
 			assertEquals(Integer.MIN_VALUE, aa1.i);
 			assertEquals(Integer.MAX_VALUE, aa1.integerValue);
 			assertEquals(Long.MIN_VALUE, aa1.l);
@@ -235,8 +249,14 @@ class LoadAndSaveTest extends TestHelpers {
 			assertEquals(-0.0000123456789, aa1.doubleValue);
 			assertEquals(BigInteger.valueOf(Long.MAX_VALUE), aa1.bigIntegerValue);
 			assertEquals(BigDecimal.valueOf(123456789.123456789), aa1.bigDecimalValue);
+			assertEquals('a', aa1.c);
+			assertEquals('ß', aa1.charValue);
 			assertEquals("S", aa1.s);
+			assertEquals("abc", aa1.structure.s);
+			assertEquals(100, aa1.structure.i);
 			assertTrue(logicallyEqual(now, aa1.datetime)); // Check only seconds because milliseconds will not be stored in database (Oracle)
+			assertEquals(now.toLocalDate(), aa1.date);
+			assertTrue(logicallyEqual(now.toLocalTime(), aa1.time));
 			assertArrayEquals(Common.getBytesUTF8("ÄÖÜäöüß"), aa1.bytes);
 			assertArrayEquals(CFile.readBinary(new File("src/test/resources/bike.jpg")), aa1.picture);
 			assertEquals(CResource.findFirstJavaResourceFile("x.txt"), aa1.file);
@@ -254,6 +274,24 @@ class LoadAndSaveTest extends TestHelpers {
 			assertEquals(CMap.newMap("0", new HashMap<>(), "1", CMap.newMap(Type.A, true), "2", CMap.newMap(Type.A, true, Type.B, false, Type.C, null)), aa1.mapOfMaps);
 
 			assertEquals(o1, aa1.o);
+
+			log.info("\tCheck registered string converter...");
+
+			SqlDb.clearToStringConverterCacheForTestOnly();
+			SqlDomainController.registerStringConvertersForType(A.Stucture.class, cv -> cv.toString(), s -> Stucture.valueOf(s));
+
+			AA aa2 = sdc.createAndSave(AA.class, aa -> { aa.structure = new Stucture("abc", 100); });
+
+			sdc.unregisterOnlyForTest(aa2);
+
+			sdc.synchronize();
+
+			aa2 = sdc.findAny(AA.class, aa -> aa.i == 0); // find aa2, not aa1
+
+			assertEquals("abc", aa2.structure.s);
+			assertEquals(100, aa2.structure.i);
+
+			aa2.delete();
 		}
 		catch (AssertionFailedError failed) {
 			throw failed;

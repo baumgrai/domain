@@ -3,7 +3,9 @@ package com.icx.dom.junit.domain;
 import java.io.File;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -17,6 +19,7 @@ import com.icx.domain.DomainAnnotations.Removed;
 import com.icx.domain.DomainAnnotations.Secret;
 import com.icx.domain.DomainAnnotations.SqlColumn;
 import com.icx.domain.DomainAnnotations.SqlTable;
+import com.icx.domain.DomainAnnotations.StoreAsString;
 import com.icx.domain.sql.SqlDomainObject;
 
 @Changed(versions = { "1.1:notUnique=i;unique=i&integerValue;indexes=l", "1.2:indexesToDrop=longValue" })
@@ -25,6 +28,28 @@ public abstract class A extends SqlDomainObject {
 
 	public static class Inner extends SqlDomainObject {
 		A a;
+	}
+
+	public static class Stucture {
+
+		public String s = null;
+		public int i = 0;
+
+		public Stucture(
+				String s,
+				int i) {
+			this.s = s;
+			this.i = i;
+		}
+
+		@Override
+		public String toString() {
+			return s + "/" + i;
+		}
+
+		public static Stucture valueOf(String cvString) {
+			return new A.Stucture(untilFirst(cvString, "/"), Integer.valueOf(behindFirst(cvString, "/")));
+		}
 	}
 
 	public enum Type {
@@ -37,6 +62,12 @@ public abstract class A extends SqlDomainObject {
 	public boolean bool;
 	public Boolean booleanValue;
 
+	// public byte b = 0; Not supported
+	// public Byte byteValue;
+
+	public short sh = 0;
+	public Short shortValue;
+
 	public int i = 0;
 	public Integer integerValue;
 
@@ -45,8 +76,14 @@ public abstract class A extends SqlDomainObject {
 	@Changed(versions = { "1.1:numericalType=Long" })
 	public Long longValue;
 
+	// public float f; Not supported
+	// public Float floatValue;
+
 	public double d;
 	public Double doubleValue;
+
+	public char c;
+	public Character charValue;
 
 	@Crypt // Useless here
 	public BigInteger bigIntegerValue;
@@ -54,11 +91,16 @@ public abstract class A extends SqlDomainObject {
 	public BigDecimal bigDecimalValue;
 
 	public LocalDateTime datetime;
+	public LocalDate date;
+	public LocalTime time;
 
 	@Created(version = "1.1:isText=true")
 	@Changed(versions = { "1.2:isText=false;unique=false", "1.3:charsize=16;unique=true" })
 	@SqlColumn(unique = true, charsize = 16)
 	public String s;
+
+	@StoreAsString
+	public Stucture structure = null;
 
 	public byte[] bytes;
 	public byte[] picture;
