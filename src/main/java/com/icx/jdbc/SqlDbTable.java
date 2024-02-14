@@ -81,6 +81,11 @@ public class SqlDbTable extends Common implements Comparable<SqlDbTable> {
 		 */
 		public Class<?> jdbcType = null;
 
+		/**
+		 * Type of field associated with column (in known)
+		 */
+		public Class<?> fieldType = null;
+
 		// Constructor
 		protected Column() {
 		}

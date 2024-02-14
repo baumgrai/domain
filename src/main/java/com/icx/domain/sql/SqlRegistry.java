@@ -5,6 +5,7 @@ import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -206,13 +207,12 @@ public class SqlRegistry extends Registry<SqlDomainObject> {
 
 			// Check static [ 'id' : ID ] field : column relation
 			Column idColumn = registeredTable.findColumnByName(Const.ID_COL);
-			if (idColumn != null) {
-				log.info("SRG: \t\t[ {} ({}) : {} ]", Reflection.qualifiedName(idField), idField.getType().getSimpleName(), idColumn.toStringWithoutTable(idField.getType()));
-			}
-			else {
+			if (idColumn == null) {
 				throw new SqlDbException(
 						"Detected Java : SQL inconsistency! Table '" + registeredTable.toString() + "' associated to domain class '" + domainClass.getName() + "' does not have ID column!");
 			}
+			idColumn.fieldType = Long.class;
+			log.info("SRG: \t\t[ {} ({}) : {} ]", Reflection.qualifiedName(idField), idField.getType().getSimpleName(), idColumn.toStringWithoutTable(idField.getType()));
 
 			// Check column 'DOMAIN_CLASS'
 			Column domainClassColumn = registeredTable.findColumnByName(Const.DOMAIN_CLASS_COL);
@@ -220,19 +220,19 @@ public class SqlRegistry extends Registry<SqlDomainObject> {
 				throw new SqlDbException(
 						"Detected Java : SQL inconsistency! Table '" + registeredTable.toString() + "' associated to domain class '" + domainClass.getName() + "' does not have DOMAIN_CLASS column!");
 			}
+			domainClassColumn.fieldType = String.class;
 
 			// For base (or only) domain classes check static [ 'lastModifiedInDb' : LAST_MODIFIED ] field : column relation
 			if (isBaseDomainClass(domainClass)) {
 
 				Column lastModifiedColumn = registeredTable.findColumnByName(Const.LAST_MODIFIED_COL);
-				if (lastModifiedColumn != null) {
-					log.info("SRG: \t\t[ {} ({}) : {} ]", Reflection.qualifiedName(lastModifiedInDbField), lastModifiedInDbField.getType().getSimpleName(),
-							lastModifiedColumn.toStringWithoutTable(lastModifiedInDbField.getType()));
-				}
-				else {
+				if (lastModifiedColumn == null) {
 					throw new SqlDbException(
 							"Detected Java : SQL inconsistency! Table " + registeredTable + " associated to domain class '" + domainClass.getName() + "' does not have LAST_MODIFIED column!");
 				}
+				lastModifiedColumn.fieldType = LocalDateTime.class;
+				log.info("SRG: \t\t[ {} ({}) : {} ]", Reflection.qualifiedName(lastModifiedInDbField), lastModifiedInDbField.getType().getSimpleName(),
+						lastModifiedColumn.toStringWithoutTable(lastModifiedInDbField.getType()));
 			}
 
 			// Register [ field : column ] relation for data and reference fields
@@ -254,6 +254,15 @@ public class SqlRegistry extends Registry<SqlDomainObject> {
 
 					// Store [ field : column ] relation
 					sqlColumnByFieldMap.put(field, column);
+
+					// Assign field type to column
+					if (isReferenceField(field)) {
+						column.fieldType = Long.class;
+					}
+					else {
+						column.fieldType = field.getType();
+					}
+
 					log.info("SRG: \t\t[ {} ({}) : {} ]", Reflection.qualifiedName(field), field.getType().getSimpleName(), column.toStringWithoutTable(field.getType()));
 				}
 				else { // If associated column does not exist...
