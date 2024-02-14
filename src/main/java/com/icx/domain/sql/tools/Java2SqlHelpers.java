@@ -206,11 +206,11 @@ public class Java2SqlHelpers extends JdbcHelpers {
 		mainTableRefColumn.addFkConstraint(ConstraintType.MAIN_TABLE, registry.getCastedDeclaringDomainClass(field));
 
 		// Create entry columns
-		if (currentType == null || Collection.class.isAssignableFrom(currentType)) { // Collection field
+		if (currentType == null || currentType.isArray() || Collection.class.isAssignableFrom(currentType)) { // Collection field
 
 			Type elementType = ((ParameterizedType) field.getGenericType()).getActualTypeArguments()[0];
 
-			// Create element column- allow collections or maps of simple objects as element type - convert with string2list and string2map and vice versa
+			// Create element column - allow collections or maps of simple objects as element type - convert with string2list and string2map and vice versa
 			Column elementColumn = null;
 			if (elementType instanceof Class<?>) {
 				elementColumn = entryTable.addStandardColumn(Const.ELEMENT_COL, (Class<?>) elementType);
@@ -226,7 +226,7 @@ public class Java2SqlHelpers extends JdbcHelpers {
 			}
 
 			// Add add order column for element lists (or if type is unknown)
-			if (currentType == null || List.class.isAssignableFrom(currentType)) {
+			if (currentType == null || currentType.isArray() || List.class.isAssignableFrom(currentType)) {
 				entryTable.addStandardColumn(Const.ORDER_COL, Integer.class);
 			}
 		}
