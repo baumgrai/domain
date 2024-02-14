@@ -12,6 +12,7 @@ import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.icx.domain.DomainAnnotations.StoreAsString;
 import com.icx.domain.sql.SqlDomainObject;
 import com.icx.domain.sql.SqlRegistry;
 import com.icx.domain.sql.tools.FkConstraint.ConstraintType;
@@ -38,7 +39,7 @@ public class Column {
 	public int charsize = Java2Sql.DEFAULT_CHARSIZE;
 
 	public Class<?> fieldRelatedType = null;
-	public Field field = null; // Only for logging
+	public Field field = null;
 
 	// Constructors
 
@@ -71,6 +72,9 @@ public class Column {
 		if (SqlDomainObject.class.isAssignableFrom(field.getType())) { // Foreign key columns
 			fieldRelatedType = Long.class;
 		}
+		else if (field.isAnnotationPresent(StoreAsString.class)) {
+			fieldRelatedType = String.class;
+		}
 		else {
 			fieldRelatedType = field.getType();
 		}
@@ -90,12 +94,26 @@ public class Column {
 		if (fieldRelatedType == boolean.class || fieldRelatedType == Boolean.class) {
 			type = (dbType == DbType.ORACLE ? "NVARCHAR2(5)" : dbType == DbType.MS_SQL ? "VARCHAR(5)" : dbType == DbType.MYSQL ? "VARCHAR(5)" : "");
 		}
+		else if (fieldRelatedType == char.class || fieldRelatedType == Character.class) {
+			type = (dbType == DbType.ORACLE ? "NVARCHAR2(1)" : dbType == DbType.MS_SQL ? "VARCHAR(1)" : dbType == DbType.MYSQL ? "VARCHAR(1)" : "");
+		}
+		// Note: Byte type is not supported because negative byte value will not be stored correctly using MS/SQL database (stored as positive value) - use 'short' instead
+		// else if (fieldRelatedType == byte.class || fieldRelatedType == Byte.class) {
+		// type = (dbType == DbType.ORACLE ? "NUMBER" : dbType == DbType.MS_SQL ? "TINYINT" : dbType == DbType.MYSQL ? "SMALLINT" : "");
+		// }
+		else if (fieldRelatedType == short.class || fieldRelatedType == Short.class) {
+			type = (dbType == DbType.ORACLE ? "NUMBER" : dbType == DbType.MS_SQL ? "SMALLINT" : dbType == DbType.MYSQL ? "SMALLINT" : "");
+		}
 		else if (fieldRelatedType == int.class || fieldRelatedType == Integer.class) {
 			type = (dbType == DbType.ORACLE ? "NUMBER" : dbType == DbType.MS_SQL ? "INTEGER" : dbType == DbType.MYSQL ? "INTEGER" : "");
 		}
 		else if (fieldRelatedType == long.class || fieldRelatedType == Long.class) {
 			type = (dbType == DbType.ORACLE ? "NUMBER" : dbType == DbType.MS_SQL ? "BIGINT" : dbType == DbType.MYSQL ? "BIGINT" : "");
 		}
+		// Note: Float type is not supported because no JDBC driver stores and /or retrieves 'float' values correctly - use 'double' instead
+		// else if (fieldRelatedType == float.class || fieldRelatedType == Float.class) {
+		// type = (dbType == DbType.ORACLE ? "NUMBER" : dbType == DbType.MS_SQL ? "FLOAT" : dbType == DbType.MYSQL ? "FLOAT" : "");
+		// }
 		else if (fieldRelatedType == double.class || fieldRelatedType == Double.class) {
 			type = (dbType == DbType.ORACLE ? "NUMBER" : dbType == DbType.MS_SQL ? "FLOAT" : dbType == DbType.MYSQL ? "DOUBLE" : "");
 		}
@@ -135,14 +153,15 @@ public class Column {
 			type = "DATE";
 		}
 		else if (LocalTime.class.isAssignableFrom(fieldRelatedType)) {
-			type = (dbType == DbType.MS_SQL ? "TIME" : "TIMESTAMP");
+			type = (dbType == DbType.ORACLE ? "TIMESTAMP" : "TIME");
 		}
 		else if (LocalDateTime.class.isAssignableFrom(fieldRelatedType)) {
 			type = (dbType == DbType.ORACLE ? "TIMESTAMP" : "DATETIME");
 		}
 		else {
-			log.error(
-					"J2S: Field type '{}' is not supported! Supported types are boolean, Boolean, int, Integer, long, Long, double, Double, BigInteger, BigDecimal, String, List, Set, Map, Enum, File, byte[], LocalDateTime, LocalDate, LocalTime",
+			log.error("J2S: Field type '{}' is not supported for auto-conversion! Supported types are boolean, Boolean, short, Short, int, Integer, long, Long, double, Double, "
+					+ "BigInteger, BigDecimal, String, List, Set, Map, Enum, File, byte[], LocalDateTime, LocalDate, LocalTime. "
+					+ "Fields of other types must be annotated with @SaveAsString, and to-string and from-string converters must be provided using SqlDomainController.registerStringConvertersForType()",
 					fieldRelatedType.getName());
 			return "";
 		}

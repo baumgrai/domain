@@ -1,16 +1,10 @@
 package com.icx.domain;
 
-import java.io.File;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
-import java.math.BigDecimal;
-import java.math.BigInteger;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -29,11 +23,13 @@ import org.slf4j.LoggerFactory;
 import com.icx.common.Reflection;
 import com.icx.domain.DomainAnnotations.Accumulation;
 import com.icx.domain.DomainAnnotations.Removed;
+import com.icx.domain.DomainAnnotations.StoreAsString;
 import com.icx.domain.DomainAnnotations.UseDataHorizon;
 import com.icx.domain.GuavaReplacements.ClassInfo;
 import com.icx.domain.GuavaReplacements.ClassPath;
 import com.icx.domain.sql.SqlDomainObject;
 import com.icx.domain.sql.tools.Java2Sql;
+import com.icx.jdbc.JdbcHelpers;
 
 /**
  * Find and register domain classes. Only used internally.
@@ -188,24 +184,14 @@ public class Registry<T extends DomainObject> extends Reflection {
 	// Fields
 	// -------------------------------------------------------------------------
 
-	// Allowed types
-	private static boolean isBooleanType(Class<?> cls) {
-		return (cls == Boolean.class || cls == boolean.class);
-	}
-
-	private static boolean isNumberType(Class<?> cls) {
-		return (cls == int.class || cls == Integer.class || cls == long.class || cls == Long.class || cls == double.class || cls == Double.class || cls == BigInteger.class || cls == BigDecimal.class);
-	}
-
 	// Check if field is of one of the types which forces to interpret field as 'data' field
-	private static boolean isDataFieldType(Class<?> type) {
-		return (String.class.isAssignableFrom(type) || isBooleanType(type) || isNumberType(type) || Enum.class.isAssignableFrom(type) || LocalDateTime.class.isAssignableFrom(type)
-				|| LocalDate.class.isAssignableFrom(type) || LocalTime.class.isAssignableFrom(type) || File.class.isAssignableFrom(type) || byte[].class.isAssignableFrom(type));
+	private static boolean isDataFieldType(Class<?> cls) {
+		return (JdbcHelpers.isBasicType(cls) && !(cls == byte.class || cls == Byte.class || cls == float.class || cls == Float.class) || byte[].class.isAssignableFrom(cls));
 	}
 
 	// Data field -> column
 	public static boolean isDataField(Field field) {
-		return isDataFieldType(field.getType());
+		return (isDataFieldType(field.getType()) || field.isAnnotationPresent(StoreAsString.class));
 	}
 
 	// Reference field -> column with foreign key constraint
@@ -213,8 +199,12 @@ public class Registry<T extends DomainObject> extends Reflection {
 		return baseClass.isAssignableFrom(field.getType());
 	}
 
-	// Set, List or Map field -> entry table (check also for 'hidden' accumulations missing @Accumulation annotation)
+	// Array, Set, List or Map field -> entry table (check also for 'hidden' accumulations missing @Accumulation annotation)
 	public boolean isComplexField(Field field) {
+
+		if (field.getType().isArray() && field.getType().getComponentType() != byte.class) {
+			return true;
+		}
 
 		if (!(field.getGenericType() instanceof ParameterizedType)) {
 			return false;
@@ -397,9 +387,9 @@ public class Registry<T extends DomainObject> extends Reflection {
 				log.info("REG:\t\t{}; \t// accumulation{}", fieldDeclaration, deprecated);
 			}
 			else if (isComplexField(field)) {
-				if (Collection.class.isAssignableFrom(type)) {
+				if (type.isArray() || Collection.class.isAssignableFrom(type)) {
 
-					// Table related field for List or Set (separate SQL table)
+					// Table related field for array, List or Set (separate SQL table)
 					domainClassInfoMap.get(domainClass).complexFields.add(field);
 					log.info("REG:\t\t{}; \t// table related field for {} of elements{}", fieldDeclaration, type.getSimpleName().toLowerCase(), deprecated);
 				}
@@ -412,11 +402,17 @@ public class Registry<T extends DomainObject> extends Reflection {
 			}
 			else {
 				log.error("REG: Cannot serialize field '{}' of type '{}'!", qualifiedName, type);
-				if (Set.class.isAssignableFrom(field.getType())) {
+				if (Set.class.isAssignableFrom(type)) {
 					Type type1 = ((ParameterizedType) field.getGenericType()).getActualTypeArguments()[0];
 					if (type1 instanceof Class<?> && baseClass.isAssignableFrom((Class<?>) type1)) {
 						log.warn("REG: Accumulation fields must be annotated with @Acccumulation!");
 					}
+				}
+				else if (Float.class.isAssignableFrom(type)) {
+					throw new DomainException("float and Float fields are not supported! Please use double or Double instaed of float/Float!");
+				}
+				else if (Byte.class.isAssignableFrom(type)) {
+					throw new DomainException("byte and Byte fields are not supported! Please use short or Short instaed of byte/Byte!");
 				}
 			}
 		}

@@ -1,7 +1,11 @@
 package com.icx.jdbc;
 
 import java.io.File;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.math.BigDecimal;
+import java.sql.Blob;
+import java.sql.Clob;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.PreparedStatement;
@@ -10,8 +14,12 @@ import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Types;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -23,6 +31,7 @@ import java.util.Timer;
 import java.util.TimerTask;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.function.Function;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -220,7 +229,7 @@ public class SqlDb extends Common {
 	}
 
 	// -------------------------------------------------------------------------
-	// Simple information getters and setters
+	// Miscellaneous
 	// -------------------------------------------------------------------------
 
 	/**
@@ -239,6 +248,203 @@ public class SqlDb extends Common {
 	 */
 	public String getSqlDateFunct() {
 		return DB_DATE_FUNCT.get(type);
+	}
+
+	// -------------------------------------------------------------------------
+	// Store records
+	// -------------------------------------------------------------------------
+
+	// Map containing to-string converters for storing values
+	private static Map<Class<?>, Function<Object, String>> toStringConverterMap = new HashMap<>();
+
+	// Map containing toString() method or null for all classes which were once checked for having toString() declared
+	private static Map<Class<?>, Function<Object, String>> toStringConverterCacheMap = new HashMap<>();
+
+	public static void clearToStringConverterCacheForTestOnly() {
+		toStringConverterCacheMap.clear();
+	}
+
+	/**
+	 * Register a to to-string converter to store objects of given class as strings on INSERT and UPDATE.
+	 * <p>
+	 * Values of this class will be converted to String using this converter before they will be assigned to appropriate place holder in INSERT or UPDATE statements.
+	 * 
+	 * @param objectClass
+	 *            class of objects to convert
+	 * @param toStringConverter
+	 *            to-string converter or null for toString()
+	 */
+	public static void registerToStringConverter(Class<?> objectClass, Function<Object, String> toStringConverter) {
+		toStringConverterMap.put(objectClass, (toStringConverter != null ? toStringConverter : Object::toString));
+	}
+
+	// Map containing to-string converter or null for all classes which were once checked for having to-string converter
+	private static Map<Class<?>, Method> toStringMethodCacheMap = new HashMap<>();
+
+	// If column value is not of basic type, check for registered to-string converter and, if not found, for declared toString() method - cache things found
+	private static String tryToBuildStringValueFromColumnValue(Object columnValue) {
+
+		Class<?> objectClass = columnValue.getClass();
+
+		// Check for registered to-string converter
+		if (!toStringConverterCacheMap.containsKey(objectClass)) {
+
+			// Initially check if to-string converter is registered and cache converter in this case
+			if (toStringConverterMap.containsKey(objectClass)) {
+				toStringConverterCacheMap.put(objectClass, toStringConverterMap.get(objectClass));
+			}
+			else {
+				toStringConverterCacheMap.put(objectClass, null);
+			}
+		}
+
+		Function<Object, String> toStringConverter = toStringConverterCacheMap.get(objectClass);
+		if (toStringConverter != null) {
+
+			// Store value as string computed by registered to-string converter
+			if (log.isTraceEnabled()) {
+				log.trace("SQL: Use registered to-string converter for class '{}'", objectClass.getSimpleName());
+			}
+
+			return toStringConverter.apply(columnValue);
+		}
+		else {
+			// Check for declared toString() method
+			if (!toStringMethodCacheMap.containsKey(objectClass)) {
+
+				// Initially check if toString() method is declared and cache method in this case
+				try {
+					Method toString = objectClass.getDeclaredMethod("toString");
+					if (log.isDebugEnabled()) {
+						log.debug("SQL: Found declared toString() method for class '{}'", objectClass.getSimpleName());
+					}
+					toStringMethodCacheMap.put(objectClass, toString);
+				}
+				catch (NoSuchMethodException nsmex) { // Field type does not have toString() method (initial check)
+					toStringMethodCacheMap.put(objectClass, null);
+				}
+			}
+
+			Method toString = toStringMethodCacheMap.get(objectClass);
+			if (toString != null) {
+
+				// Store value as string computed by declared toString() method
+				if (log.isTraceEnabled()) {
+					log.trace("SQL: Invoke declared method toString() for class '{}'", objectClass.getSimpleName());
+				}
+				try {
+					return (String) toString.invoke(columnValue);
+				}
+				catch (IllegalAccessException | InvocationTargetException | IllegalArgumentException iex) {
+					log.error("SQL: toString() method threw {}! Field value of type '{}' cannot be converted to String!", iex, objectClass.getName());
+				}
+			}
+		}
+
+		return null;
+	}
+
+	// Assign value to store to place holder - convert value to string if converter is registered for class of value
+	private static void assignValue(PreparedStatement pst, int c, String tableName, Column column, Object columnValue) throws SQLException {
+
+		try {
+			if (columnValue == null) {
+				pst.setNull(c + 1, typeIntegerFromJdbcType(column.jdbcType)); // Store null value - provide JDBC type of column
+			}
+			else if (JdbcHelpers.isBasicType(columnValue.getClass()) || columnValue.getClass().isArray()) {
+
+				Class<?> objectClass = columnValue.getClass();
+				if (objectClass == Character.class || objectClass == Boolean.class || Enum.class.isAssignableFrom(objectClass) || objectClass == File.class) {
+					pst.setString(c + 1, columnValue.toString()); // Store values of specific classes as string
+				}
+				else {
+					pst.setObject(c + 1, columnValue); // Store other value using JDBC conversion
+				}
+			}
+			else {
+				pst.setObject(c + 1, tryToBuildStringValueFromColumnValue(columnValue)); // Store as string using either registered to-string converter or declared toString() method
+			}
+		}
+		catch (IllegalArgumentException iaex) {
+			log.error("SQL: Column {} could not be set to value {} ({})", column.name, CLog.forSecretLogging(tableName, column.name, columnValue), iaex);
+		}
+	}
+
+	// -------------------------------------------------------------------------
+	// Retrieve records
+	// -------------------------------------------------------------------------
+
+	// Retrieve column values for one row from result set (of select statement or call of stored procedure)
+	private static SortedMap<String, Object> retrieveRecord(ResultSet rs, ResultSetMetaData rsmd, List<Class<?>> requiredResultTypes) throws SQLException {
+
+		SortedMap<String, Object> resultRecord = new TreeMap<>();
+
+		if (rsmd == null) { // If no meta data provided (MySQL on stored procedure calls)
+			boolean maxReached = false;
+			for (int i = 0; !maxReached; i++) {
+				try {
+					resultRecord.put(String.format("%d", i + 1), rs.getObject(i + 1));
+				}
+				catch (SQLException sqlex) {
+					maxReached = true;
+				}
+			}
+			return resultRecord;
+		}
+
+		// Retrieve all values for one result record - JDBC indexes start by 1
+		for (int c = 0; c < rsmd.getColumnCount(); c++) {
+
+			// Get value retrieved - assume String for CLOB and byte[] for BLOB is (see com.icx.dom.domain.sql.tools.Column), max 2GB characters or bytes is supported
+			Object value = null;
+			int columnType = rsmd.getColumnType(c + 1);
+			if (columnType == Types.BLOB) {
+				Blob blob = rs.getBlob(c + 1);
+				if (blob != null) {
+					value = blob.getBytes(1, ((Number) blob.length()).intValue());
+				}
+			}
+			else if (columnType == Types.CLOB) {
+				Clob clob = rs.getClob(c + 1);
+				if (clob != null) {
+					value = clob.getSubString(1, ((Number) clob.length()).intValue());
+				}
+			}
+			else if (columnType == Types.TIMESTAMP || columnType == Types.TIMESTAMP_WITH_TIMEZONE) {
+				value = rs.getObject(c + 1, LocalDateTime.class);
+			}
+			else if (columnType == Types.TIME || columnType == Types.TIME_WITH_TIMEZONE) {
+				value = rs.getObject(c + 1, LocalTime.class);
+			}
+			else if (columnType == Types.DATE) {
+				value = rs.getObject(c + 1, LocalDate.class);
+			}
+			else if (requiredResultTypes != null && JdbcHelpers.requiredTypeDiffers(rsmd, requiredResultTypes, c)) { // Note: Required types are not used in Domain persistence layer
+
+				// Try to retrieve result as value of required type if required type is given and differs from columm's JDBC type
+				// Attention: for numerical types (Integer, int, Long, long, ...) 0 will be returned on null value in database using getObject() with type specification! (at least using MySQL)
+				String columnName = rsmd.getColumnName(c + 1);
+				String columnClassName = rsmd.getColumnClassName(c + 1);
+				try {
+					value = rs.getObject(c + 1, requiredResultTypes.get(c));
+					if (log.isTraceEnabled()) {
+						log.trace("SQL: Column '{}': autoconverted value from column's JDBC type '{}' to required type {}", columnName, columnClassName, requiredResultTypes.get(c));
+					}
+				}
+				catch (SQLException sqlex) {
+					value = rs.getObject(c + 1);
+					log.error("SQL: Exception '{}' on retrieving '{}' result in column '{}' as type '{}'!", sqlex.getMessage(), columnClassName, columnName, requiredResultTypes.get(c));
+				}
+			}
+			else {
+				value = rs.getObject(c + 1);
+			}
+
+			// Put column value retrieved into result map
+			resultRecord.put(rsmd.getColumnLabel(c + 1).toUpperCase(), value);
+		}
+
+		return resultRecord;
 	}
 
 	// -------------------------------------------------------------------------
@@ -313,9 +519,22 @@ public class SqlDb extends Common {
 
 				// Build result structure
 				try {
-					List<SortedMap<String, Object>> resultRecords = JdbcHelpers.retrieveResultRecords(rs, requiredResultTypes);
+					// Retrieve result set metadata
 					ResultSetMetaData rsmd = rs.getMetaData();
-					if (rsmd != null && log.isDebugEnabled()) {
+					if (rsmd == null) { // may happen on calling stored procedures using MySQL
+						log.warn("SQL: No result set meta information available!");
+					}
+
+					// Retrieve results from result set
+					List<SortedMap<String, Object>> resultRecords = new ArrayList<>();
+					while (rs.next()) {
+						resultRecords.add(retrieveRecord(rs, rsmd, requiredResultTypes));
+					}
+
+					if (resultRecords.isEmpty() && log.isDebugEnabled()) {
+						log.debug("SQL: No records found");
+					}
+					else if (rsmd != null && log.isDebugEnabled()) {
 						JdbcHelpers.logResultRecords(rsmd, sql, resultRecords);
 					}
 
@@ -500,11 +719,20 @@ public class SqlDb extends Common {
 		else if (type == BigDecimal.class) {
 			return Types.NUMERIC;
 		}
-		else if (type == Integer.class) {
+		else if (type == Byte.class || type == Short.class) {
+			return Types.SMALLINT;
+		}
+		else if (type == Character.class) {
+			return Types.CHAR;
+		}
+		else if (type == Byte.class || type == Integer.class) {
 			return Types.INTEGER;
 		}
 		else if (type == Long.class) {
 			return Types.BIGINT;
+		}
+		else if (type == Float.class) {
+			return Types.FLOAT;
 		}
 		else if (type == Double.class) {
 			return Types.DOUBLE;
@@ -841,27 +1069,15 @@ public class SqlDb extends Common {
 
 		try (PreparedStatement pst = cn.prepareStatement(preparedStatementString)) {
 
-			// Convert values to SQL type (if necessary) and assign values to prepared statement
+			// Assign values to prepared statement - convert to string if to string converter is given
 			for (Map<String, Object> columnValueMap : columnValueMaps) {
 
 				for (int c = 0; c < columnsWithPlaceholders.size(); c++) {
-					Column column = columnsWithPlaceholders.get(c);
 
+					Column column = columnsWithPlaceholders.get(c);
 					Object columnValue = columnValueMap.get(column.name);
-					try {
-						if (columnValue == null) {
-							pst.setNull(c + 1, typeIntegerFromJdbcType(column.jdbcType));
-						}
-						else if (columnValue instanceof Boolean || columnValue instanceof Enum || columnValue instanceof File) {
-							pst.setObject(c + 1, columnValue.toString());
-						}
-						else { // Other value
-							pst.setObject(c + 1, columnValue);
-						}
-					}
-					catch (IllegalArgumentException iaex) {
-						log.error("SQL: Column {} could not be set to value {} ({})", column.name, CLog.forSecretLogging(tableName, column.name, columnValue), iaex);
-					}
+
+					assignValue(pst, c, tableName, column, columnValue);
 				}
 
 				if (log.isDebugEnabled()) {
@@ -1031,18 +1247,12 @@ public class SqlDb extends Common {
 			}
 
 			// Assign values to prepared statement
-			for (int i = 0; i < columnsWithPlaceholders.size(); i++) {
+			for (int c = 0; c < columnsWithPlaceholders.size(); c++) {
 
-				Object columnValue = columnValueMap.get(columnsWithPlaceholders.get(i).name);
-				if (columnValue == null) {
-					pst.setNull(i + 1, typeIntegerFromJdbcType(columnsWithPlaceholders.get(i).jdbcType));
-				}
-				else if (columnValue instanceof Boolean || columnValue instanceof Enum || columnValue instanceof File) {
-					pst.setObject(i + 1, columnValue.toString());
-				}
-				else { // Other value
-					pst.setObject(i + 1, columnValue);
-				}
+				Column column = columnsWithPlaceholders.get(c);
+				Object columnValue = columnValueMap.get(column.name);
+
+				assignValue(pst, c, tableName, column, columnValue);
 			}
 
 			if (log.isDebugEnabled()) {

@@ -17,6 +17,7 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -51,6 +52,7 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 
 	// TODO: Support direct file storing
 	// TODO: Support file encryption
+	// TODO: Allow non-public fields
 
 	// -------------------------------------------------------------------------
 	// Finals
@@ -86,6 +88,35 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	 */
 	public SqlDomainController() {
 		registry = new SqlRegistry();
+	}
+
+	// -------------------------------------------------------------------------
+	// Register to-string and from-string converters
+	// -------------------------------------------------------------------------
+
+	/**
+	 * Register to-string and from-string converters for individual field types.
+	 * <p>
+	 * SQL data types of columns to store values of these classes in database tables will be string types ((N)VARCHAR) and values of this classes will be converted to string using to-string converter
+	 * before being stored in database (INSERT, UPDATE). On loading from database (SELECT) the stored string values will be re-converted to original values using from-string converter.
+	 * <p>
+	 * Registering specific to-string and from-string converters is (only) necessary for value types which are not Java standard types or {@code File} or {@code Enum} and for structures which are
+	 * build up from Java standard types.
+	 * <p>
+	 * Another possibility to define to-string and from-string conversion is to declare public methods {@code toString()} and {@code valueOf(String)} for specific field types which than automatically
+	 * will be used for conversion on storing and retrieving field values. Registration of these methods is not necessary.
+	 * 
+	 * @param cls
+	 *            class of values to convert
+	 * @param toStringConverter
+	 *            to-string converter or null for toString()
+	 * @param fromStringConverter
+	 *            from-string converter
+	 */
+	public static void registerStringConvertersForType(Class<?> cls, Function<Object, String> toStringConverter, Function<String, Object> fromStringConverter) {
+
+		SqlDb.registerToStringConverter(cls, toStringConverter);
+		Conversion.fromStringConverterMap.put(cls, fromStringConverter);
 	}
 
 	// -------------------------------------------------------------------------

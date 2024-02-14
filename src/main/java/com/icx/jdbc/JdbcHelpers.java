@@ -1,16 +1,16 @@
 package com.icx.jdbc;
 
+import java.io.File;
 import java.lang.reflect.Type;
-import java.sql.Blob;
-import java.sql.Clob;
-import java.sql.ResultSet;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
-import java.sql.Types;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -19,7 +19,6 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.SortedSet;
-import java.util.TreeMap;
 import java.util.regex.Matcher;
 
 import org.slf4j.Logger;
@@ -49,6 +48,21 @@ public abstract class JdbcHelpers extends Common {
 	// -------------------------------------------------------------------------
 	// String helpers
 	// -------------------------------------------------------------------------
+
+	public static boolean isBooleanType(Class<?> cls) {
+		return (cls == Boolean.class || cls == boolean.class);
+	}
+
+	public static boolean isNumberType(Class<?> cls) { // Float and Byte are not supported due to lacks of JDBC drivers storing/retrieving such values correctly
+		return (cls == char.class || cls == Character.class || cls == byte.class || cls == Byte.class || cls == short.class || cls == Short.class || cls == int.class || cls == Integer.class
+				|| cls == long.class || cls == Long.class || cls == float.class || cls == Float.class || cls == double.class || cls == Double.class || cls == BigInteger.class
+				|| cls == BigDecimal.class);
+	}
+
+	public static boolean isBasicType(Class<?> cls) {
+		return (String.class.isAssignableFrom(cls) || isBooleanType(cls) || isNumberType(cls) || Enum.class.isAssignableFrom(cls) || LocalDateTime.class.isAssignableFrom(cls)
+				|| LocalDate.class.isAssignableFrom(cls) || LocalTime.class.isAssignableFrom(cls) || Date.class.isAssignableFrom(cls) || File.class.isAssignableFrom(cls));
+	}
 
 	// Get Java type string (unqualified on 'java.lang' and domain object classes, qualified otherwise)
 	public static String getTypeString(Class<?> type) {
@@ -234,106 +248,8 @@ public abstract class JdbcHelpers extends Common {
 	// -------------------------------------------------------------------------
 
 	// Check if required type differs from default JDBC type of column
-	private static boolean requiredTypeDiffers(ResultSetMetaData rsmd, List<Class<?>> requiredResultTypes, int c) throws SQLException {
+	protected static boolean requiredTypeDiffers(ResultSetMetaData rsmd, List<Class<?>> requiredResultTypes, int c) throws SQLException {
 		return (requiredResultTypes.size() > c && requiredResultTypes.get(c) != null && !objectsEqual(rsmd.getColumnClassName(c + 1), requiredResultTypes.get(c).getName()));
-	}
-
-	// Retrieve column values for one row from result set (of select statement or call of stored procedure)
-	private static SortedMap<String, Object> retrieveRecord(ResultSet rs, ResultSetMetaData rsmd, List<Class<?>> requiredResultTypes) throws SQLException {
-
-		SortedMap<String, Object> resultRecord = new TreeMap<>();
-
-		if (rsmd == null) { // If no meta data provided (MySQL on stored procedure calls)
-			boolean maxReached = false;
-			for (int i = 0; !maxReached; i++) {
-				try {
-					resultRecord.put(String.format("%d", i + 1), rs.getObject(i + 1));
-				}
-				catch (SQLException sqlex) {
-					maxReached = true;
-				}
-			}
-			return resultRecord;
-		}
-
-		// Retrieve all values for one result record - JDBC indexes start by 1
-		for (int c = 0; c < rsmd.getColumnCount(); c++) {
-
-			// Get value retrieved - required types for CLOB is String and for BLOB is byte[] (see com.icx.dom.domain.sql.tools.Column), max 2GB characters or bytes is supported
-			Object value = null;
-			int columnType = rsmd.getColumnType(c + 1);
-			if (columnType == Types.BLOB) {
-				Blob blob = rs.getBlob(c + 1);
-				if (blob != null) {
-					value = blob.getBytes(1, ((Number) blob.length()).intValue());
-				}
-			}
-			else if (columnType == Types.CLOB) {
-				Clob clob = rs.getClob(c + 1);
-				if (clob != null) {
-					value = clob.getSubString(1, ((Number) clob.length()).intValue());
-				}
-			}
-			else if (columnType == Types.TIMESTAMP || columnType == Types.TIMESTAMP_WITH_TIMEZONE) {
-				value = rs.getObject(c + 1, LocalDateTime.class);
-			}
-			else if (columnType == Types.TIME || columnType == Types.TIME_WITH_TIMEZONE) {
-				value = rs.getObject(c + 1, LocalTime.class);
-			}
-			else if (columnType == Types.DATE) {
-				value = rs.getObject(c + 1, LocalDate.class);
-			}
-			else if (requiredResultTypes != null && requiredTypeDiffers(rsmd, requiredResultTypes, c)) {
-
-				// Try to retrieve result as value of required type if required type is given and differs from columm's JDBC type
-				// Attention: for numerical types (Integer, int, Long, long, ...) 0 will be returned on null value in database using getObject() with type specification! (at least using MySQL)
-				String columnName = rsmd.getColumnName(c + 1);
-				String columnClassName = rsmd.getColumnClassName(c + 1);
-				try {
-					value = rs.getObject(c + 1, requiredResultTypes.get(c));
-					if (log.isTraceEnabled()) {
-						log.trace("SQL: Column '{}': autoconverted value from column's JDBC type '{}' to required type {}", columnName, columnClassName, requiredResultTypes.get(c));
-					}
-				}
-				catch (SQLException sqlex) {
-					value = rs.getObject(c + 1);
-					log.error("SQL: Exception '{}' on retrieving '{}' result in column '{}' as type '{}'!", sqlex.getMessage(), columnClassName, columnName, requiredResultTypes.get(c));
-				}
-			}
-			else {
-				value = rs.getObject(c + 1);
-			}
-
-			// Put column value retrieved into result map
-			resultRecord.put(rsmd.getColumnLabel(c + 1).toUpperCase(), value);
-		}
-
-		return resultRecord;
-	}
-
-	// Controls if logs of SELECT methods contain (some of) selected records
-	public static boolean listRecordsInLog = true;
-
-	// Build and log result
-	protected static List<SortedMap<String, Object>> retrieveResultRecords(ResultSet rs, List<Class<?>> requiredResultTypes) throws SQLException {
-
-		// Retrieve result set metadata
-		ResultSetMetaData rsmd = rs.getMetaData();
-		if (rsmd == null) { // may happen on calling stored procedures using MySQL
-			log.warn("SQL: No result set meta information available!");
-		}
-
-		// Retrieve results from result set
-		List<SortedMap<String, Object>> resultMaps = new ArrayList<>();
-		while (rs.next()) {
-			resultMaps.add(retrieveRecord(rs, rsmd, requiredResultTypes));
-		}
-
-		if (resultMaps.isEmpty() && log.isDebugEnabled()) {
-			log.debug("SQL: No records found");
-		}
-
-		return resultMaps;
 	}
 
 	// Log result map (one record) in order of column declaration.
@@ -367,6 +283,9 @@ public abstract class JdbcHelpers extends Common {
 
 		return resultMapStringBuilder.toString();
 	}
+
+	// Controls if logs of SELECT methods contain (some of) selected records
+	public static boolean listRecordsInLog = true;
 
 	// Build and log result
 	protected static void logResultRecords(ResultSetMetaData rsmd, String stmt, List<SortedMap<String, Object>> resultRecords) throws SQLException {
