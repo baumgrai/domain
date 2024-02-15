@@ -1,6 +1,8 @@
 package com.icx.jdbc;
 
 import java.io.File;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.lang.reflect.Type;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -16,6 +18,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.function.Function;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.SortedSet;
@@ -27,16 +30,16 @@ import org.slf4j.LoggerFactory;
 import com.icx.common.base.CLog;
 import com.icx.common.base.Common;
 import com.icx.jdbc.SqlDb.DbType;
-import com.icx.jdbc.SqlDbTable.Column;
+import com.icx.jdbc.SqlDbTable.SqlDbColumn;
 
 /**
  * Internal static JDBC/SQL database helpers, Java/JDBC type conversion
  * 
  * @author baumgrai
  */
-public abstract class JdbcHelpers extends Common {
+public abstract class SqlDbHelpers extends Common {
 
-	private static final Logger log = LoggerFactory.getLogger(JdbcHelpers.class);
+	private static final Logger log = LoggerFactory.getLogger(SqlDbHelpers.class);
 
 	// -------------------------------------------------------------------------
 	// Finals
@@ -121,6 +124,129 @@ public abstract class JdbcHelpers extends Common {
 	}
 
 	// -------------------------------------------------------------------------
+	// String conversion
+	// -------------------------------------------------------------------------
+
+	// Map containing to-string converters for storing values
+	public static Map<Class<?>, Function<Object, String>> toStringConverterMap = new HashMap<>();
+
+	// Map containing to-string converter or null for all classes which were once checked for having to-string converter
+	private static Map<Class<?>, Method> toStringMethodCacheMap = new HashMap<>();
+
+	// If column value is not of basic type, check for registered to-string converter and, if not found, for declared toString() method - cache things found
+	protected static String tryToBuildStringValueFromColumnValue(Object columnValue) {
+
+		Class<?> objectClass = columnValue.getClass();
+
+		Function<Object, String> toStringConverter = toStringConverterMap.get(objectClass);
+		if (toStringConverter != null) {
+
+			// Store value as string computed by registered to-string converter
+			if (log.isTraceEnabled()) {
+				log.trace("SQL: Use registered to-string converter for class '{}'", objectClass.getSimpleName());
+			}
+
+			return toStringConverter.apply(columnValue);
+		}
+		else {
+			// Check for declared toString() method
+			if (!toStringMethodCacheMap.containsKey(objectClass)) {
+
+				// Initially check if toString() method is declared and cache method in this case
+				try {
+					Method toString = objectClass.getDeclaredMethod("toString");
+					if (log.isDebugEnabled()) {
+						log.debug("SQL: Found declared toString() method for class '{}'", objectClass.getSimpleName());
+					}
+					toStringMethodCacheMap.put(objectClass, toString);
+				}
+				catch (NoSuchMethodException nsmex) { // Field type does not have toString() method (initial check)
+					toStringMethodCacheMap.put(objectClass, null);
+				}
+			}
+
+			Method toString = toStringMethodCacheMap.get(objectClass);
+			if (toString != null) {
+
+				// Store value as string computed by declared toString() method
+				if (log.isTraceEnabled()) {
+					log.trace("SQL: Invoke declared method toString() for class '{}'", objectClass.getSimpleName());
+				}
+				try {
+					return (String) toString.invoke(columnValue);
+				}
+				catch (IllegalAccessException | InvocationTargetException | IllegalArgumentException iex) {
+					log.error("SQL: toString() method threw {}! Field value of type '{}' cannot be converted to String!", iex, objectClass.getName());
+				}
+			}
+		}
+
+		return null;
+	}
+
+	// Map containing registered from-string converters for classes
+	public static Map<Class<?>, Function<String, Object>> fromStringConverterMap = new HashMap<>();
+
+	// Map containing valueOf(String) method or null for all classes which were once checked for having valueOf(String) declared
+	private static Map<Class<?>, Method> valueOfStringMethodCacheMap = new HashMap<>();
+
+	// Check if valueOf(String) method is defined and invoke this method to build object from string value
+	@SuppressWarnings("unchecked")
+	protected static <T> T tryToBuildFieldValueFromStringValue(Class<? extends T> fieldType, String stringValue, String columnName) {
+
+		// Check for registered from-string converter
+		if (fromStringConverterMap.containsKey(fieldType)) {
+
+			// Convert string value by registered from-string converter
+			if (log.isTraceEnabled()) {
+				log.trace("SQL: Use registered from-string converter for class '{}'", fieldType.getSimpleName());
+			}
+
+			return (T) fromStringConverterMap.get(fieldType).apply(stringValue);
+		}
+		else {
+			// Check for declared valueOf(String) method
+			Method valueOfString = null;
+			if (!valueOfStringMethodCacheMap.containsKey(fieldType)) {
+
+				// Initially check if valueOf(String) method is declared for field type
+				try {
+					valueOfString = fieldType.getDeclaredMethod("valueOf", String.class);
+					if (log.isDebugEnabled()) {
+						log.debug("SQL: Found declared method valueOf(String) for class '{}'", fieldType.getSimpleName());
+					}
+					valueOfStringMethodCacheMap.put(fieldType, valueOfString);
+				}
+				catch (NoSuchMethodException nsmex) { // Field type does not have valueOf(String) method (initial check)
+					valueOfStringMethodCacheMap.put(fieldType, null);
+					return (T) stringValue;
+				}
+			}
+
+			valueOfString = valueOfStringMethodCacheMap.get(fieldType);
+			if (valueOfString != null) {
+
+				// Convert String value to object using declared valueOf(String)
+				try {
+					if (log.isTraceEnabled()) {
+						log.trace("SQL: Invoke declared method valueOf(String) for class '{}'", fieldType.getSimpleName());
+					}
+					return (T) valueOfString.invoke(null, stringValue);
+				}
+				catch (IllegalAccessException | InvocationTargetException | IllegalArgumentException iex) {
+					log.error("SQL: valueOf(String) method threw {}! Column's String value cannot be converted to '{}'!", iex, fieldType.getName());
+				}
+			}
+		}
+
+		log.error(
+				"SQL: String value of column '{}' cannot be converted to field type '{}' because no specific from-string conversion is defined! (neither a from-string converter function was registered nor valueOf(String) method is declared)",
+				columnName, fieldType.getName());
+
+		return null;
+	}
+
+	// -------------------------------------------------------------------------
 	// Logging helpers
 	// -------------------------------------------------------------------------
 
@@ -128,20 +254,23 @@ public abstract class JdbcHelpers extends Common {
 	private static final String QUESTION_MARKS_EXPRESSION = "\\?\\?\\?\\?\\?";
 
 	// Extract table name from SQL statement and remove unnecessary spaces
-	private static String normalizeAndExtractTableNameForInsertOrUpdateStatement(String stmt, StringBuilder sqlForLoggingBuilder) {
+	protected static String normalizeAndExtractTableName(String sql, StringBuilder sqlForLoggingBuilder) {
 
 		String tableName = null;
 
-		String[] words = stmt.split("\\s+");
+		String[] words = sql.split("\\s+");
 		boolean nextWordIsTableName = false;
 		for (int i = 0; i < words.length; i++) {
 
-			sqlForLoggingBuilder.append(words[i] + " ");
+			if (sqlForLoggingBuilder != null) {
+				sqlForLoggingBuilder.append(words[i] + " ");
+			}
+
 			if (nextWordIsTableName) {
 				tableName = words[i].toUpperCase();
 				nextWordIsTableName = false;
 			}
-			else if (objectsEqual(words[i].toUpperCase(), "INTO") || objectsEqual(words[i].toUpperCase(), "UPDATE")) {
+			else if (objectsEqual(words[i].toUpperCase(), "FROM") || objectsEqual(words[i].toUpperCase(), "INTO") || objectsEqual(words[i].toUpperCase(), "UPDATE")) {
 				nextWordIsTableName = true;
 			}
 		}
@@ -150,11 +279,11 @@ public abstract class JdbcHelpers extends Common {
 	}
 
 	// Build formatted SQL statement string from column names and column value map containing real values string representation instead of '?' place holders for logging - do not log secret information
-	protected static String forSecretLoggingInsertUpdate(String stmt, Map<String, Object> columnValueMap, SortedSet<Column> columns) {
+	protected static String forSecretLoggingInsertUpdate(String sql, Map<String, Object> columnValueMap, SortedSet<SqlDbColumn> columns) {
 
 		// Extract table name from INSERT or UPDATE statement and remove unnecessary spaces
 		StringBuilder sqlForLoggingBuilder = new StringBuilder();
-		String tableName = normalizeAndExtractTableNameForInsertOrUpdateStatement(stmt, sqlForLoggingBuilder);
+		String tableName = normalizeAndExtractTableName(sql, sqlForLoggingBuilder);
 		String sqlForLogging = sqlForLoggingBuilder.toString().trim();
 
 		// Mask '?' characters which are place holders to avoid confusion with '?' characters in texts
@@ -166,7 +295,7 @@ public abstract class JdbcHelpers extends Common {
 		}
 
 		// Insert/update statement - replace '?' place holders by values string representation
-		for (Column column : columns) {
+		for (SqlDbColumn column : columns) {
 			Object value = columnValueMap.get(column.name);
 
 			if (isSqlFunctionCall(value) || isOraSeqNextvalExpr(value)) {
@@ -185,11 +314,11 @@ public abstract class JdbcHelpers extends Common {
 	}
 
 	// Extract column names from SELECT statement
-	private static List<String> extractColumnNamesForSelectStatement(String stmt) {
+	protected static List<String> extractColumnNamesForSelectStatement(String sql) {
 
 		List<String> columnNames = new ArrayList<>();
 
-		String[] words = stmt.split("\\s+");
+		String[] words = sql.split("\\s+");
 		boolean wordsAreColumnNames = false;
 		for (int i = 0; i < words.length; i++) {
 
@@ -208,12 +337,16 @@ public abstract class JdbcHelpers extends Common {
 	}
 
 	// Build formatted SQL statement string from values containing real values string representation instead of '?' place holders for logging
-	protected static String forSecretLoggingSelect(String stmt, List<Object> values) {
+	protected static String forSecretLoggingSelect(String sql, List<Object> values, List<String> outColumnNames) {
 
 		// Extract table name from SELECT statement and remove unnecessary spaces
 		StringBuilder sqlForLoggingBuilder = new StringBuilder();
-		String tableName = normalizeAndExtractTableNameForInsertOrUpdateStatement(stmt, sqlForLoggingBuilder);
-		List<String> columnNames = extractColumnNamesForSelectStatement(stmt);
+		String tableName = normalizeAndExtractTableName(sql, sqlForLoggingBuilder);
+		List<String> columnNames = extractColumnNamesForSelectStatement(sql);
+		if (outColumnNames != null) {
+			outColumnNames.addAll(columnNames);
+		}
+
 		String sqlForLogging = sqlForLoggingBuilder.toString().trim();
 
 		// Mask '?' characters which are place holders to avoid confusion with '?' characters in values
@@ -233,7 +366,7 @@ public abstract class JdbcHelpers extends Common {
 					sqlForLogging = sqlForLogging.replaceFirst(QUESTION_MARKS_EXPRESSION, "?");
 				}
 				else {
-					sqlForLogging = sqlForLogging.replaceFirst(QUESTION_MARKS_EXPRESSION, Matcher.quoteReplacement(CLog.forSecretLogging(tableName, columnNames.get(c), value)));
+					sqlForLogging = sqlForLogging.replaceFirst(QUESTION_MARKS_EXPRESSION, Matcher.quoteReplacement(CLog.forSecretLogging(tableName, behindFirst(columnNames.get(c), "."), value)));
 				}
 			}
 
@@ -246,11 +379,6 @@ public abstract class JdbcHelpers extends Common {
 	// -------------------------------------------------------------------------
 	// Retrieving and logging result records
 	// -------------------------------------------------------------------------
-
-	// Check if required type differs from default JDBC type of column
-	protected static boolean requiredTypeDiffers(ResultSetMetaData rsmd, List<Class<?>> requiredResultTypes, int c) throws SQLException {
-		return (requiredResultTypes.size() > c && requiredResultTypes.get(c) != null && !objectsEqual(rsmd.getColumnClassName(c + 1), requiredResultTypes.get(c).getName()));
-	}
 
 	// Log result map (one record) in order of column declaration.
 	public static String forSecretLoggingRecord(SortedMap<String, Object> map, List<String> columnNames, Map<String, String> columnTableMap) {

@@ -29,7 +29,7 @@ import com.icx.domain.GuavaReplacements.ClassInfo;
 import com.icx.domain.GuavaReplacements.ClassPath;
 import com.icx.domain.sql.SqlDomainObject;
 import com.icx.domain.sql.tools.Java2Sql;
-import com.icx.jdbc.JdbcHelpers;
+import com.icx.jdbc.SqlDbHelpers;
 
 /**
  * Find and register domain classes. Only used internally.
@@ -186,7 +186,7 @@ public class Registry<T extends DomainObject> extends Reflection {
 
 	// Check if field is of one of the types which forces to interpret field as 'data' field
 	private static boolean isDataFieldType(Class<?> cls) {
-		return (JdbcHelpers.isBasicType(cls) && !(cls == byte.class || cls == Byte.class || cls == float.class || cls == Float.class) || byte[].class.isAssignableFrom(cls));
+		return (SqlDbHelpers.isBasicType(cls) && !(cls == byte.class || cls == Byte.class || cls == float.class || cls == Float.class) || byte[].class.isAssignableFrom(cls));
 	}
 
 	// Data field -> column

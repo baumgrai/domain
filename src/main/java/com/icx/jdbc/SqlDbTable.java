@@ -17,10 +17,10 @@ import com.icx.common.base.Common;
  * {@code SqlDbTable} objects are created on registering database tables using {@link SqlDb#registerTable(Connection, String)} and can then be retrieved by table name using
  * {@link SqlDb#findRegisteredTable(String)}.
  * <p>
- * Table metadata is stored in fields of {@code SqlDbTable}, column metadata in fields of {@link Column}, {@link ForeignKeyColumn}, {@link UniqueConstraint} subclasses.
+ * Table metadata is stored in fields of {@code SqlDbTable}, column metadata in fields of {@link SqlDbColumn}, {@link SqlDbForeignKeyColumn}, {@link SqlDbUniqueConstraint} subclasses.
  * <p>
  * Provides also methods to inspect table and column reference structure of database {@link #getReachableTables()}, {@link #reaches(SqlDbTable)}, {@link #getTablesWhichCanReach()},
- * {@link #isReachableFrom(SqlDbTable)}, {@link ForeignKeyColumn#reaches(SqlDbTable)}.
+ * {@link #isReachableFrom(SqlDbTable)}, {@link SqlDbForeignKeyColumn#reaches(SqlDbTable)}.
  * 
  * @author baumgrai
  */
@@ -33,7 +33,7 @@ public class SqlDbTable extends Common implements Comparable<SqlDbTable> {
 	/**
 	 * Class containing SQL table column meta information and associated methods
 	 */
-	public class Column implements Comparable<Column> {
+	public class SqlDbColumn implements Comparable<SqlDbColumn> {
 
 		/**
 		 * SQL table containing this column
@@ -87,18 +87,18 @@ public class SqlDbTable extends Common implements Comparable<SqlDbTable> {
 		public Class<?> fieldType = null;
 
 		// Constructor
-		protected Column() {
+		protected SqlDbColumn() {
 		}
 
 		// Constructor from table
-		protected Column(
+		protected SqlDbColumn(
 				SqlDbTable table) {
 
 			this.table = table;
 		}
 
 		@Override
-		public final int compareTo(Column column) {
+		public final int compareTo(SqlDbColumn column) {
 			return this.order - column.order;
 		}
 
@@ -119,12 +119,12 @@ public class SqlDbTable extends Common implements Comparable<SqlDbTable> {
 
 		// For registry logging
 		public String toStringWithoutTable() {
-			return toBaseString() + " (" + JdbcHelpers.getTypeString(jdbcType) + ")";
+			return toBaseString() + " (" + SqlDbHelpers.getTypeString(jdbcType) + ")";
 		}
 
 		public String toStringWithoutTable(Class<?> requiredType) {
 
-			if (objectsEqual(JdbcHelpers.getTypeString(jdbcType), requiredType.getName())) {
+			if (objectsEqual(SqlDbHelpers.getTypeString(jdbcType), requiredType.getName())) {
 				return toStringWithoutTable();
 			}
 			else {
@@ -144,7 +144,7 @@ public class SqlDbTable extends Common implements Comparable<SqlDbTable> {
 		 * @return true if column is a FOREIGN KEY column, false otherwise
 		 */
 		public boolean isForeignKey() {
-			return (this instanceof ForeignKeyColumn);
+			return (this instanceof SqlDbForeignKeyColumn);
 		}
 
 		/**
@@ -160,23 +160,23 @@ public class SqlDbTable extends Common implements Comparable<SqlDbTable> {
 	/**
 	 * FOREIGN KEY column class
 	 */
-	public class ForeignKeyColumn extends Column {
+	public class SqlDbForeignKeyColumn extends SqlDbColumn {
 
 		/**
 		 * UNIQUE column referenced by this FOREIGN KEY column
 		 */
-		public Column referencedUniqueColumn = null;
+		public SqlDbColumn referencedUniqueColumn = null;
 
 		// Constructor from table
-		protected ForeignKeyColumn(
+		protected SqlDbForeignKeyColumn(
 				SqlDbTable table) {
 
 			super(table);
 		}
 
 		// Constructor from column
-		protected ForeignKeyColumn(
-				Column column) {
+		protected SqlDbForeignKeyColumn(
+				SqlDbColumn column) {
 
 			table = column.table;
 			order = column.order;
@@ -190,7 +190,7 @@ public class SqlDbTable extends Common implements Comparable<SqlDbTable> {
 		// For registry logging
 		@Override
 		public String toStringWithoutTable() {
-			return toBaseString() + " FOREIGN KEY REFERENCES " + referencedUniqueColumn.table.name + "(" + referencedUniqueColumn.name + ") (" + JdbcHelpers.getTypeString(jdbcType) + ")";
+			return toBaseString() + " FOREIGN KEY REFERENCES " + referencedUniqueColumn.table.name + "(" + referencedUniqueColumn.name + ") (" + SqlDbHelpers.getTypeString(jdbcType) + ")";
 		}
 
 		@Override
@@ -199,7 +199,7 @@ public class SqlDbTable extends Common implements Comparable<SqlDbTable> {
 		}
 
 		// Check if this FOREIGN KEY column references directly or indirectly given table
-		private boolean reaches(SqlDbTable otherTable, List<ForeignKeyColumn> alreadyCheckedFkColumns) {
+		private boolean reaches(SqlDbTable otherTable, List<SqlDbForeignKeyColumn> alreadyCheckedFkColumns) {
 
 			if (referencedUniqueColumn.table.equals(otherTable))
 				return true;
@@ -223,13 +223,12 @@ public class SqlDbTable extends Common implements Comparable<SqlDbTable> {
 		public boolean reaches(SqlDbTable otherTable) {
 			return reaches(otherTable, new ArrayList<>());
 		}
-
 	}
 
 	/**
 	 * Class for table's UNIQUE constraints
 	 */
-	public class UniqueConstraint {
+	public class SqlDbUniqueConstraint {
 
 		/**
 		 * SQL table containing this column
@@ -246,13 +245,13 @@ public class SqlDbTable extends Common implements Comparable<SqlDbTable> {
 		 * Columns which are UNIQUE together
 		 */
 		@SuppressWarnings("hiding")
-		public Set<Column> columns = new HashSet<>();
+		public Set<SqlDbColumn> columns = new HashSet<>();
 
 		public String toStringWithoutTable() {
 
 			StringBuilder s = new StringBuilder();
 			s.append("CONSTRANT " + name + " UNIQUE (");
-			for (Column column : columns) {
+			for (SqlDbColumn column : columns) {
 				s.append(column.name);
 				s.append(",");
 			}
@@ -283,22 +282,22 @@ public class SqlDbTable extends Common implements Comparable<SqlDbTable> {
 	/**
 	 * Sorted set of columns of this table ordered by column order from table creation statement
 	 */
-	public SortedSet<Column> columns = new TreeSet<>();
+	public SortedSet<SqlDbColumn> columns = new TreeSet<>();
 
 	/**
 	 * IDENTITY column (if such a column exists) or null
 	 */
-	public Column identityColumn = null;
+	public SqlDbColumn identityColumn = null;
 
 	/**
 	 * UNIQUE constraints of table
 	 */
-	public Set<UniqueConstraint> uniqueConstraints = new HashSet<>();
+	public Set<SqlDbUniqueConstraint> uniqueConstraints = new HashSet<>();
 
 	/**
 	 * FOREIGN KEY columns of this table or other tables referencing this table
 	 */
-	public Set<ForeignKeyColumn> fkColumnsReferencingThisTable = new HashSet<>();
+	public Set<SqlDbForeignKeyColumn> fkColumnsReferencingThisTable = new HashSet<>();
 
 	// -------------------------------------------------------------------------
 	// Constructor
@@ -329,12 +328,12 @@ public class SqlDbTable extends Common implements Comparable<SqlDbTable> {
 
 		StringBuilder sb = new StringBuilder();
 		sb.append("\nTABLE " + name + "\n(\n");
-		for (Column c : columns) {
+		for (SqlDbColumn c : columns) {
 			sb.append("\t" + c.toStringWithoutTable() + "\n");
 		}
 		if (!uniqueConstraints.isEmpty()) {
 			sb.append("\n");
-			for (UniqueConstraint uc : uniqueConstraints) {
+			for (SqlDbUniqueConstraint uc : uniqueConstraints) {
 				sb.append("\t" + uc.toStringWithoutTable() + "\n");
 			}
 		}
@@ -368,12 +367,12 @@ public class SqlDbTable extends Common implements Comparable<SqlDbTable> {
 	 * 
 	 * @return FOREIGN KEY columns
 	 */
-	public List<ForeignKeyColumn> getFkColumns() {
+	public List<SqlDbForeignKeyColumn> getFkColumns() {
 
-		List<ForeignKeyColumn> fkColumns = new ArrayList<>();
-		for (Column column : this.columns) {
+		List<SqlDbForeignKeyColumn> fkColumns = new ArrayList<>();
+		for (SqlDbColumn column : this.columns) {
 			if (column.isForeignKey()) {
-				fkColumns.add((ForeignKeyColumn) column);
+				fkColumns.add((SqlDbForeignKeyColumn) column);
 			}
 		}
 
@@ -388,10 +387,10 @@ public class SqlDbTable extends Common implements Comparable<SqlDbTable> {
 	 * 
 	 * @return FOREIGN KEY columns referencing given table - may be empty
 	 */
-	public List<ForeignKeyColumn> getFkColumnsReferencingTable(SqlDbTable table) {
+	public List<SqlDbForeignKeyColumn> getFkColumnsReferencingTable(SqlDbTable table) {
 
-		List<ForeignKeyColumn> fkColumns = new ArrayList<>();
-		for (ForeignKeyColumn fkColumn : getFkColumns()) {
+		List<SqlDbForeignKeyColumn> fkColumns = new ArrayList<>();
+		for (SqlDbForeignKeyColumn fkColumn : getFkColumns()) {
 			if (fkColumn.referencedUniqueColumn.table.equals(table)) {
 				fkColumns.add(fkColumn);
 			}
@@ -408,9 +407,9 @@ public class SqlDbTable extends Common implements Comparable<SqlDbTable> {
 	 * 
 	 * @return column or null if no column with given name exists
 	 */
-	public Column findColumnByName(String columnName) {
+	public SqlDbColumn findColumnByName(String columnName) {
 
-		for (Column column : columns) {
+		for (SqlDbColumn column : columns) {
 			if (objectsEqual(column.name, columnName)) {
 				return column;
 			}
@@ -436,9 +435,9 @@ public class SqlDbTable extends Common implements Comparable<SqlDbTable> {
 	 * 
 	 * @return UNIQUE constraint or null if no UNIQUE constraint with given name exists
 	 */
-	public UniqueConstraint findUniqueConstraintByName(String ucName) {
+	public SqlDbUniqueConstraint findUniqueConstraintByName(String ucName) {
 
-		for (UniqueConstraint uniqueConstraint : uniqueConstraints) {
+		for (SqlDbUniqueConstraint uniqueConstraint : uniqueConstraints) {
 			if (objectsEqual(uniqueConstraint.name, ucName)) {
 				return uniqueConstraint;
 			}
@@ -455,12 +454,12 @@ public class SqlDbTable extends Common implements Comparable<SqlDbTable> {
 	 * 
 	 * @return UNIQUE constraints containing column - may be empty
 	 */
-	public Set<UniqueConstraint> findUniqueConstraintsByColumnName(String columnName) {
+	public Set<SqlDbUniqueConstraint> findUniqueConstraintsByColumnName(String columnName) {
 
-		Set<UniqueConstraint> uniqueConstraintsWithColumn = new HashSet<>();
+		Set<SqlDbUniqueConstraint> uniqueConstraintsWithColumn = new HashSet<>();
 
-		for (UniqueConstraint uniqueConstraint : uniqueConstraints) {
-			for (Column column : uniqueConstraint.columns) {
+		for (SqlDbUniqueConstraint uniqueConstraint : uniqueConstraints) {
+			for (SqlDbColumn column : uniqueConstraint.columns) {
 				if (objectsEqual(column.name, columnName)) {
 					uniqueConstraintsWithColumn.add(uniqueConstraint);
 				}
@@ -471,9 +470,9 @@ public class SqlDbTable extends Common implements Comparable<SqlDbTable> {
 	}
 
 	// Check if table references another table directly or indirectly by one of the FOREIGN KEYs
-	private boolean reaches(SqlDbTable table, List<ForeignKeyColumn> alreadyCheckedFkColumns) {
+	private boolean reaches(SqlDbTable table, List<SqlDbForeignKeyColumn> alreadyCheckedFkColumns) {
 
-		for (ForeignKeyColumn fkColumn : getFkColumns()) {
+		for (SqlDbForeignKeyColumn fkColumn : getFkColumns()) {
 			if (fkColumn.reaches(table, alreadyCheckedFkColumns)) {
 				return true;
 			}

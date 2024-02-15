@@ -4,7 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.icx.domain.sql.SqlRegistry;
-import com.icx.jdbc.JdbcHelpers;
+import com.icx.jdbc.SqlDbHelpers;
 import com.icx.jdbc.SqlDb.DbType;
 
 /**
@@ -47,7 +47,7 @@ public class FkConstraint {
 		String part1 = "FK_" + column.table.name.substring(SqlRegistry.TABLE_PREFIX.length());
 		String part2 = (type == ConstraintType.INHERITANCE ? ConstraintType.INHERITANCE.name() : column.name.substring(0, column.name.length() - "_ID".length()));
 
-		return JdbcHelpers.identifier(part1 + (column.table.dbType == DbType.MYSQL ? "$" : "#") + part2, column.table.dbType);
+		return SqlDbHelpers.identifier(part1 + (column.table.dbType == DbType.MYSQL ? "$" : "#") + part2, column.table.dbType);
 	}
 
 	public String alterTableAddForeignKeyStatement() {

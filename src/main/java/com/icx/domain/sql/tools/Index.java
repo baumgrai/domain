@@ -11,7 +11,7 @@ import org.slf4j.LoggerFactory;
 
 import com.icx.common.base.Common;
 import com.icx.domain.sql.SqlRegistry;
-import com.icx.jdbc.JdbcHelpers;
+import com.icx.jdbc.SqlDbHelpers;
 import com.icx.jdbc.SqlDb.DbType;
 
 /**
@@ -62,7 +62,7 @@ public class Index {
 			indexName += (table.dbType == DbType.MYSQL ? "$" : "#") + columnName;
 		}
 
-		return JdbcHelpers.identifier(indexName, table.dbType);
+		return SqlDbHelpers.identifier(indexName, table.dbType);
 	}
 
 	public String createStatement() {

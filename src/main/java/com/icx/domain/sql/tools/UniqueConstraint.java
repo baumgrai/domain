@@ -11,7 +11,7 @@ import org.slf4j.LoggerFactory;
 
 import com.icx.common.base.Common;
 import com.icx.domain.sql.SqlRegistry;
-import com.icx.jdbc.JdbcHelpers;
+import com.icx.jdbc.SqlDbHelpers;
 import com.icx.jdbc.SqlDb.DbType;
 
 /**
@@ -62,7 +62,7 @@ public class UniqueConstraint {
 			constraintName += (table.dbType == DbType.MYSQL ? "$" : "#") + Common.untilLast(columnName, "_");
 		}
 
-		return JdbcHelpers.identifier(constraintName, table.dbType);
+		return SqlDbHelpers.identifier(constraintName, table.dbType);
 	}
 
 	public String definitionClause() {

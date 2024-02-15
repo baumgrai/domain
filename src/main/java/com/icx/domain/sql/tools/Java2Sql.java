@@ -29,7 +29,7 @@ import com.icx.domain.DomainException;
 import com.icx.domain.Registry;
 import com.icx.domain.sql.Const;
 import com.icx.domain.sql.SqlDomainObject;
-import com.icx.jdbc.JdbcHelpers;
+import com.icx.jdbc.SqlDbHelpers;
 import com.icx.jdbc.SqlDb.DbType;
 
 /**
@@ -45,7 +45,7 @@ import com.icx.jdbc.SqlDb.DbType;
  * 
  * @author baumgrai
  */
-public abstract class Java2Sql extends JdbcHelpers {
+public abstract class Java2Sql extends SqlDbHelpers {
 
 	static final Logger log = LoggerFactory.getLogger(Java2Sql.class);
 

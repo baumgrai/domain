@@ -23,7 +23,7 @@ import com.icx.domain.sql.Const;
 import com.icx.domain.sql.SqlDomainObject;
 import com.icx.domain.sql.SqlRegistry;
 import com.icx.domain.sql.tools.FkConstraint.ConstraintType;
-import com.icx.jdbc.JdbcHelpers;
+import com.icx.jdbc.SqlDbHelpers;
 import com.icx.jdbc.SqlDb.DbType;
 
 /**
@@ -31,7 +31,7 @@ import com.icx.jdbc.SqlDb.DbType;
  * 
  * @author baumgrai
  */
-public class Java2SqlHelpers extends JdbcHelpers {
+public class Java2SqlHelpers extends SqlDbHelpers {
 
 	static final Logger log = LoggerFactory.getLogger(Java2SqlHelpers.class);
 
