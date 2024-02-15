@@ -102,7 +102,7 @@ public abstract class A extends SqlDomainObject {
 	@StoreAsString
 	public Stucture structure = null;
 
-	public byte[] bytes;
+	public Byte[] bytes;
 	public byte[] picture;
 
 	@SqlColumn(charsize = 1024)

@@ -17,6 +17,7 @@ import java.math.BigInteger;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -119,7 +120,7 @@ class LoadAndSaveTest extends TestHelpers {
 			assertEquals(A.class, sdc.getDomainClassByName("A"));
 
 			// -----------------------------------------
-			Helpers.dbType = DbType.MS_SQL;
+			Helpers.dbType = DbType.MYSQL;
 			// -----------------------------------------
 
 			Properties dbProps = Prop.readEnvironmentSpecificProperties(Prop.findPropertiesFile("db.properties"), Helpers.getLocal(Helpers.dbType), CList.newList("dbConnectionString", "dbUser"));
@@ -185,7 +186,7 @@ class LoadAndSaveTest extends TestHelpers {
 
 				aa.structure = new Stucture("abc", 100);
 
-				aa.bytes = Common.getBytesUTF8("ÄÖÜäöüß");
+				aa.bytes = SqlDb.byteObjects(Common.getBytesUTF8("ÄÖÜäöüß"));
 				assertDoesNotThrow(() -> aa.picture = CFile.readBinary(new File("src/test/resources/bike.jpg")));
 
 				aa.strings = CList.newList("A", "B", "C", "D", (Helpers.dbType == DbType.ORACLE ? null : ""), null); // Oracle does not allow empty string values (stored as NULL instead)
@@ -257,7 +258,7 @@ class LoadAndSaveTest extends TestHelpers {
 			assertTrue(logicallyEqual(now, aa1.datetime)); // Check only seconds because milliseconds will not be stored in database (Oracle)
 			assertEquals(now.toLocalDate(), aa1.date);
 			assertTrue(logicallyEqual(now.toLocalTime(), aa1.time));
-			assertArrayEquals(Common.getBytesUTF8("ÄÖÜäöüß"), aa1.bytes);
+			assertTrue(Arrays.equals(SqlDb.byteObjects(Common.getBytesUTF8("ÄÖÜäöüß")), aa1.bytes));
 			assertArrayEquals(CFile.readBinary(new File("src/test/resources/bike.jpg")), aa1.picture);
 			assertEquals(CResource.findFirstJavaResourceFile("x.txt"), aa1.file);
 			assertEquals(Type.A, aa1.type);
@@ -387,7 +388,7 @@ class LoadAndSaveTest extends TestHelpers {
 
 			assertEquals(2, aa1.i);
 			assertEquals(Type.B, aa1.type);
-			assertArrayEquals(Common.getBytesUTF8("äöüßÄÖÜ"), aa1.bytes);
+			assertTrue(Arrays.equals(SqlDb.byteObjects(Common.getBytesUTF8("äöüßÄÖÜ")), aa1.bytes));
 			assertEquals(new File("y.txt"), aa1.file);
 			assertEquals(null, aa1.o);
 
@@ -436,7 +437,7 @@ class LoadAndSaveTest extends TestHelpers {
 			aa1.bigIntegerValue = BigInteger.valueOf(-1L);
 			aa1.bigDecimalValue = BigDecimal.valueOf(-0.1);
 			aa1.s = "T";
-			aa1.bytes = Common.getBytesUTF8("éèê");
+			aa1.bytes = SqlDb.byteObjects(Common.getBytesUTF8("éèê"));
 			aa1.file = CResource.findFirstJavaResourceFile("z.txt");
 			aa1.type = Type.B;
 
@@ -476,7 +477,7 @@ class LoadAndSaveTest extends TestHelpers {
 			assertEquals(BigInteger.valueOf(-1L), aa1.bigIntegerValue);
 			assertEquals(BigDecimal.valueOf(-0.1), aa1.bigDecimalValue);
 			assertEquals("T", aa1.s);
-			assertArrayEquals(Common.getBytesUTF8("éèê"), aa1.bytes);
+			assertTrue(Arrays.equals(SqlDb.byteObjects(Common.getBytesUTF8("éèê")), aa1.bytes));
 			assertEquals(CResource.findFirstJavaResourceFile("z.txt"), aa1.file);
 			assertEquals(Type.B, aa1.type);
 
