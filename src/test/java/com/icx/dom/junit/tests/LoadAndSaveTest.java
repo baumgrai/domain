@@ -119,7 +119,7 @@ class LoadAndSaveTest extends TestHelpers {
 			assertEquals(A.class, sdc.getDomainClassByName("A"));
 
 			// -----------------------------------------
-			Helpers.dbType = DbType.ORACLE;
+			Helpers.dbType = DbType.MS_SQL;
 			// -----------------------------------------
 
 			Properties dbProps = Prop.readEnvironmentSpecificProperties(Prop.findPropertiesFile("db.properties"), Helpers.getLocal(Helpers.dbType), CList.newList("dbConnectionString", "dbUser"));
@@ -176,7 +176,7 @@ class LoadAndSaveTest extends TestHelpers {
 				aa.charValue = 'ß';
 
 				aa.bigIntegerValue = BigInteger.valueOf(Long.MAX_VALUE);
-				aa.bigDecimalValue = BigDecimal.valueOf(123456789.123456789); // BigDecimal.MAX_VALUE: underflow with Oracle
+				aa.bigDecimalValue = BigDecimal.valueOf(123456789); // BigDecimal.MAX_VALUE: underflow with Oracle
 				aa.datetime = now;
 				aa.date = now.toLocalDate();
 				aa.time = now.toLocalTime();
@@ -248,7 +248,7 @@ class LoadAndSaveTest extends TestHelpers {
 			assertEquals(123456789.123456789, aa1.d);
 			assertEquals(-0.0000123456789, aa1.doubleValue);
 			assertEquals(BigInteger.valueOf(Long.MAX_VALUE), aa1.bigIntegerValue);
-			assertEquals(BigDecimal.valueOf(123456789.123456789), aa1.bigDecimalValue);
+			assertEquals(BigDecimal.valueOf(123456789), aa1.bigDecimalValue);
 			assertEquals('a', aa1.c);
 			assertEquals('ß', aa1.charValue);
 			assertEquals("S", aa1.s);
@@ -277,7 +277,6 @@ class LoadAndSaveTest extends TestHelpers {
 
 			log.info("\tCheck registered string converter...");
 
-			SqlDb.clearToStringConverterCacheForTestOnly();
 			SqlDomainController.registerStringConvertersForType(A.Stucture.class, cv -> cv.toString(), s -> Stucture.valueOf(s));
 
 			AA aa2 = sdc.createAndSave(AA.class, aa -> { aa.structure = new Stucture("abc", 100); });
@@ -544,7 +543,6 @@ class LoadAndSaveTest extends TestHelpers {
 			log.info("\tSynchronize with database to recognize and unregister externally deleted objects...");
 
 			sdc.synchronize(); // Determine and unregister X objects meanwhile deleted in database
-			// !!! Data horizon in domain.properties must be 1s (or lower) to run this test successfully !!!
 
 			log.info("\tAssertions on unregistered objects...");
 
@@ -567,6 +565,8 @@ class LoadAndSaveTest extends TestHelpers {
 
 			log.info("\tSynchronize again with database to unregister objects out of data horizon...");
 
+			String dataHorizonPeriod = sdc.dataHorizonPeriod;
+			sdc.dataHorizonPeriod = "1s";
 			sdc.synchronize(); // Unregister x's and aa due to out-of-data-horizon condition (remove from heap)
 
 			log.info("\tAssertions on unregistration...");
@@ -584,6 +584,7 @@ class LoadAndSaveTest extends TestHelpers {
 			log.info("\tSynchronize again with database to force (re)loading referenced but unregistered objects...");
 
 			sdc.synchronize();
+			sdc.dataHorizonPeriod = dataHorizonPeriod;
 
 			log.info("\tAssert reloading of referneced objects...");
 

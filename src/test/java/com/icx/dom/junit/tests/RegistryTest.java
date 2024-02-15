@@ -41,8 +41,8 @@ import com.icx.domain.sql.SqlRegistry;
 import com.icx.domain.sql.tools.Java2Sql;
 import com.icx.jdbc.SqlDb.DbType;
 import com.icx.jdbc.SqlDbTable;
-import com.icx.jdbc.SqlDbTable.Column;
-import com.icx.jdbc.SqlDbTable.UniqueConstraint;
+import com.icx.jdbc.SqlDbTable.SqlDbColumn;
+import com.icx.jdbc.SqlDbTable.SqlDbUniqueConstraint;
 
 @TestMethodOrder(OrderAnnotation.class)
 class RegistryTest extends TestHelpers {
@@ -200,9 +200,9 @@ class RegistryTest extends TestHelpers {
 		assertEquals("doubleValue", ((SqlRegistry) sdc.registry).getFieldFor(((SqlRegistry) sdc.registry).getColumnFor(A.class.getDeclaredField("doubleValue"))).getName(),
 				"Associated field for column");
 
-		Set<UniqueConstraint> ucs = tableA.findUniqueConstraintsByColumnName("S");
+		Set<SqlDbUniqueConstraint> ucs = tableA.findUniqueConstraintsByColumnName("S");
 		assertEquals(1, ucs.size(), "find unique constraints by columm name");
-		UniqueConstraint uc = ucs.iterator().next();
+		SqlDbUniqueConstraint uc = ucs.iterator().next();
 		assertEquals(uc, tableA.findUniqueConstraintByName(uc.name), "find unique constraint by name");
 
 		ucs = tableA.findUniqueConstraintsByColumnName("I");
@@ -239,7 +239,7 @@ class RegistryTest extends TestHelpers {
 		assertNull(((SqlRegistry) sdc.registry).getColumnFor(A.class.getDeclaredField("strings")));
 		assertNull(((SqlRegistry) sdc.registry).getEntryTableFor(A.class.getDeclaredField("l")));
 		assertNull(((SqlRegistry) sdc.registry).getMainTableRefIdColumnFor(A.class.getDeclaredField("i")));
-		Column domainClassColumn = ((SqlRegistry) sdc.registry).getTableFor(A.class).columns.stream().filter(c -> Const.DOMAIN_CLASS_COL.equals(c.name)).findAny().orElse(null);
+		SqlDbColumn domainClassColumn = ((SqlRegistry) sdc.registry).getTableFor(A.class).columns.stream().filter(c -> Const.DOMAIN_CLASS_COL.equals(c.name)).findAny().orElse(null);
 		assertNull(((SqlRegistry) sdc.registry).getFieldFor(domainClassColumn));
 	}
 }
