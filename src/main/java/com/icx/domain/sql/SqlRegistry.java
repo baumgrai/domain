@@ -23,12 +23,12 @@ import com.icx.domain.DomainAnnotations.SqlTable;
 import com.icx.domain.DomainObject;
 import com.icx.domain.GuavaReplacements.CaseFormat;
 import com.icx.domain.Registry;
-import com.icx.jdbc.JdbcHelpers;
+import com.icx.jdbc.SqlDbHelpers;
 import com.icx.jdbc.SqlDb;
 import com.icx.jdbc.SqlDb.DbType;
 import com.icx.jdbc.SqlDbException;
 import com.icx.jdbc.SqlDbTable;
-import com.icx.jdbc.SqlDbTable.Column;
+import com.icx.jdbc.SqlDbTable.SqlDbColumn;
 
 /**
  * Singleton to register Java class/SQL table and field/column associations. Based on domain class registration of {@link Registry}. Only used internally.
@@ -66,11 +66,11 @@ public class SqlRegistry extends Registry<SqlDomainObject> {
 
 	// Basic domain class/table and field/column association
 	private Map<Class<? extends SqlDomainObject>, SqlDbTable> sqlTableByDomainClassMap = new HashMap<>();
-	private Map<Field, Column> sqlColumnByFieldMap = new HashMap<>();
+	private Map<Field, SqlDbColumn> sqlColumnByFieldMap = new HashMap<>();
 
 	// Table and column associations for both element collection and key/value map (together called 'table related') fields
 	private Map<Field, SqlDbTable> sqlTableByComplexFieldMap = new HashMap<>();
-	private Map<Field, Column> sqlMainRecordRefIdColumnByComplexFieldMap = new HashMap<>();
+	private Map<Field, SqlDbColumn> sqlMainRecordRefIdColumnByComplexFieldMap = new HashMap<>();
 
 	// -------------------------------------------------------------------------
 	// Helpers
@@ -99,17 +99,17 @@ public class SqlRegistry extends Registry<SqlDomainObject> {
 			tableName = TABLE_PREFIX + prefix + CaseFormat.UPPER_CAMEL.to(CaseFormat.UPPER_UNDERSCORE, domainClass.getSimpleName());
 		}
 
-		return JdbcHelpers.identifier(tableName, dbType);
+		return SqlDbHelpers.identifier(tableName, dbType);
 	}
 
 	// Builds SQL database column name from Java domain class field considering eventually existing column name annotations
 	public static String buildColumnName(Field field, DbType dbType) {
 
 		if (field.isAnnotationPresent(SqlColumn.class) && !isEmpty(field.getAnnotation(SqlColumn.class).name())) { // Name from annotation
-			return JdbcHelpers.identifier(field.getAnnotation(SqlColumn.class).name().toUpperCase(), dbType);
+			return SqlDbHelpers.identifier(field.getAnnotation(SqlColumn.class).name().toUpperCase(), dbType);
 		}
 		else {
-			String columnName = JdbcHelpers.identifier(CaseFormat.UPPER_CAMEL.to(CaseFormat.UPPER_UNDERSCORE, field.getName()), dbType);
+			String columnName = SqlDbHelpers.identifier(CaseFormat.UPPER_CAMEL.to(CaseFormat.UPPER_UNDERSCORE, field.getName()), dbType);
 			if (isSqlReferenceField(field)) {
 				columnName += "_ID";
 			}
@@ -128,12 +128,12 @@ public class SqlRegistry extends Registry<SqlDomainObject> {
 	// Build SQL element list or key/value table name from set/map field name
 	@SuppressWarnings("unchecked")
 	public static String buildEntryTableName(Field complexField, DbType dbType) {
-		return JdbcHelpers.identifier(buildTableName((Class<? extends SqlDomainObject>) complexField.getDeclaringClass(), dbType) + "_" + buildColumnName(complexField, dbType), dbType);
+		return SqlDbHelpers.identifier(buildTableName((Class<? extends SqlDomainObject>) complexField.getDeclaringClass(), dbType) + "_" + buildColumnName(complexField, dbType), dbType);
 	}
 
 	// Builds SQL database column name from table related field (element collection or key/value map)
 	public static String buildMainTableRefColumnName(Field refFieldToMainTable, DbType dbType) {
-		return JdbcHelpers.identifier(CaseFormat.UPPER_CAMEL.to(CaseFormat.UPPER_UNDERSCORE, refFieldToMainTable.getDeclaringClass().getSimpleName()) + "_ID", dbType);
+		return SqlDbHelpers.identifier(CaseFormat.UPPER_CAMEL.to(CaseFormat.UPPER_UNDERSCORE, refFieldToMainTable.getDeclaringClass().getSimpleName()) + "_ID", dbType);
 	}
 
 	// Table name for domain class
@@ -147,8 +147,8 @@ public class SqlRegistry extends Registry<SqlDomainObject> {
 	}
 
 	// Get associated column for field
-	public Column getColumnFor(Field field) {
-		Column column = sqlColumnByFieldMap.get(field);
+	public SqlDbColumn getColumnFor(Field field) {
+		SqlDbColumn column = sqlColumnByFieldMap.get(field);
 		if (column == null) {
 			log.error("SRG: Internal error! No column associated to field '{}'!", Reflection.qualifiedName(field));
 			return null;
@@ -167,8 +167,8 @@ public class SqlRegistry extends Registry<SqlDomainObject> {
 	}
 
 	// Column with referenced object's id for table related field
-	public Column getMainTableRefIdColumnFor(Field complexField) {
-		Column refIdColumn = sqlMainRecordRefIdColumnByComplexFieldMap.get(complexField);
+	public SqlDbColumn getMainTableRefIdColumnFor(Field complexField) {
+		SqlDbColumn refIdColumn = sqlMainRecordRefIdColumnByComplexFieldMap.get(complexField);
 		if (refIdColumn == null) {
 			log.error("SRG: Internal error! No referenced id column associated to element collection or key/value map field '{}'!", Reflection.qualifiedName(complexField));
 			return null;
@@ -177,8 +177,8 @@ public class SqlRegistry extends Registry<SqlDomainObject> {
 	}
 
 	// Get field for column - only used in error handling
-	public Field getFieldFor(Column column) {
-		for (Entry<Field, Column> entry : sqlColumnByFieldMap.entrySet()) {
+	public Field getFieldFor(SqlDbColumn column) {
+		for (Entry<Field, SqlDbColumn> entry : sqlColumnByFieldMap.entrySet()) {
 			if (objectsEqual(column, entry.getValue())) {
 				return entry.getKey();
 			}
@@ -206,7 +206,7 @@ public class SqlRegistry extends Registry<SqlDomainObject> {
 			boolean javaSqlInconsistence = false;
 
 			// Check static [ 'id' : ID ] field : column relation
-			Column idColumn = registeredTable.findColumnByName(Const.ID_COL);
+			SqlDbColumn idColumn = registeredTable.findColumnByName(Const.ID_COL);
 			if (idColumn == null) {
 				throw new SqlDbException(
 						"Detected Java : SQL inconsistency! Table '" + registeredTable.toString() + "' associated to domain class '" + domainClass.getName() + "' does not have ID column!");
@@ -215,7 +215,7 @@ public class SqlRegistry extends Registry<SqlDomainObject> {
 			log.info("SRG: \t\t[ {} ({}) : {} ]", Reflection.qualifiedName(idField), idField.getType().getSimpleName(), idColumn.toStringWithoutTable(idField.getType()));
 
 			// Check column 'DOMAIN_CLASS'
-			Column domainClassColumn = registeredTable.findColumnByName(Const.DOMAIN_CLASS_COL);
+			SqlDbColumn domainClassColumn = registeredTable.findColumnByName(Const.DOMAIN_CLASS_COL);
 			if (domainClassColumn == null) {
 				throw new SqlDbException(
 						"Detected Java : SQL inconsistency! Table '" + registeredTable.toString() + "' associated to domain class '" + domainClass.getName() + "' does not have DOMAIN_CLASS column!");
@@ -225,7 +225,7 @@ public class SqlRegistry extends Registry<SqlDomainObject> {
 			// For base (or only) domain classes check static [ 'lastModifiedInDb' : LAST_MODIFIED ] field : column relation
 			if (isBaseDomainClass(domainClass)) {
 
-				Column lastModifiedColumn = registeredTable.findColumnByName(Const.LAST_MODIFIED_COL);
+				SqlDbColumn lastModifiedColumn = registeredTable.findColumnByName(Const.LAST_MODIFIED_COL);
 				if (lastModifiedColumn == null) {
 					throw new SqlDbException(
 							"Detected Java : SQL inconsistency! Table " + registeredTable + " associated to domain class '" + domainClass.getName() + "' does not have LAST_MODIFIED column!");
@@ -240,7 +240,7 @@ public class SqlRegistry extends Registry<SqlDomainObject> {
 
 				// Find column for field in object table
 				String columnName = buildColumnName(field, sqlDb.getDbType());
-				Column column = registeredTable.findColumnByName(columnName);
+				SqlDbColumn column = registeredTable.findColumnByName(columnName);
 				if (column != null) {
 
 					// Check if field is primitive and column is nullable
@@ -289,7 +289,7 @@ public class SqlRegistry extends Registry<SqlDomainObject> {
 				try {
 					SqlDbTable entryTable = sqlDb.registerTable(cn, tableName);
 					String refIdColumnName = buildMainTableRefColumnName(complexField, sqlDb.getDbType());
-					Column refIdColumn = entryTable.findColumnByName(refIdColumnName);
+					SqlDbColumn refIdColumn = entryTable.findColumnByName(refIdColumnName);
 					if (refIdColumn == null) { // Object reference column does not exist
 						log.error("SRG: Entry table '{}' misses column referencing object id '{}'!", entryTable.name, refIdColumnName);
 						javaSqlInconsistence = true;
@@ -300,12 +300,19 @@ public class SqlRegistry extends Registry<SqlDomainObject> {
 						sqlMainRecordRefIdColumnByComplexFieldMap.put(complexField, refIdColumn);
 						if (Collection.class.isAssignableFrom(complexField.getType())) {
 							Type elementType = ((ParameterizedType) complexField.getGenericType()).getActualTypeArguments()[0];
+
 							log.info("SRG: \t\t[ {} : {}.{} ({}) ]", Reflection.fieldDeclaration(complexField), entryTable.name, refIdColumn.name, elementType.getTypeName());
+
+							entryTable.findColumnByName(Const.ELEMENT_COL).fieldType = (elementType instanceof ParameterizedType ? String.class : (Class<?>) elementType);
 						}
 						else {
 							Type keyType = ((ParameterizedType) complexField.getGenericType()).getActualTypeArguments()[0];
 							Type valueType = ((ParameterizedType) complexField.getGenericType()).getActualTypeArguments()[1];
+
 							log.info("SRG: \t\t[ {} : {}.{} ({}/{}) ]", Reflection.fieldDeclaration(complexField), entryTable.name, refIdColumn.name, keyType.getTypeName(), valueType.getTypeName());
+
+							entryTable.findColumnByName(Const.KEY_COL).fieldType = (Class<?>) keyType;
+							entryTable.findColumnByName(Const.VALUE_COL).fieldType = (valueType instanceof ParameterizedType ? String.class : (Class<?>) valueType);
 						}
 					}
 				}
@@ -333,7 +340,7 @@ public class SqlRegistry extends Registry<SqlDomainObject> {
 			deprecatedFields.forEach(f -> unregisterField(f));
 
 			// Check if field for data and reference column exists
-			for (Column column : registeredTable.columns) {
+			for (SqlDbColumn column : registeredTable.columns) {
 				if (!objectsEqual(column.name, Const.ID_COL) && !objectsEqual(column.name, Const.LAST_MODIFIED_COL) && !objectsEqual(column.name, Const.DOMAIN_CLASS_COL)
 						&& getDataAndReferenceFields(domainClass).stream().map(f -> getColumnFor(f).name).noneMatch(n -> objectsEqual(column.name, n))) {
 					log.warn("SRG: Table '{}' associated to domain class '{}' has column '{}' where no field is associated with!", registeredTable.name, domainClass.getSimpleName(), column.name);

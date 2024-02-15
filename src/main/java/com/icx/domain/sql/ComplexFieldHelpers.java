@@ -213,7 +213,7 @@ public abstract class ComplexFieldHelpers extends Common {
 		}
 		else {
 			// Element of collection or value of map is simple object
-			return Conversion.column2FieldValue((Class<?>) elementType, columnValue);
+			return columnValue;
 		}
 	}
 
@@ -300,15 +300,9 @@ public abstract class ComplexFieldHelpers extends Common {
 			return map;
 		}
 
-		Type keyType = genericFieldType.getActualTypeArguments()[0];
 		Type valueType = genericFieldType.getActualTypeArguments()[1];
-
 		for (SortedMap<String, Object> entryRecord : entryRecords) {
-
-			Object key = Conversion.column2FieldValue((Class<?>) keyType, entryRecord.get(Const.KEY_COL)); // Keys may not be complex objects
-			Object value = columnValue2Element(valueType, entryRecord.get(Const.VALUE_COL)); // Value of map can be a collection or map itself
-
-			map.put(key, value);
+			map.put(entryRecord.get(Const.KEY_COL), columnValue2Element(valueType, entryRecord.get(Const.VALUE_COL)));
 		}
 
 		return map;

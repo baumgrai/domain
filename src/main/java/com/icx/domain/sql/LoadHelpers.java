@@ -34,11 +34,11 @@ import com.icx.common.base.CMap;
 import com.icx.common.base.Common;
 import com.icx.domain.DomainAnnotations.Crypt;
 import com.icx.domain.DomainObject;
-import com.icx.jdbc.JdbcHelpers;
+import com.icx.jdbc.SqlDbHelpers;
 import com.icx.jdbc.SqlConnection;
 import com.icx.jdbc.SqlDbException;
 import com.icx.jdbc.SqlDbTable;
-import com.icx.jdbc.SqlDbTable.Column;
+import com.icx.jdbc.SqlDbTable.SqlDbColumn;
 
 /**
  * Helpers for loading domain objects from database
@@ -71,7 +71,7 @@ public abstract class LoadHelpers extends Common {
 		sd.allColumnNames.addAll(objectTable.columns.stream().map(c -> objectTable.name + "." + c.name).collect(Collectors.toList()));
 
 		// Extend table and column expression for inherited domain classes
-		Predicate<Column> isNonStandardColumnPredicate = c -> !objectsEqual(c.name, Const.ID_COL) && !objectsEqual(c.name, Const.DOMAIN_CLASS_COL);
+		Predicate<SqlDbColumn> isNonStandardColumnPredicate = c -> !objectsEqual(c.name, Const.ID_COL) && !objectsEqual(c.name, Const.DOMAIN_CLASS_COL);
 		Class<? extends SqlDomainObject> derivedDomainClass = sqlRegistry.getCastedSuperclass(objectDomainClass);
 		while (derivedDomainClass != SqlDomainObject.class) {
 
@@ -92,25 +92,25 @@ public abstract class LoadHelpers extends Common {
 		String entryTableName = sqlRegistry.getEntryTableFor(complexField).name;
 		String refIdColumnName = sqlRegistry.getMainTableRefIdColumnFor(complexField).name;
 		sde.joinedTableExpression = entryTableName + " JOIN " + baseTableExpression + " ON " + entryTableName + "." + refIdColumnName + "=" + objectTableName + ".ID";
-		sde.allColumnNames.add(refIdColumnName); // Column referencing main table for domain class
+		sde.allColumnNames.add(entryTableName + "." + refIdColumnName); // Column referencing main table for domain class
 
 		Class<?> fieldClass = complexField.getType();
 
 		if (Collection.class.isAssignableFrom(fieldClass)) {
 
 			// Column for elements of collection
-			sde.allColumnNames.add(Const.ELEMENT_COL);
+			sde.allColumnNames.add(entryTableName + "." + Const.ELEMENT_COL);
 			if (List.class.isAssignableFrom(fieldClass)) {
 
 				// Column for list order and ORDER BY clause
-				sde.allColumnNames.add(Const.ORDER_COL);
+				sde.allColumnNames.add(entryTableName + "." + Const.ORDER_COL);
 				sde.orderByClause = Const.ORDER_COL;
 			}
 		}
 		else {
 			// Column for keys and values of map
-			sde.allColumnNames.add(Const.KEY_COL);
-			sde.allColumnNames.add(Const.VALUE_COL);
+			sde.allColumnNames.add(entryTableName + "." + Const.KEY_COL);
+			sde.allColumnNames.add(entryTableName + "." + Const.VALUE_COL);
 		}
 		return sde;
 	}
@@ -129,7 +129,7 @@ public abstract class LoadHelpers extends Common {
 		try {
 			// Load (main) object records and build up loaded records by id map
 			SelectDescription sd = buildSelectDescriptionForMainObjectRecords(((SqlRegistry) sdc.registry), objectDomainClass);
-			List<SortedMap<String, Object>> loadedRecords = sdc.sqlDb.selectFrom(cn, sd.joinedTableExpression, sd.allColumnNames, whereClauseIncludingSyncCondition, null, limit);
+			List<SortedMap<String, Object>> loadedRecords = sdc.sqlDb.selectFrom(cn, sd.joinedTableExpression, sd.allColumnNames, whereClauseIncludingSyncCondition, null, limit, null);
 			if (CList.isEmpty(loadedRecords)) {
 				return loadedRecordMap;
 			}
@@ -155,12 +155,12 @@ public abstract class LoadHelpers extends Common {
 						String whereClauseBase = (!isEmpty(whereClause) ? "(" + whereClause + ") AND " : "");
 						for (String idsList : Helpers.buildIdsListsWithMaxIdCount(loadedRecordMap.keySet(), 1000)) { // Oracle limitation max 1000 elements in lists
 							String idListWhereClause = whereClauseBase + objectTableName + ".ID IN (" + idsList + ")";
-							loadedEntryRecords.addAll(sdc.sqlDb.selectFrom(cn, sde.joinedTableExpression, sde.allColumnNames, idListWhereClause, sde.orderByClause, 0));
+							loadedEntryRecords.addAll(sdc.sqlDb.selectFrom(cn, sde.joinedTableExpression, sde.allColumnNames, idListWhereClause, sde.orderByClause, 0, null));
 						}
 					}
 					else {
 						// SELECT all entry records
-						loadedEntryRecords.addAll(sdc.sqlDb.selectFrom(cn, sde.joinedTableExpression, sde.allColumnNames, whereClause, sde.orderByClause, 0));
+						loadedEntryRecords.addAll(sdc.sqlDb.selectFrom(cn, sde.joinedTableExpression, sde.allColumnNames, whereClause, sde.orderByClause, 0, null));
 					}
 
 					// Group entry records by objects where they belong to
@@ -373,15 +373,14 @@ public abstract class LoadHelpers extends Common {
 	}
 
 	// Check if object has unsaved value changes
-	private static void assignFieldWarningOnUnsavedValueChange(SqlDomainController sdc, SqlDomainObject obj, Field dataField, String columnName, Object columnValueFromDatabase) {
+	private static void assignFieldWarningOnUnsavedValueChange(SqlDomainController sdc, SqlDomainObject obj, Field dataField, String columnName, Object fieldValueFromDatabase) {
 
 		Object fieldValue = obj.getFieldValue(dataField);
-		Object columnValueFromObjectRecord = sdc.recordMap.get(obj.getClass()).get(obj.getId()).get(columnName);
-		Object fieldValueFromObjectRecord = Conversion.column2FieldValue(dataField.getType(), columnValueFromObjectRecord);
+		Object fieldValueFromObjectRecord = sdc.recordMap.get(obj.getClass()).get(obj.getId()).get(columnName);
 
 		if (!objectsEqual(fieldValue, fieldValueFromObjectRecord)) {
 			log.warn("SDC: Data field '{}' of object '{}' has unsaved changed value {} which will be overridden by value {} from database!", dataField.getName(), obj.name(),
-					CLog.forSecretLogging(dataField, fieldValue), CLog.forSecretLogging(dataField, columnValueFromDatabase));
+					CLog.forSecretLogging(dataField, fieldValue), CLog.forSecretLogging(dataField, fieldValueFromDatabase));
 			obj.setFieldWarning(dataField,
 					"Discarded unsaved changed value " + CLog.forSecretLogging(dataField, fieldValue) + " of field '" + dataField.getName() + "' on loading object from database");
 		}
@@ -468,23 +467,23 @@ public abstract class LoadHelpers extends Common {
 			for (Field dataField : sdc.registry.getDataFields(domainClass).stream().filter(hasValueChangedPredicate).collect(Collectors.toList())) {
 
 				String columnName = ((SqlRegistry) sdc.registry).getColumnFor(dataField).name;
-				Object columnValueFromDatabase = databaseChangesMap.get(columnName);
+				Object fieldValueFromDatabase = databaseChangesMap.get(columnName);
 
 				if (!isNew) {
-					assignFieldWarningOnUnsavedValueChange(sdc, obj, dataField, columnName, columnValueFromDatabase /* only for logging */);
+					assignFieldWarningOnUnsavedValueChange(sdc, obj, dataField, columnName, fieldValueFromDatabase /* only for logging */);
 				}
 
 				// Decrypt encrypted value
 				Object fieldValue = null;
-				if (dataField.isAnnotationPresent(Crypt.class) && dataField.getType() == String.class && columnValueFromDatabase != null) {
+				if (dataField.isAnnotationPresent(Crypt.class) && dataField.getType() == String.class && fieldValueFromDatabase != null) {
 
 					if (!isEmpty(sdc.cryptPassword)) {
 						try {
-							fieldValue = AESCrypt.decrypt((String) columnValueFromDatabase, sdc.cryptPassword, sdc.cryptSalt);
+							fieldValue = AESCrypt.decrypt((String) fieldValueFromDatabase, sdc.cryptPassword, sdc.cryptSalt);
 						}
 						catch (Exception ex) {
 							log.error("SDC: Decryption of value of column '{}' failed for '{}' by {}", columnName, obj.name(), ex);
-							fieldValue = columnValueFromDatabase;
+							fieldValue = fieldValueFromDatabase;
 							obj.setFieldError(dataField, "Value could not be decrypted on reading from database! " + ex);
 						}
 					}
@@ -494,7 +493,7 @@ public abstract class LoadHelpers extends Common {
 					}
 				}
 				else {
-					fieldValue = Conversion.column2FieldValue(dataField.getType(), columnValueFromDatabase);
+					fieldValue = fieldValueFromDatabase;
 				}
 
 				// Set value for field
@@ -559,7 +558,7 @@ public abstract class LoadHelpers extends Common {
 			Map<String, String> columnTableMap = new HashMap<>();
 			for (Class<? extends SqlDomainObject> domainClass : sdc.registry.getDomainClassesFor(objectDomainClass)) {
 				SqlDbTable table = ((SqlRegistry) sdc.registry).getTableFor(domainClass);
-				for (Column column : table.columns) {
+				for (SqlDbColumn column : table.columns) {
 					columnNames.add(column.name);
 					columnTableMap.put(column.name, table.name);
 				}
@@ -609,9 +608,9 @@ public abstract class LoadHelpers extends Common {
 
 						if (log.isDebugEnabled()) {
 							log.debug("SDC: Loaded record for '{}@{}' differs from current record. New values: {}", objectDomainClass.getSimpleName(), id,
-									JdbcHelpers.forSecretLoggingRecord(databaseChangesMap, columnNames, columnTableMap));
+									SqlDbHelpers.forSecretLoggingRecord(databaseChangesMap, columnNames, columnTableMap));
 							if (log.isTraceEnabled()) {
-								log.trace("SDC: Current object record: {}", JdbcHelpers.forSecretLoggingRecord(objectRecord, columnNames, columnTableMap));
+								log.trace("SDC: Current object record: {}", SqlDbHelpers.forSecretLoggingRecord(objectRecord, columnNames, columnTableMap));
 							}
 						}
 
@@ -623,7 +622,7 @@ public abstract class LoadHelpers extends Common {
 				// Assign loaded data to corresponding fields of domain object and collect objects where references were changed
 				assignDataToDomainObject(sdc, obj, isNew, databaseChangesMap, objectsWhereReferencesChanged, unresolvedReferences);
 				if (log.isTraceEnabled()) {
-					log.trace("SDC: Loaded {}object '{}': {}", (isNew ? "new " : ""), obj.name(), JdbcHelpers.forSecretLoggingRecord(loadedRecord, columnNames, columnTableMap));
+					log.trace("SDC: Loaded {}object '{}': {}", (isNew ? "new " : ""), obj.name(), SqlDbHelpers.forSecretLoggingRecord(loadedRecord, columnNames, columnTableMap));
 				}
 				loadedObjects.add(obj);
 			}
@@ -672,7 +671,7 @@ public abstract class LoadHelpers extends Common {
 
 		// Determine object domain class of missing referenced object by retrieving domain class name from loaded record for object record
 		String tableName = ((SqlRegistry) sdc.registry).getTableFor(domainClass).name;
-		List<SortedMap<String, Object>> records = sdc.sqlDb.selectFrom(cn, tableName, Const.DOMAIN_CLASS_COL, "ID=" + id, null, 0);
+		List<SortedMap<String, Object>> records = sdc.sqlDb.selectFrom(cn, tableName, Const.DOMAIN_CLASS_COL, "ID=" + id, null, 0, null);
 		if (records.isEmpty()) {
 			log.error("SDC: No record found for object {}@{} which is referenced and therefore should exist", domainClass.getSimpleName(), id);
 			throw new SqlDbException("Could not determine referenced " + domainClass.getSimpleName() + "@" + id + " object's object domain class");

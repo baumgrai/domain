@@ -34,12 +34,13 @@ import com.icx.domain.DomainException;
 import com.icx.domain.DomainObject;
 import com.icx.jdbc.ConfigException;
 import com.icx.jdbc.ConnectionPool;
+import com.icx.jdbc.SqlDbHelpers;
 import com.icx.jdbc.SqlConnection;
 import com.icx.jdbc.SqlDb;
 import com.icx.jdbc.SqlDbException;
 import com.icx.jdbc.SqlDbTable;
-import com.icx.jdbc.SqlDbTable.Column;
-import com.icx.jdbc.SqlDbTable.UniqueConstraint;
+import com.icx.jdbc.SqlDbTable.SqlDbColumn;
+import com.icx.jdbc.SqlDbTable.SqlDbUniqueConstraint;
 
 /**
  * Domain controller {@link DomainController} for SQL based persistence mechanism. Provides methods to load and store domain objects from and to database.
@@ -71,7 +72,7 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	public SqlDb sqlDb = null;
 
 	// Config properties from 'domain.properties'
-	private String dataHorizonPeriod = "1M"; // Data horizon controlled objects will be loaded from database only if they are modified after data horizon ('now' minus data horizon period)
+	public String dataHorizonPeriod = "1M"; // Data horizon controlled objects will be loaded from database only if they are modified after data horizon ('now' minus data horizon period)
 	public String cryptPassword = null;
 	public String cryptSalt = null;
 
@@ -115,8 +116,8 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	 */
 	public static void registerStringConvertersForType(Class<?> cls, Function<Object, String> toStringConverter, Function<String, Object> fromStringConverter) {
 
-		SqlDb.registerToStringConverter(cls, toStringConverter);
-		Conversion.fromStringConverterMap.put(cls, fromStringConverter);
+		SqlDbHelpers.toStringConverterMap.put(cls, toStringConverter);
+		SqlDbHelpers.fromStringConverterMap.put(cls, fromStringConverter);
 	}
 
 	// -------------------------------------------------------------------------
@@ -911,14 +912,14 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 
 		// Check if UNIQUE constraint is violated (UNIQUE constraints of single columns are also realized as table UNIQUE constraints)
 		SqlDbTable table = ((SqlRegistry) registry).getTableFor(domainClass);
-		for (UniqueConstraint uc : table.uniqueConstraints) {
+		for (SqlDbUniqueConstraint uc : table.uniqueConstraints) {
 
 			// Build predicate to check combined uniqueness and build lists of involved fields and values
 			Predicate<SqlDomainObject> multipleUniqueColumnsPredicate = null;
 			List<Field> combinedUniqueFields = new ArrayList<>();
 			List<Object> fieldValues = new ArrayList<>();
 
-			for (Column col : uc.columns) {
+			for (SqlDbColumn col : uc.columns) {
 				for (Field fld : registry.getDataAndReferenceFields(domainClass)) {
 					if (Common.objectsEqual(col, ((SqlRegistry) registry).getColumnFor(fld))) {
 						combinedUniqueFields.add(fld);
@@ -962,7 +963,7 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 
 		boolean isConstraintViolated = false;
 		for (Field field : registry.getDataAndReferenceFields(domainClass)) {
-			Column column = ((SqlRegistry) registry).getColumnFor(field);
+			SqlDbColumn column = ((SqlRegistry) registry).getColumnFor(field);
 			Object fieldValue = obj.getFieldValue(field);
 
 			if ((fieldValue instanceof String || fieldValue instanceof Enum) && column.maxlen < fieldValue.toString().length()) {
@@ -980,7 +981,7 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 
 		boolean isConstraintViolated = false;
 		for (Field field : registry.getDataAndReferenceFields(domainClass)) {
-			Column column = ((SqlRegistry) registry).getColumnFor(field);
+			SqlDbColumn column = ((SqlRegistry) registry).getColumnFor(field);
 
 			if (!column.isNullable && obj.getFieldValue(field) == null) {
 				log.error("SDC: \tField  '{}': associated with column '{}' has NOT NULL constraint but field value provided is null for object {}!", field.getName(), column.name,

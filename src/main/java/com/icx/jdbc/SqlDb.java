@@ -1,9 +1,8 @@
 package com.icx.jdbc;
 
 import java.io.File;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.sql.Blob;
 import java.sql.Clob;
 import java.sql.Connection;
@@ -19,7 +18,6 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.EnumMap;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -31,7 +29,6 @@ import java.util.Timer;
 import java.util.TimerTask;
 import java.util.TreeMap;
 import java.util.TreeSet;
-import java.util.function.Function;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,12 +37,12 @@ import com.icx.common.Prop;
 import com.icx.common.base.CLog;
 import com.icx.common.base.CMap;
 import com.icx.common.base.Common;
-import com.icx.jdbc.SqlDbTable.Column;
-import com.icx.jdbc.SqlDbTable.ForeignKeyColumn;
-import com.icx.jdbc.SqlDbTable.UniqueConstraint;
+import com.icx.jdbc.SqlDbTable.SqlDbColumn;
+import com.icx.jdbc.SqlDbTable.SqlDbForeignKeyColumn;
+import com.icx.jdbc.SqlDbTable.SqlDbUniqueConstraint;
 
 /**
- * Based on {@link ConnectionPool} provides high level methods to perform SQL SELECT, INSERT, UPDATE, DELETE statements and to CALL Stored Procedures.
+ * Based on {@link ConnectionPool} provides high level methods to perform SQL SELECT, INSERT, UPDATE, DELETE statements and to CALL TODO: Stored Procedures.
  * <p>
  * {@code SqlDb} object can be created using {@link #SqlDb(Properties)} from {@link Properties} object containing <b>{@code dbConnectionString}</b>, <b>{@code dbUser}</b>, <b>{@code dbPassword}</b>
  * properties.
@@ -254,104 +251,14 @@ public class SqlDb extends Common {
 	// Store records
 	// -------------------------------------------------------------------------
 
-	// Map containing to-string converters for storing values
-	private static Map<Class<?>, Function<Object, String>> toStringConverterMap = new HashMap<>();
-
-	// Map containing toString() method or null for all classes which were once checked for having toString() declared
-	private static Map<Class<?>, Function<Object, String>> toStringConverterCacheMap = new HashMap<>();
-
-	public static void clearToStringConverterCacheForTestOnly() {
-		toStringConverterCacheMap.clear();
-	}
-
-	/**
-	 * Register a to to-string converter to store objects of given class as strings on INSERT and UPDATE.
-	 * <p>
-	 * Values of this class will be converted to String using this converter before they will be assigned to appropriate place holder in INSERT or UPDATE statements.
-	 * 
-	 * @param objectClass
-	 *            class of objects to convert
-	 * @param toStringConverter
-	 *            to-string converter or null for toString()
-	 */
-	public static void registerToStringConverter(Class<?> objectClass, Function<Object, String> toStringConverter) {
-		toStringConverterMap.put(objectClass, (toStringConverter != null ? toStringConverter : Object::toString));
-	}
-
-	// Map containing to-string converter or null for all classes which were once checked for having to-string converter
-	private static Map<Class<?>, Method> toStringMethodCacheMap = new HashMap<>();
-
-	// If column value is not of basic type, check for registered to-string converter and, if not found, for declared toString() method - cache things found
-	private static String tryToBuildStringValueFromColumnValue(Object columnValue) {
-
-		Class<?> objectClass = columnValue.getClass();
-
-		// Check for registered to-string converter
-		if (!toStringConverterCacheMap.containsKey(objectClass)) {
-
-			// Initially check if to-string converter is registered and cache converter in this case
-			if (toStringConverterMap.containsKey(objectClass)) {
-				toStringConverterCacheMap.put(objectClass, toStringConverterMap.get(objectClass));
-			}
-			else {
-				toStringConverterCacheMap.put(objectClass, null);
-			}
-		}
-
-		Function<Object, String> toStringConverter = toStringConverterCacheMap.get(objectClass);
-		if (toStringConverter != null) {
-
-			// Store value as string computed by registered to-string converter
-			if (log.isTraceEnabled()) {
-				log.trace("SQL: Use registered to-string converter for class '{}'", objectClass.getSimpleName());
-			}
-
-			return toStringConverter.apply(columnValue);
-		}
-		else {
-			// Check for declared toString() method
-			if (!toStringMethodCacheMap.containsKey(objectClass)) {
-
-				// Initially check if toString() method is declared and cache method in this case
-				try {
-					Method toString = objectClass.getDeclaredMethod("toString");
-					if (log.isDebugEnabled()) {
-						log.debug("SQL: Found declared toString() method for class '{}'", objectClass.getSimpleName());
-					}
-					toStringMethodCacheMap.put(objectClass, toString);
-				}
-				catch (NoSuchMethodException nsmex) { // Field type does not have toString() method (initial check)
-					toStringMethodCacheMap.put(objectClass, null);
-				}
-			}
-
-			Method toString = toStringMethodCacheMap.get(objectClass);
-			if (toString != null) {
-
-				// Store value as string computed by declared toString() method
-				if (log.isTraceEnabled()) {
-					log.trace("SQL: Invoke declared method toString() for class '{}'", objectClass.getSimpleName());
-				}
-				try {
-					return (String) toString.invoke(columnValue);
-				}
-				catch (IllegalAccessException | InvocationTargetException | IllegalArgumentException iex) {
-					log.error("SQL: toString() method threw {}! Field value of type '{}' cannot be converted to String!", iex, objectClass.getName());
-				}
-			}
-		}
-
-		return null;
-	}
-
-	// Assign value to store to place holder - convert value to string if converter is registered for class of value
-	private static void assignValue(PreparedStatement pst, int c, String tableName, Column column, Object columnValue) throws SQLException {
+	// Assign value to store to place holder - convert value to string on special cases and if converter is registered for specific value type, otherwise rely on internal driver conversion
+	private static void assignValue(PreparedStatement pst, int c, String tableName, SqlDbColumn column, Object columnValue) throws SQLException {
 
 		try {
 			if (columnValue == null) {
 				pst.setNull(c + 1, typeIntegerFromJdbcType(column.jdbcType)); // Store null value - provide JDBC type of column
 			}
-			else if (JdbcHelpers.isBasicType(columnValue.getClass()) || columnValue.getClass().isArray()) {
+			else if (SqlDbHelpers.isBasicType(columnValue.getClass()) || columnValue.getClass().isArray()) {
 
 				Class<?> objectClass = columnValue.getClass();
 				if (objectClass == Character.class || objectClass == Boolean.class || Enum.class.isAssignableFrom(objectClass) || objectClass == File.class) {
@@ -362,7 +269,7 @@ public class SqlDb extends Common {
 				}
 			}
 			else {
-				pst.setObject(c + 1, tryToBuildStringValueFromColumnValue(columnValue)); // Store as string using either registered to-string converter or declared toString() method
+				pst.setObject(c + 1, SqlDbHelpers.tryToBuildStringValueFromColumnValue(columnValue)); // Store as string using either registered to-string converter or declared toString() method
 			}
 		}
 		catch (IllegalArgumentException iaex) {
@@ -375,42 +282,56 @@ public class SqlDb extends Common {
 	// -------------------------------------------------------------------------
 
 	// Retrieve column values for one row from result set (of select statement or call of stored procedure)
-	private static SortedMap<String, Object> retrieveRecord(ResultSet rs, ResultSetMetaData rsmd, List<Class<?>> requiredResultTypes) throws SQLException {
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	private SortedMap<String, Object> retrieveRecord(ResultSet rs, ResultSetMetaData rsmd, List<String> columnNames) throws SQLException {
 
 		SortedMap<String, Object> resultRecord = new TreeMap<>();
-
-		if (rsmd == null) { // If no meta data provided (MySQL on stored procedure calls)
-			boolean maxReached = false;
-			for (int i = 0; !maxReached; i++) {
-				try {
-					resultRecord.put(String.format("%d", i + 1), rs.getObject(i + 1));
-				}
-				catch (SQLException sqlex) {
-					maxReached = true;
-				}
-			}
-			return resultRecord;
-		}
 
 		// Retrieve all values for one result record - JDBC indexes start by 1
 		for (int c = 0; c < rsmd.getColumnCount(); c++) {
 
-			// Get value retrieved - assume String for CLOB and byte[] for BLOB is (see com.icx.dom.domain.sql.tools.Column), max 2GB characters or bytes is supported
+			// Try to determine type of associated field from registered column by qualified column name
+			Class<?> fieldType = null;
+			if (columnNames != null && columnNames.size() > c && columnNames.get(c).contains(".")) {
+				SqlDbTable table = findRegisteredTable(untilFirst(columnNames.get(c), "."));
+				if (table != null) {
+					SqlDbTable.SqlDbColumn column = table.findColumnByName(behindFirst(columnNames.get(c), "."));
+					if (column != null) {
+						fieldType = column.fieldType;
+					}
+					else {
+						log.warn("SQL: Column '{}'/'{}' could not be determined!", rsmd.getColumnName(c + 1), columnNames.get(c));
+					}
+				}
+				else {
+					log.warn("SQL: Table for column '{}'/'{}' could not be determined!", rsmd.getColumnName(c + 1), columnNames.get(c));
+				}
+			}
+			else if (columnNames == null || columnNames.size() <= c) {
+				log.warn("SQL: Field type of column '{}' could not be determined because column name list {} does not contain appropriate entry!", rsmd.getColumnName(c + 1), columnNames);
+			}
+			else if (log.isDebugEnabled()) {
+				log.debug("SQL: Table name and field type of column '{}' could not be determined because column names are not prefixed by table name ({}).", rsmd.getColumnName(c + 1), columnNames);
+			}
+
+			// Column value - potentially converted to field type
 			Object value = null;
+
+			// Get value retrieved - use column type specific methods for specific column types
 			int columnType = rsmd.getColumnType(c + 1);
-			if (columnType == Types.BLOB) {
+			if (columnType == Types.BLOB) { // Assume BLOB is byte[] - max 2GB is supported
 				Blob blob = rs.getBlob(c + 1);
 				if (blob != null) {
 					value = blob.getBytes(1, ((Number) blob.length()).intValue());
 				}
 			}
-			else if (columnType == Types.CLOB) {
+			else if (columnType == Types.CLOB) { // Assume CLOB is String - max 2G characters is supported
 				Clob clob = rs.getClob(c + 1);
 				if (clob != null) {
 					value = clob.getSubString(1, ((Number) clob.length()).intValue());
 				}
 			}
-			else if (columnType == Types.TIMESTAMP || columnType == Types.TIMESTAMP_WITH_TIMEZONE) {
+			else if (columnType == Types.TIMESTAMP || columnType == Types.TIMESTAMP_WITH_TIMEZONE) { // Retrieve date/time values generally as LocalDate/Time values
 				value = rs.getObject(c + 1, LocalDateTime.class);
 			}
 			else if (columnType == Types.TIME || columnType == Types.TIME_WITH_TIMEZONE) {
@@ -419,25 +340,67 @@ public class SqlDb extends Common {
 			else if (columnType == Types.DATE) {
 				value = rs.getObject(c + 1, LocalDate.class);
 			}
-			else if (requiredResultTypes != null && JdbcHelpers.requiredTypeDiffers(rsmd, requiredResultTypes, c)) { // Note: Required types are not used in Domain persistence layer
-
-				// Try to retrieve result as value of required type if required type is given and differs from columm's JDBC type
-				// Attention: for numerical types (Integer, int, Long, long, ...) 0 will be returned on null value in database using getObject() with type specification! (at least using MySQL)
-				String columnName = rsmd.getColumnName(c + 1);
-				String columnClassName = rsmd.getColumnClassName(c + 1);
-				try {
-					value = rs.getObject(c + 1, requiredResultTypes.get(c));
-					if (log.isTraceEnabled()) {
-						log.trace("SQL: Column '{}': autoconverted value from column's JDBC type '{}' to required type {}", columnName, columnClassName, requiredResultTypes.get(c));
-					}
-				}
-				catch (SQLException sqlex) {
-					value = rs.getObject(c + 1);
-					log.error("SQL: Exception '{}' on retrieving '{}' result in column '{}' as type '{}'!", sqlex.getMessage(), columnClassName, columnName, requiredResultTypes.get(c));
-				}
-			}
 			else {
 				value = rs.getObject(c + 1);
+			}
+
+			// Perform field type specific conversions (if field type could be determined)
+			if (value != null && fieldType != null && fieldType != String.class) {
+				try {
+					// Convert value based on field type
+					if (Enum.class.isAssignableFrom(fieldType)) {
+						value = Enum.valueOf((Class<? extends Enum>) fieldType, (String) value);
+					}
+					else if (fieldType == Character.class || fieldType == char.class) {
+						value = ((String) value).charAt(0);
+					}
+					else if (fieldType == Short.class || fieldType == short.class) {
+						value = Short.valueOf(((Number) value).shortValue());
+					}
+					else if (fieldType == Integer.class || fieldType == int.class) {
+						value = Integer.valueOf(((Number) value).intValue());
+					}
+					else if (fieldType == Long.class || fieldType == long.class) {
+						value = Long.valueOf(((Number) value).longValue());
+					}
+					else if (fieldType == Double.class || fieldType == double.class) {
+						value = Double.valueOf(((Number) value).doubleValue());
+					}
+					else if (fieldType == BigInteger.class) {
+						value = BigInteger.valueOf(((Number) value).longValue());
+					}
+					else if (fieldType == BigDecimal.class) {
+
+						Number number = (Number) value;
+						if (number.doubleValue() % 1.0 == 0 && number.longValue() < Long.MAX_VALUE) { // Avoid artifacts BigDecimal@4 -> BigDecimal@4.0
+							value = BigDecimal.valueOf(number.longValue());
+						}
+						else {
+							value = BigDecimal.valueOf(number.doubleValue());
+						}
+					}
+					else if (fieldType == Boolean.class || fieldType == boolean.class) {
+						value = (value instanceof Boolean ? value : Boolean.valueOf((String) value)); // JDBC getObject() may auto-convert 'true' and 'false' string to boolean
+					}
+					else if (fieldType == LocalDate.class && value instanceof LocalDateTime) {
+						value = ((LocalDateTime) value).toLocalDate();
+					}
+					else if (fieldType == LocalTime.class && value instanceof LocalDateTime) {
+						value = ((LocalDateTime) value).toLocalTime();
+					}
+					else if (fieldType == File.class) {
+						value = (value instanceof File ? value : new File((String) value)); // JDBC getObject() may auto-convert file path to File object
+					}
+					else if (value instanceof String) { // Try to convert value using either registered from-string converter or declared valueOf(String) method
+						value = SqlDbHelpers.tryToBuildFieldValueFromStringValue(fieldType, (String) value, rsmd.getColumnName(c + 1));
+					}
+				}
+				catch (IllegalArgumentException iaex) {
+					log.error("SQL: Column value {} cannot be converted to enum type '{}'! ({})", CLog.forAnalyticLogging(value), ((Class<? extends Enum>) fieldType).getName(), iaex.getMessage());
+				}
+				catch (ClassCastException ccex) {
+					log.error("SQL: Column value of type {} cannot be converted to '{}'! ({})", value.getClass().getSimpleName(), fieldType.getName(), ccex);
+				}
 			}
 
 			// Put column value retrieved into result map
@@ -460,18 +423,22 @@ public class SqlDb extends Common {
 	 *            SQL SELECT statement, may contain '?' for place holders
 	 * @param valuesOfPlaceholders
 	 *            Values which replace place holders
-	 * @param requiredResultTypes
-	 *            list of required types of results
 	 * 
 	 * @return result records as list of sorted column/value maps
 	 * 
 	 * @throws SQLException
 	 *             on JDBC or SQL errors
 	 */
-	public List<SortedMap<String, Object>> select(Connection cn, String sql, List<Object> valuesOfPlaceholders, List<Class<?>> requiredResultTypes) throws SQLException {
+	public List<SortedMap<String, Object>> select(Connection cn, String sql, List<Object> valuesOfPlaceholders) throws SQLException {
 
+		// Retrieve qualified column names from SELECT statement
+		List<String> orderedColumnNames = null;
 		if (log.isDebugEnabled()) {
-			log.debug("SQL: {}", JdbcHelpers.forSecretLoggingSelect(sql, valuesOfPlaceholders));
+			orderedColumnNames = new ArrayList<>();
+			log.debug("SQL: {}", SqlDbHelpers.forSecretLoggingSelect(sql, valuesOfPlaceholders, orderedColumnNames));
+		}
+		else {
+			orderedColumnNames = SqlDbHelpers.extractColumnNamesForSelectStatement(sql);
 		}
 
 		try (PreparedStatement st = cn.prepareStatement(sql)) {
@@ -528,27 +495,27 @@ public class SqlDb extends Common {
 					// Retrieve results from result set
 					List<SortedMap<String, Object>> resultRecords = new ArrayList<>();
 					while (rs.next()) {
-						resultRecords.add(retrieveRecord(rs, rsmd, requiredResultTypes));
+						resultRecords.add(retrieveRecord(rs, rsmd, orderedColumnNames));
 					}
 
 					if (resultRecords.isEmpty() && log.isDebugEnabled()) {
 						log.debug("SQL: No records found");
 					}
 					else if (rsmd != null && log.isDebugEnabled()) {
-						JdbcHelpers.logResultRecords(rsmd, sql, resultRecords);
+						SqlDbHelpers.logResultRecords(rsmd, sql, resultRecords);
 					}
 
 					return resultRecords;
 				}
 				catch (SQLException sqlex) {
 					log.error("SQL: {} '{}' on retrieving results '{}' ({})", sqlex.getClass().getSimpleName(), sqlex.getMessage().trim(),
-							JdbcHelpers.forSecretLoggingSelect(sql, valuesOfPlaceholders), exceptionStackToString(sqlex));
+							SqlDbHelpers.forSecretLoggingSelect(sql, valuesOfPlaceholders, null), exceptionStackToString(sqlex));
 					throw sqlex;
 				}
 			}
 		}
 		catch (SQLException sqlex) {
-			log.error("SQL: {} '{}' on '{}'", sqlex.getClass().getSimpleName(), sqlex.getMessage().trim(), JdbcHelpers.forSecretLoggingSelect(sql, valuesOfPlaceholders));
+			log.error("SQL: {} '{}' on '{}'", sqlex.getClass().getSimpleName(), sqlex.getMessage().trim(), SqlDbHelpers.forSecretLoggingSelect(sql, valuesOfPlaceholders, null));
 			throw sqlex;
 		}
 	}
@@ -581,8 +548,8 @@ public class SqlDb extends Common {
 	 *             on JDBC or SQL errors
 	 */
 	@SuppressWarnings("unchecked")
-	public List<SortedMap<String, Object>> selectFrom(Connection cn, String tableExpr, Object colExpr, String whereClause, String orderByClause, int limit, List<Object> values,
-			List<Class<?>> requiredResultTypes) throws SQLException, SqlDbException {
+	public List<SortedMap<String, Object>> selectFrom(Connection cn, String tableExpr, Object colExpr, String whereClause, String orderByClause, int limit, List<Object> values)
+			throws SQLException, SqlDbException {
 
 		// Check preconditions
 		if (isEmpty(tableExpr)) {
@@ -655,34 +622,7 @@ public class SqlDb extends Common {
 			sql.append(" LIMIT " + limit);
 		}
 
-		return select(cn, sql.toString(), values, requiredResultTypes);
-	}
-
-	/**
-	 * Perform SQL SELECT statement on given connection.
-	 * 
-	 * @param cn
-	 *            database connection
-	 * @param tableExpr
-	 *            table name or SQL joined table expression like "LEAVES L JOIN COLOURS C ON L.COLOUR_ID = C.ID"
-	 * @param colExpr
-	 *            either (1) a list of column names or (2) a SQL column expression string like "NAME, GENDER, BIRTHDATE" or "COUNT(*)" or (3) null, empty list or "*" for "SELECT * FROM..."
-	 * @param whereClause
-	 *            SQL where clause string (without "WHERE") or null
-	 * @param orderByClause
-	 *            SQL order by clause string (without "ORDER BY") or null
-	 * @param limit
-	 *            maximum records to retrieve
-	 * 
-	 * @return result records as list of sorted column/value maps
-	 * 
-	 * @throws SqlDbException
-	 *             if table expression is empty or null or column expression type is not of type {@code String} or {@code List}
-	 * @throws SQLException
-	 *             on JDBC or SQL errors
-	 */
-	public List<SortedMap<String, Object>> selectFrom(Connection cn, String tableExpr, Object colExpr, String whereClause, String orderByClause, int limit) throws SQLException, SqlDbException {
-		return selectFrom(cn, tableExpr, colExpr, whereClause, orderByClause, limit, null, null);
+		return select(cn, sql.toString(), values);
 	}
 
 	/**
@@ -703,7 +643,7 @@ public class SqlDb extends Common {
 	 *             (cannot be not be thrown here)
 	 */
 	public long selectCountFrom(Connection cn, String tableName, String whereClause) throws SQLException, SqlDbException {
-		return ((Number) selectFrom(cn, tableName, "count(*)", whereClause, null, 0).iterator().next().values().iterator().next()).longValue();
+		return ((Number) selectFrom(cn, tableName, "count(*)", whereClause, null, 0, null).iterator().next().values().iterator().next()).longValue();
 	}
 
 	// -------------------------------------------------------------------------
@@ -753,177 +693,6 @@ public class SqlDb extends Common {
 			return Types.OTHER;
 		}
 	}
-
-	// -------------------------------------------------------------------------
-	// Stored procedures
-	// -------------------------------------------------------------------------
-
-	// /**
-	// * Parameter modes for SQL stored procedures: IN, OUT, INOUT
-	// *
-	// * @author baumgrai
-	// */
-	// public enum ParameterMode {
-	// IN, OUT, INOUT
-	// }
-	//
-	// /**
-	// * Call SQL stored procedure.
-	// * <p>
-	// * Grabs connection from connection pool.
-	// *
-	// * @param cn
-	// * database connection
-	// * @param procedureName
-	// * name of stored procedure
-	// * @param mssqlReturnsStatus
-	// * true if procedure returns a status, false otherwise (only for MS/SQL Server, ignored in Oracle and MySQL)
-	// * @param parameterModes
-	// * list of ParameterMode elements (IN, OUT, INOUT)
-	// * @param parameters
-	// * for IN/INOUT parameters: parameter value, for OUT parameters: Java type of output value expected, if output parameter is {@code sys_refcursor} (Oracle) use {@code List.class}
-	// * @param outputs
-	// * output parameters (empty on call)
-	// *
-	// * @return list of result sets
-	// *
-	// * @throws SqlDbException
-	// * if procedure name is null or empty or size of parameters and parameter modes differ
-	// * @throws SQLException
-	// * on JDBC or SQL errors
-	// */
-	// public List<List<SortedMap<String, Object>>> callStoredProcedure(Connection cn, String procedureName, boolean mssqlReturnsStatus, List<ParameterMode> parameterModes, List<Object> parameters,
-	// List<Object> outputs) throws SQLException, SqlDbException {
-	//
-	// // Check preconditions
-	// if (CBase.isEmpty(procedureName)) {
-	// throw new SqlDbException("CALL: No stored procedure specified!");
-	// }
-	// else if (parameters.size() != parameterModes.size()) {
-	// throw new SqlDbException("CALL: # of parameter modes and parameters of stored procedure differ!");
-	// }
-	//
-	// // Uppercase procedure name
-	// procedureName = procedureName.toUpperCase();
-	//
-	// // Build callable SQL statement string
-	// StringBuilder sqlBuilder = new StringBuilder();
-	// sqlBuilder.append("{ ");
-	// if (type == DbType.MS_SQL && mssqlReturnsStatus) {
-	// sqlBuilder.append("? = ");
-	// }
-	// sqlBuilder.append("CALL " + procedureName + "(");
-	// for (int i = 0; i < parameters.size(); i++) {
-	// if (i > 0) {
-	// sqlBuilder.append(", ");
-	// }
-	// sqlBuilder.append("?");
-	// }
-	// sqlBuilder.append(") }");
-	// String callableStatementString = sqlBuilder.toString();
-	//
-	// if (log.isTraceEnabled()) {
-	// log.trace("SQL: {}", callableStatementString);
-	// }
-	//
-	// // Prepare callable statement
-	// List<Object> inputValuesAndOutputJavaTypes = new ArrayList<>();
-	// try (CallableStatement cst = cn.prepareCall(callableStatementString)) {
-	//
-	// if (log.isDebugEnabled()) {
-	// log.debug("SQL: Stored procedure call statement '{}' prepared", callableStatementString);
-	// }
-	//
-	// List<Integer> outputParameterIndexes = new ArrayList<>();
-	// List<Integer> outputParameterTypes = new ArrayList<>();
-	//
-	// int offset = 1;
-	// if (type == DbType.MS_SQL && mssqlReturnsStatus) {
-	//
-	// // Register procedure return status
-	// int jdbcType = Types.INTEGER;
-	// cst.registerOutParameter(1, jdbcType);
-	// outputParameterIndexes.add(1);
-	// outputParameterTypes.add(jdbcType);
-	// inputValuesAndOutputJavaTypes.add(Integer.class);
-	// offset++;
-	// }
-	//
-	// // Assign parameter values for input parameters and register output parameters
-	// for (int i = 0; i < parameters.size(); i++) {
-	// ParameterMode mode = parameterModes.get(i);
-	// Object param = parameters.get(i);
-	//
-	// inputValuesAndOutputJavaTypes.add(param);
-	//
-	// if (mode == ParameterMode.OUT || mode == ParameterMode.INOUT) {
-	//
-	// int jdbcType = typeIntegerFromJdbcType((mode == ParameterMode.OUT ? (Class<?>) param : param.getClass()));
-	// cst.registerOutParameter(i + offset, jdbcType);
-	// outputParameterIndexes.add(i + offset);
-	// outputParameterTypes.add(jdbcType);
-	// }
-	//
-	// if (mode == ParameterMode.IN || mode == ParameterMode.INOUT) {
-	// cst.setObject(i + offset, param);
-	// }
-	// }
-	//
-	// if (log.isDebugEnabled()) {
-	// log.debug("SQL: {}", JdbcHelpers.forLoggingSql(callableStatementString, inputValuesAndOutputJavaTypes));
-	// }
-	//
-	// // Call stored procedure
-	// boolean hasResults = cst.execute();
-	//
-	// // Retrieve result sets (usually only one) and store in result list
-	// List<List<SortedMap<String, Object>>> results = new ArrayList<>();
-	// int rsCount = 1;
-	// while (hasResults) {
-	//
-	// if (log.isDebugEnabled()) {
-	// log.debug("SQL: {}. result set: ", rsCount++);
-	// }
-	//
-	// // Retrieve result set
-	// try (ResultSet rs = cst.getResultSet()) {
-	//
-	// // Build result for result set and add it to list of result maps
-	// results.add(JdbcHelpers.buildAndLogResult(rs, null));
-	// hasResults = cst.getMoreResults();
-	// }
-	// }
-	//
-	// // Retrieve output parameters and store in output list (in order of declaration)
-	// if (outputs != null) {
-	//
-	// for (int i = 0; i < outputParameterIndexes.size(); i++) {
-	// int index = outputParameterIndexes.get(i);
-	//
-	// if (outputParameterTypes.get(i) == OracleTypes.CURSOR) {
-	//
-	// // Oracle SYS_REFCURSOR output parameters
-	// ResultSet rsn = (ResultSet) cst.getObject(index);
-	// results.add(JdbcHelpers.buildAndLogResult(rsn, null));
-	// }
-	// else {
-	// // Normal output parameters
-	// outputs.add(cst.getObject(index));
-	// }
-	// }
-	//
-	// if (log.isDebugEnabled()) {
-	// log.debug("SQL: Outputs (in order of declaration): {}", CLog.forAnalyticLogging(outputs));
-	// }
-	// }
-	//
-	// return results;
-	// }
-	// catch (SQLException sqlex) {
-	// log.error("SQL: Exception '{}'on '{}'", sqlex.getMessage().trim(), JdbcHelpers.forLoggingSql(callableStatementString, inputValuesAndOutputJavaTypes)); // Log SQL statement on exception
-	// throw sqlex;
-	// }
-	// }
 
 	// -------------------------------------------------------------------------
 	// Insert
@@ -1000,8 +769,8 @@ public class SqlDb extends Common {
 		SqlDbTable table = registerTable(cn, tableName);
 
 		// Build ordered set of columns to insert
-		SortedSet<Column> columnsToInsert = new TreeSet<>();
-		for (Column column : table.columns) {
+		SortedSet<SqlDbColumn> columnsToInsert = new TreeSet<>();
+		for (SqlDbColumn column : table.columns) {
 			if (columnValueMaps.get(0).containsKey(column.name)) {
 				columnsToInsert.add(column);
 			}
@@ -1020,7 +789,7 @@ public class SqlDb extends Common {
 		}
 
 		// Build SQL INSERT statement
-		List<Column> columnsWithPlaceholders = new ArrayList<>();
+		List<SqlDbColumn> columnsWithPlaceholders = new ArrayList<>();
 		StringBuilder sqlBuilder = new StringBuilder();
 
 		sqlBuilder.append("INSERT INTO " + tableName);
@@ -1032,7 +801,7 @@ public class SqlDb extends Common {
 		else {
 			// Columns clause
 			sqlBuilder.append(" (");
-			for (Column column : columnsToInsert) {
+			for (SqlDbColumn column : columnsToInsert) {
 				sqlBuilder.append(column.name);
 				sqlBuilder.append(", ");
 			}
@@ -1040,16 +809,16 @@ public class SqlDb extends Common {
 			// Values clause
 			sqlBuilder.delete(sqlBuilder.lastIndexOf(","), sqlBuilder.length());
 			sqlBuilder.append(") VALUES (");
-			for (Column column : columnsToInsert) {
+			for (SqlDbColumn column : columnsToInsert) {
 				Object value = columnValueMaps.get(0).get(column.name);
 
 				if (value instanceof String && ((String) value).toUpperCase().startsWith("SELECT ")) {
 					sqlBuilder.append("(" + (String) value + ")");
 				}
-				else if (JdbcHelpers.isSqlFunctionCall(value)) {
-					sqlBuilder.append(JdbcHelpers.getSqlColumnExprOrFunctionCall(value));
+				else if (SqlDbHelpers.isSqlFunctionCall(value)) {
+					sqlBuilder.append(SqlDbHelpers.getSqlColumnExprOrFunctionCall(value));
 				}
-				else if (JdbcHelpers.isOraSeqNextvalExpr(value)) {
+				else if (SqlDbHelpers.isOraSeqNextvalExpr(value)) {
 					sqlBuilder.append(value.toString());
 				}
 				else {
@@ -1074,14 +843,14 @@ public class SqlDb extends Common {
 
 				for (int c = 0; c < columnsWithPlaceholders.size(); c++) {
 
-					Column column = columnsWithPlaceholders.get(c);
+					SqlDbColumn column = columnsWithPlaceholders.get(c);
 					Object columnValue = columnValueMap.get(column.name);
 
 					assignValue(pst, c, tableName, column, columnValue);
 				}
 
 				if (log.isDebugEnabled()) {
-					log.debug("SQL: {}", JdbcHelpers.forSecretLoggingInsertUpdate(preparedStatementString, columnValueMap, columnsToInsert));
+					log.debug("SQL: {}", SqlDbHelpers.forSecretLoggingInsertUpdate(preparedStatementString, columnValueMap, columnsToInsert));
 				}
 
 				if (numberOfRecords > 1) {
@@ -1129,7 +898,7 @@ public class SqlDb extends Common {
 			else {
 				log.error("SQL: {} '{}' on... ", sqlex.getClass().getSimpleName(), sqlex.getMessage().trim()); // Log SQL statement(s) on exception
 				for (Map<String, Object> columnValueMap : columnValueMaps) {
-					log.error("SQL: '{}'", JdbcHelpers.forSecretLoggingInsertUpdate(preparedStatementString, columnValueMap, columnsToInsert));
+					log.error("SQL: '{}'", SqlDbHelpers.forSecretLoggingInsertUpdate(preparedStatementString, columnValueMap, columnsToInsert));
 				}
 			}
 
@@ -1187,8 +956,8 @@ public class SqlDb extends Common {
 		SqlDbTable table = registerTable(cn, tableName);
 
 		// Build ordered set of columns to update
-		SortedSet<Column> columnsToUpdate = new TreeSet<>();
-		for (Column column : table.columns) {
+		SortedSet<SqlDbColumn> columnsToUpdate = new TreeSet<>();
+		for (SqlDbColumn column : table.columns) {
 			if (columnValueMap.containsKey(column.name)) {
 				columnsToUpdate.add(column);
 			}
@@ -1206,17 +975,17 @@ public class SqlDb extends Common {
 		sqlBuilder.append("UPDATE " + tableName + " SET ");
 
 		// Append placeholders for values
-		List<Column> columnsWithPlaceholders = new ArrayList<>();
-		for (Column column : columnsToUpdate) {
+		List<SqlDbColumn> columnsWithPlaceholders = new ArrayList<>();
+		for (SqlDbColumn column : columnsToUpdate) {
 
 			sqlBuilder.append(column.name + " = ");
 
 			Object value = columnValueMap.get(column.name);
 
-			if (JdbcHelpers.isSqlFunctionCall(value)) {
-				sqlBuilder.append(JdbcHelpers.getSqlColumnExprOrFunctionCall(value));
+			if (SqlDbHelpers.isSqlFunctionCall(value)) {
+				sqlBuilder.append(SqlDbHelpers.getSqlColumnExprOrFunctionCall(value));
 			}
-			else if (JdbcHelpers.isOraSeqNextvalExpr(value)) {
+			else if (SqlDbHelpers.isOraSeqNextvalExpr(value)) {
 				sqlBuilder.append(value.toString());
 			}
 			else {
@@ -1249,14 +1018,14 @@ public class SqlDb extends Common {
 			// Assign values to prepared statement
 			for (int c = 0; c < columnsWithPlaceholders.size(); c++) {
 
-				Column column = columnsWithPlaceholders.get(c);
+				SqlDbColumn column = columnsWithPlaceholders.get(c);
 				Object columnValue = columnValueMap.get(column.name);
 
 				assignValue(pst, c, tableName, column, columnValue);
 			}
 
 			if (log.isDebugEnabled()) {
-				log.debug("SQL: {}", JdbcHelpers.forSecretLoggingInsertUpdate(preparedStatementString, columnValueMap, columnsToUpdate));
+				log.debug("SQL: {}", SqlDbHelpers.forSecretLoggingInsertUpdate(preparedStatementString, columnValueMap, columnsToUpdate));
 			}
 
 			// Execute UPDATE statement and get update count
@@ -1271,7 +1040,7 @@ public class SqlDb extends Common {
 		}
 		catch (SQLException sqlex) {
 			log.error("SQL: {} '{}' on '{}'", sqlex.getClass().getSimpleName(), sqlex.getMessage().trim(),
-					JdbcHelpers.forSecretLoggingInsertUpdate(preparedStatementString, columnValueMap, columnsToUpdate));
+					SqlDbHelpers.forSecretLoggingInsertUpdate(preparedStatementString, columnValueMap, columnsToUpdate));
 			throw sqlex;
 		}
 	}
@@ -1393,7 +1162,7 @@ public class SqlDb extends Common {
 	}
 
 	// Recursive table registration
-	private SqlDbTable registerTable(Connection cn, String tableName, ForeignKeyColumn fkColumnReferencingTable) throws SQLException, SqlDbException {
+	private SqlDbTable registerTable(Connection cn, String tableName, SqlDbForeignKeyColumn fkColumnReferencingTable) throws SQLException, SqlDbException {
 
 		if (isEmpty(tableName)) {
 			throw new SqlDbException("Table name is empty or null!");
@@ -1431,7 +1200,7 @@ public class SqlDb extends Common {
 		}
 
 		// Foreign key columns for subsequent registration of referenced tables
-		SortedMap<ForeignKeyColumn, String> fkColumnMap = new TreeMap<>();
+		SortedMap<SqlDbForeignKeyColumn, String> fkColumnMap = new TreeMap<>();
 
 		String sql = null;
 		try {
@@ -1463,7 +1232,7 @@ public class SqlDb extends Common {
 			try (ResultSet rs = dbmd.getColumns(null, schemaName, tableName, null)) {
 
 				while (rs.next()) {
-					Column column = table.new Column(table);
+					SqlDbColumn column = table.new SqlDbColumn(table);
 
 					column.order = rs.getInt("ORDINAL_POSITION");
 					column.name = rs.getString("COLUMN_NAME").toUpperCase();
@@ -1489,12 +1258,12 @@ public class SqlDb extends Common {
 
 					// Build foreign key column from same-name table column
 					String columnName = rs.getString("FKCOLUMN_NAME").toUpperCase();
-					Column column = table.findColumnByName(columnName);
+					SqlDbColumn column = table.findColumnByName(columnName);
 					if (column == null) {
 						throw new SqlDbException("Foreign key column '" + columnName + "' is not a column of '" + tableName + "'");
 					}
 
-					ForeignKeyColumn fkColumn = table.new ForeignKeyColumn(column);
+					SqlDbForeignKeyColumn fkColumn = table.new SqlDbForeignKeyColumn(column);
 					table.columns.remove(column);
 					table.columns.add(fkColumn);
 
@@ -1508,7 +1277,7 @@ public class SqlDb extends Common {
 			// Retrieve JDBC types of columns using dummy query
 			sql = String.format(DUMMY_QUERY_MASK, tableName);
 			if (log.isTraceEnabled()) {
-				log.trace("SQL: {}", JdbcHelpers.forSecretLoggingInsertUpdate(sql, null, null));
+				log.trace("SQL: {}", SqlDbHelpers.forSecretLoggingInsertUpdate(sql, null, null));
 			}
 
 			try (Statement st = cn.createStatement()) {
@@ -1522,7 +1291,7 @@ public class SqlDb extends Common {
 					for (int colIndex = 0; colIndex < rsmd.getColumnCount(); colIndex++) {
 
 						String columnName = rsmd.getColumnName(colIndex + 1).toUpperCase();
-						Column column = table.findColumnByName(columnName);
+						SqlDbColumn column = table.findColumnByName(columnName);
 						if (column == null) {
 							throw new SqlDbException("Column '" + columnName + "' is not a column of '" + tableName + "'");
 						}
@@ -1550,16 +1319,16 @@ public class SqlDb extends Common {
 						String columnName = rs.getString("COLUMN_NAME");
 
 						// Check if UNIQUE constraint with this name already exist (containing another column) and create new constraint if not
-						UniqueConstraint constraint = table.findUniqueConstraintByName(indexName);
+						SqlDbUniqueConstraint constraint = table.findUniqueConstraintByName(indexName);
 						if (constraint == null) {
-							constraint = table.new UniqueConstraint();
+							constraint = table.new SqlDbUniqueConstraint();
 							constraint.table = table;
 							table.uniqueConstraints.add(constraint);
 						}
 
 						constraint.name = indexName;
 
-						Column column = table.findColumnByName(columnName);
+						SqlDbColumn column = table.findColumnByName(columnName);
 						if (column == null) {
 							throw new SqlDbException("Column '" + columnName + "' is not a column of '" + tableName + "'");
 						}
@@ -1568,7 +1337,7 @@ public class SqlDb extends Common {
 				}
 
 				// Assign UNIQUE constraint directly to columns where a single column UNIQUE constraint exist for
-				for (UniqueConstraint uc : table.uniqueConstraints) {
+				for (SqlDbUniqueConstraint uc : table.uniqueConstraints) {
 					if (uc.columns.size() == 1) {
 						uc.columns.iterator().next().isUnique = true;
 					}
@@ -1584,7 +1353,7 @@ public class SqlDb extends Common {
 		registeredTables.add(table);
 
 		// Register referenced tables (recursion)
-		for (ForeignKeyColumn fkColumn : fkColumnMap.keySet()) {
+		for (SqlDbForeignKeyColumn fkColumn : fkColumnMap.keySet()) {
 			String[] refTableColumn = fkColumnMap.get(fkColumn).split("\\.");
 
 			SqlDbTable referencedTable = registerTable(cn, refTableColumn[0], fkColumn);

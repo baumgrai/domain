@@ -35,7 +35,7 @@ import com.icx.domain.DomainAnnotations.Crypt;
 import com.icx.jdbc.SqlDb;
 import com.icx.jdbc.SqlDbException;
 import com.icx.jdbc.SqlDbTable;
-import com.icx.jdbc.SqlDbTable.Column;
+import com.icx.jdbc.SqlDbTable.SqlDbColumn;
 
 /**
  * Helpers for saving domain objects to database
@@ -128,7 +128,7 @@ public abstract class SaveHelpers extends Common {
 		for (Field field : fieldChangesMap.keySet().stream().filter(f -> Registry.isDataField(f) || sqlRegistry.isReferenceField(f)).collect(Collectors.toList())) {
 
 			// Build column/value entry for data or reference field
-			Column column = sqlRegistry.getColumnFor(field);
+			SqlDbColumn column = sqlRegistry.getColumnFor(field);
 			if (sqlRegistry.isReferenceField(field)) { // Reference field
 
 				// Assign referenced object's id
@@ -475,8 +475,8 @@ public abstract class SaveHelpers extends Common {
 
 					// Reset field and column value in column value map to original values
 					try {
-						List<SortedMap<String, Object>> results = sdc.sqlDb.selectFrom(cn, table.name, columnName, Const.ID_COL + "=" + obj.getId(), null, 0);
-						fieldValue = Conversion.column2FieldValue(field.getType(), results.get(0).get(columnName));
+						List<SortedMap<String, Object>> results = sdc.sqlDb.selectFrom(cn, table.name, columnName, Const.ID_COL + "=" + obj.getId(), null, 0, null);
+						fieldValue = results.get(0).get(columnName);
 						obj.setFieldValue(field, fieldValue);
 						columnValueMap.put(columnName, fieldValue);
 					}
