@@ -4,8 +4,6 @@ import java.io.File;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Type;
-import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.time.LocalDate;
@@ -18,15 +16,16 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.function.Function;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.SortedSet;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.icx.common.Reflection;
 import com.icx.common.base.CLog;
 import com.icx.common.base.Common;
 import com.icx.jdbc.SqlDb.DbType;
@@ -52,19 +51,10 @@ public abstract class SqlDbHelpers extends Common {
 	// String helpers
 	// -------------------------------------------------------------------------
 
-	public static boolean isBooleanType(Class<?> cls) {
-		return (cls == Boolean.class || cls == boolean.class);
-	}
-
-	public static boolean isNumberType(Class<?> cls) { // Float and Byte are not supported due to lacks of JDBC drivers storing/retrieving such values correctly
-		return (cls == char.class || cls == Character.class || cls == byte.class || cls == Byte.class || cls == short.class || cls == Short.class || cls == int.class || cls == Integer.class
-				|| cls == long.class || cls == Long.class || cls == float.class || cls == Float.class || cls == double.class || cls == Double.class || cls == BigInteger.class
-				|| cls == BigDecimal.class);
-	}
-
 	public static boolean isBasicType(Class<?> cls) {
-		return (String.class.isAssignableFrom(cls) || isBooleanType(cls) || isNumberType(cls) || Enum.class.isAssignableFrom(cls) || LocalDateTime.class.isAssignableFrom(cls)
-				|| LocalDate.class.isAssignableFrom(cls) || LocalTime.class.isAssignableFrom(cls) || Date.class.isAssignableFrom(cls) || File.class.isAssignableFrom(cls));
+		return (cls == String.class || cls == char.class || cls == Character.class || cls == Boolean.class || cls == boolean.class
+				|| Number.class.isAssignableFrom(Reflection.getBoxingWrapperType(cls)) || Enum.class.isAssignableFrom(cls) || cls == LocalDateTime.class || cls == LocalDate.class
+				|| cls == LocalTime.class || cls == Date.class || cls == File.class);
 	}
 
 	// Get Java type string (unqualified on 'java.lang' and domain object classes, qualified otherwise)
@@ -328,7 +318,7 @@ public abstract class SqlDbHelpers extends Common {
 			else if (objectsEqual(words[i], "SELECT")) {
 				wordsAreColumnNames = true;
 			}
-			else if (wordsAreColumnNames && !objectsEqual(words[i], ",")) {
+			else if (wordsAreColumnNames && !objectsEqual(words[i], ",") && !objectsEqual(words[i], "TOP") && !Common.isInteger(words[i])) {
 				columnNames.add(extractQualifiedColumnName(words[i]));
 			}
 		}

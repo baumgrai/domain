@@ -17,6 +17,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.List;
@@ -34,6 +35,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.icx.common.Prop;
+import com.icx.common.Reflection;
 import com.icx.common.base.CLog;
 import com.icx.common.base.CMap;
 import com.icx.common.base.Common;
@@ -251,6 +253,19 @@ public class SqlDb extends Common {
 	// Store records
 	// -------------------------------------------------------------------------
 
+	public static byte[] bytes(Byte[] byteObjects) {
+
+		if (byteObjects == null) {
+			return null;
+		}
+
+		byte[] bytes = new byte[byteObjects.length];
+		for (int b = 0; b < bytes.length; b++) {
+			bytes[b] = byteObjects[b];
+		}
+		return bytes;
+	}
+
 	// Assign value to store to place holder - convert value to string on special cases and if converter is registered for specific value type, otherwise rely on internal driver conversion
 	private static void assignValue(PreparedStatement pst, int c, String tableName, SqlDbColumn column, Object columnValue) throws SQLException {
 
@@ -264,12 +279,15 @@ public class SqlDb extends Common {
 				if (objectClass == Character.class || objectClass == Boolean.class || Enum.class.isAssignableFrom(objectClass) || objectClass == File.class) {
 					pst.setString(c + 1, columnValue.toString()); // Store values of specific classes as string
 				}
+				else if (objectClass == Byte[].class) {
+					pst.setObject(c + 1, bytes((Byte[]) columnValue)); // Store values of Byte[] as byte[]
+				}
 				else {
 					pst.setObject(c + 1, columnValue); // Store other value using JDBC conversion
 				}
 			}
 			else {
-				pst.setObject(c + 1, SqlDbHelpers.tryToBuildStringValueFromColumnValue(columnValue)); // Store as string using either registered to-string converter or declared toString() method
+				pst.setObject(c + 1, SqlDbHelpers.tryToBuildStringValueFromColumnValue(columnValue)); // Store value as string using either registered to-string converter or declared toString() method
 			}
 		}
 		catch (IllegalArgumentException iaex) {
@@ -281,6 +299,20 @@ public class SqlDb extends Common {
 	// Retrieve records
 	// -------------------------------------------------------------------------
 
+	// Convert array of native bytes to array of Byte objects
+	public static Byte[] byteObjects(byte[] bytes) {
+
+		if (bytes == null) {
+			return null;
+		}
+
+		Byte[] byteObjects = new Byte[bytes.length];
+		for (int b = 0; b < bytes.length; b++) {
+			byteObjects[b] = bytes[b];
+		}
+		return byteObjects;
+	}
+
 	// Retrieve column values for one row from result set (of select statement or call of stored procedure)
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	private SortedMap<String, Object> retrieveRecord(ResultSet rs, ResultSetMetaData rsmd, List<String> columnNames) throws SQLException {
@@ -290,7 +322,7 @@ public class SqlDb extends Common {
 		// Retrieve all values for one result record - JDBC indexes start by 1
 		for (int c = 0; c < rsmd.getColumnCount(); c++) {
 
-			// Try to determine type of associated field from registered column by qualified column name
+			// Try to determine type of associated field from registered table column by qualified column name TODO: Caching field type for column result
 			Class<?> fieldType = null;
 			if (columnNames != null && columnNames.size() > c && columnNames.get(c).contains(".")) {
 				SqlDbTable table = findRegisteredTable(untilFirst(columnNames.get(c), "."));
@@ -314,15 +346,16 @@ public class SqlDb extends Common {
 				log.debug("SQL: Table name and field type of column '{}' could not be determined because column names are not prefixed by table name ({}).", rsmd.getColumnName(c + 1), columnNames);
 			}
 
-			// Column value - potentially converted to field type
+			// For LOB types retrieve values based on column type
 			Object value = null;
-
-			// Get value retrieved - use column type specific methods for specific column types
 			int columnType = rsmd.getColumnType(c + 1);
 			if (columnType == Types.BLOB) { // Assume BLOB is byte[] - max 2GB is supported
 				Blob blob = rs.getBlob(c + 1);
 				if (blob != null) {
 					value = blob.getBytes(1, ((Number) blob.length()).intValue());
+					if (fieldType == Byte[].class) {
+						value = byteObjects((byte[]) value);
+					}
 				}
 			}
 			else if (columnType == Types.CLOB) { // Assume CLOB is String - max 2G characters is supported
@@ -331,75 +364,98 @@ public class SqlDb extends Common {
 					value = clob.getSubString(1, ((Number) clob.length()).intValue());
 				}
 			}
-			else if (columnType == Types.TIMESTAMP || columnType == Types.TIMESTAMP_WITH_TIMEZONE) { // Retrieve date/time values generally as LocalDate/Time values
-				value = rs.getObject(c + 1, LocalDateTime.class);
-			}
-			else if (columnType == Types.TIME || columnType == Types.TIME_WITH_TIMEZONE) {
-				value = rs.getObject(c + 1, LocalTime.class);
-			}
-			else if (columnType == Types.DATE) {
-				value = rs.getObject(c + 1, LocalDate.class);
+			else if (fieldType == null) {
+
+				// If no field type given retrieve date/time column values as Java 8 date/time objects and other column values based on column type
+				if (columnType == Types.TIMESTAMP || columnType == Types.TIMESTAMP_WITH_TIMEZONE) {
+					value = rs.getObject(c + 1, LocalDateTime.class);
+				}
+				else if (columnType == Types.TIME || columnType == Types.TIME_WITH_TIMEZONE) {
+					value = rs.getObject(c + 1, LocalTime.class);
+				}
+				else if (columnType == Types.DATE) {
+					value = rs.getObject(c + 1, LocalDate.class);
+				}
+				else {
+					value = rs.getObject(c + 1);
+				}
 			}
 			else {
-				value = rs.getObject(c + 1);
-			}
-
-			// Perform field type specific conversions (if field type could be determined)
-			if (value != null && fieldType != null && fieldType != String.class) {
-				try {
-					// Convert value based on field type
-					if (Enum.class.isAssignableFrom(fieldType)) {
-						value = Enum.valueOf((Class<? extends Enum>) fieldType, (String) value);
-					}
-					else if (fieldType == Character.class || fieldType == char.class) {
-						value = ((String) value).charAt(0);
-					}
-					else if (fieldType == Short.class || fieldType == short.class) {
-						value = Short.valueOf(((Number) value).shortValue());
-					}
-					else if (fieldType == Integer.class || fieldType == int.class) {
-						value = Integer.valueOf(((Number) value).intValue());
-					}
-					else if (fieldType == Long.class || fieldType == long.class) {
-						value = Long.valueOf(((Number) value).longValue());
-					}
-					else if (fieldType == Double.class || fieldType == double.class) {
-						value = Double.valueOf(((Number) value).doubleValue());
-					}
-					else if (fieldType == BigInteger.class) {
-						value = BigInteger.valueOf(((Number) value).longValue());
-					}
-					else if (fieldType == BigDecimal.class) {
-
-						Number number = (Number) value;
-						if (number.doubleValue() % 1.0 == 0 && number.longValue() < Long.MAX_VALUE) { // Avoid artifacts BigDecimal@4 -> BigDecimal@4.0
-							value = BigDecimal.valueOf(number.longValue());
+				// If field type given retrieve value based on field type, and convert values if necessary
+				if (fieldType == String.class) {
+					value = rs.getObject(c + 1, String.class);
+				}
+				else if (fieldType == Character.class || fieldType == char.class) {
+					String string = rs.getObject(c + 1, String.class);
+					value = (!isEmpty(string) ? string.charAt(0) : null);
+				}
+				else if (fieldType == Boolean.class || fieldType == boolean.class) {
+					value = Boolean.valueOf(rs.getObject(c + 1, String.class));
+				}
+				else if (Enum.class.isAssignableFrom(fieldType)) {
+					String string = rs.getObject(c + 1, String.class);
+					if (string != null) {
+						try {
+							value = Enum.valueOf((Class<? extends Enum>) fieldType, string);
 						}
-						else {
-							value = BigDecimal.valueOf(number.doubleValue());
+						catch (IllegalArgumentException iaex) {
+							log.error("SQL: Column value {} cannot be converted to enum type '{}'! ({})", CLog.forAnalyticLogging(string), ((Class<? extends Enum>) fieldType).getName(),
+									iaex.getMessage());
 						}
 					}
-					else if (fieldType == Boolean.class || fieldType == boolean.class) {
-						value = (value instanceof Boolean ? value : Boolean.valueOf((String) value)); // JDBC getObject() may auto-convert 'true' and 'false' string to boolean
+				}
+				else if (fieldType == File.class) {
+					String string = rs.getObject(c + 1, String.class);
+					value = (!isEmpty(string) ? new File(string) : null);
+				}
+				else if (Number.class.isAssignableFrom(Reflection.getBoxingWrapperType(fieldType))) {
+
+					// Do not use rs.getObject(c + 1, <fieldtype>) on numerical types because 0 may be retrieved for null values!
+					value = rs.getObject(c + 1);
+					if (value instanceof Number) {
+						if (fieldType == Short.class || fieldType == short.class) {
+							value = ((Number) value).shortValue();
+						}
+						else if (fieldType == Integer.class || fieldType == int.class) {
+							value = ((Number) value).intValue();
+						}
+						else if (fieldType == Long.class || fieldType == long.class) {
+							value = ((Number) value).longValue();
+						}
+						else if (fieldType == Double.class || fieldType == double.class) {
+							value = ((Number) value).doubleValue();
+						}
+						else if (fieldType == BigInteger.class) {
+							value = BigInteger.valueOf(((Number) value).longValue());
+						}
+						else if (fieldType == BigDecimal.class) {
+							Number number = (Number) value;
+							if (number.doubleValue() % 1.0 == 0 && number.longValue() < Long.MAX_VALUE) { // Avoid artifacts BigDecimal@4 -> BigDecimal@4.0
+								value = BigDecimal.valueOf(number.longValue());
+							}
+							else {
+								value = BigDecimal.valueOf(number.doubleValue());
+							}
+						}
 					}
-					else if (fieldType == LocalDate.class && value instanceof LocalDateTime) {
-						value = ((LocalDateTime) value).toLocalDate();
+					else if (value != null) { // If driver returning other than Number object for numerical fields
+						value = rs.getObject(c + 1, fieldType);
 					}
-					else if (fieldType == LocalTime.class && value instanceof LocalDateTime) {
-						value = ((LocalDateTime) value).toLocalTime();
-					}
-					else if (fieldType == File.class) {
-						value = (value instanceof File ? value : new File((String) value)); // JDBC getObject() may auto-convert file path to File object
-					}
-					else if (value instanceof String) { // Try to convert value using either registered from-string converter or declared valueOf(String) method
+				}
+				else if (fieldType == LocalDateTime.class || fieldType == LocalDate.class || fieldType == LocalTime.class || Date.class.isAssignableFrom(fieldType)) {
+					value = rs.getObject(c + 1, fieldType);
+				}
+				else if (fieldType == byte[].class) {
+					value = rs.getObject(c + 1, byte[].class);
+				}
+				else if (fieldType == Byte[].class) {
+					value = byteObjects(rs.getObject(c + 1, byte[].class));
+				}
+				else {
+					value = rs.getObject(c + 1);
+					if (value instanceof String) { // Try to convert value using either registered from-string converter or declared valueOf(String) method
 						value = SqlDbHelpers.tryToBuildFieldValueFromStringValue(fieldType, (String) value, rsmd.getColumnName(c + 1));
 					}
-				}
-				catch (IllegalArgumentException iaex) {
-					log.error("SQL: Column value {} cannot be converted to enum type '{}'! ({})", CLog.forAnalyticLogging(value), ((Class<? extends Enum>) fieldType).getName(), iaex.getMessage());
-				}
-				catch (ClassCastException ccex) {
-					log.error("SQL: Column value of type {} cannot be converted to '{}'! ({})", value.getClass().getSimpleName(), fieldType.getName(), ccex);
 				}
 			}
 

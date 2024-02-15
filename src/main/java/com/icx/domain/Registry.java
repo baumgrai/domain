@@ -186,7 +186,7 @@ public class Registry<T extends DomainObject> extends Reflection {
 
 	// Check if field is of one of the types which forces to interpret field as 'data' field
 	private static boolean isDataFieldType(Class<?> cls) {
-		return (SqlDbHelpers.isBasicType(cls) && !(cls == byte.class || cls == Byte.class || cls == float.class || cls == Float.class) || byte[].class.isAssignableFrom(cls));
+		return (SqlDbHelpers.isBasicType(cls) && !(cls == byte.class || cls == Byte.class || cls == float.class || cls == Float.class) || cls == byte[].class || cls == Byte[].class);
 	}
 
 	// Data field -> column
@@ -202,18 +202,17 @@ public class Registry<T extends DomainObject> extends Reflection {
 	// Array, Set, List or Map field -> entry table (check also for 'hidden' accumulations missing @Accumulation annotation)
 	public boolean isComplexField(Field field) {
 
-		if (field.getType().isArray() && field.getType().getComponentType() != byte.class) {
+		if (field.getType().isArray() && field.getType().getComponentType() != byte.class && field.getType().getComponentType() != Byte.class) {
 			return true;
 		}
-
-		if (!(field.getGenericType() instanceof ParameterizedType)) {
+		else if (field.getGenericType() instanceof ParameterizedType) {
+			Type type1 = ((ParameterizedType) field.getGenericType()).getActualTypeArguments()[0];
+			return (Map.class.isAssignableFrom(field.getType())
+					|| Collection.class.isAssignableFrom(field.getType()) && !isAccumulationField(field) && !(type1 instanceof Class<?> && baseClass.isAssignableFrom((Class<?>) type1)));
+		}
+		else {
 			return false;
 		}
-
-		Type type1 = ((ParameterizedType) field.getGenericType()).getActualTypeArguments()[0];
-
-		return (Map.class.isAssignableFrom(field.getType())
-				|| Collection.class.isAssignableFrom(field.getType()) && !isAccumulationField(field) && !(type1 instanceof Class<?> && baseClass.isAssignableFrom((Class<?>) type1)));
 	}
 
 	// Accumulation field (no SQL association)

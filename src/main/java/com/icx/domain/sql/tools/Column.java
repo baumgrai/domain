@@ -146,7 +146,7 @@ public class Column {
 			type = (dbType == DbType.ORACLE ? "NVARCHAR2" : dbType == DbType.MS_SQL ? "NVARCHAR" : dbType == DbType.MYSQL ? "VARCHAR" : "") + "(" + charsize + ")"
 					+ (dbType == DbType.MYSQL ? " CHARACTER SET UTF8MB4" : "");
 		}
-		else if (fieldRelatedType == byte[].class) {
+		else if (fieldRelatedType == byte[].class || fieldRelatedType == Byte[].class) {
 			type = (dbType == DbType.ORACLE ? "BLOB" : dbType == DbType.MS_SQL ? "VARBINARY(MAX)" : dbType == DbType.MYSQL ? "LONGBLOB" : "");
 		}
 		else if (LocalDate.class.isAssignableFrom(fieldRelatedType)) {
