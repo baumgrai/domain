@@ -40,7 +40,7 @@ public abstract class CLog {
 			logString = "null";
 		}
 		else if (value instanceof Class) {
-			return "Class@" + value.toString().replace("class ", "");
+			logString = "Class@" + value.toString().replace("class ", "");
 		}
 		else if (value instanceof Character) {
 			logString = "'" + value.toString() + "'";
@@ -74,6 +74,9 @@ public abstract class CLog {
 		}
 		else if (value instanceof LocalDateTime) {
 			logString = value.getClass().getName() + "@" + ((LocalDateTime) value).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+		}
+		else if (value.getClass().isArray()) {
+			logString = "[" + value.getClass().getComponentType().getSimpleName() + "]";
 		}
 		else if (value.toString().contains("@")) {
 			logString = value.toString();
