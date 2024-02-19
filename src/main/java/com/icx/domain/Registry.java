@@ -186,7 +186,7 @@ public class Registry<T extends DomainObject> extends Reflection {
 
 	// Check if field is of one of the types which forces to interpret field as 'data' field
 	private static boolean isDataFieldType(Class<?> cls) {
-		return (SqlDbHelpers.isBasicType(cls) && !(cls == byte.class || cls == Byte.class || cls == float.class || cls == Float.class) || cls == byte[].class || cls == Byte[].class);
+		return (SqlDbHelpers.isBasicType(cls) && !(cls == byte.class || cls == Byte.class || cls == float.class || cls == Float.class) || cls.isArray() && cls.getComponentType().isPrimitive());
 	}
 
 	// Data field -> column
@@ -202,7 +202,7 @@ public class Registry<T extends DomainObject> extends Reflection {
 	// Array, Set, List or Map field -> entry table (check also for 'hidden' accumulations missing @Accumulation annotation)
 	public boolean isComplexField(Field field) {
 
-		if (field.getType().isArray() && field.getType().getComponentType() != byte.class && field.getType().getComponentType() != Byte.class) {
+		if (field.getType().isArray() && !field.getType().getComponentType().isPrimitive()) {
 			return true;
 		}
 		else if (field.getGenericType() instanceof ParameterizedType) {
@@ -390,7 +390,7 @@ public class Registry<T extends DomainObject> extends Reflection {
 
 					// Table related field for array, List or Set (separate SQL table)
 					domainClassInfoMap.get(domainClass).complexFields.add(field);
-					log.info("REG:\t\t{}; \t// table related field for {} of elements{}", fieldDeclaration, type.getSimpleName().toLowerCase(), deprecated);
+					log.info("REG:\t\t{}; \t// table related field for {}{}", fieldDeclaration, type.getSimpleName().toLowerCase(), deprecated);
 				}
 				else if (Map.class.isAssignableFrom(type)) {
 
