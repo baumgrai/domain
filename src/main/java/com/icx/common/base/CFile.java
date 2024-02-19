@@ -232,6 +232,31 @@ public abstract class CFile {
 		}
 	}
 
+	/**
+	 * Copy a file
+	 * 
+	 * @param in
+	 *            source file object
+	 * @param out
+	 *            destination file object
+	 * 
+	 * @throws IOException
+	 *             if input file not found or if output file cannot be created/written or on IO error
+	 */
+	public static void copy(File in, File out) throws IOException {
+
+		try (FileInputStream fis = new FileInputStream(in)) {
+			try (FileOutputStream fos = new FileOutputStream(out)) {
+
+				byte[] buf = new byte[4069];
+				int i = 0;
+				while ((i = fis.read(buf)) != -1) {
+					fos.write(buf, 0, i);
+				}
+			}
+		}
+	}
+
 	// -------------------------------------------------------------------------
 	// Find files
 	// -------------------------------------------------------------------------
