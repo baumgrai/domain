@@ -2,6 +2,8 @@ package com.icx.common.base;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
@@ -23,11 +25,6 @@ import java.util.Map.Entry;
  * @author baumgrai
  */
 public abstract class Common {
-
-	/**
-	 * UTF-8 charset
-	 */
-	public static final String UTF_8 = "UTF-8";
 
 	// -------------------------------------------------------------------------
 	// Equal
@@ -77,11 +74,15 @@ public abstract class Common {
 			else if (o1 instanceof double[] && o2 instanceof double[]) {
 				return Arrays.equals((double[]) o1, (double[]) o2);
 			}
-			else if (o1 instanceof Object[] && o2 instanceof Object[]) {
-				return Arrays.equals((Object[]) o1, (Object[]) o2);
-			}
 			else {
-				return false;
+				Method m;
+				try {
+					m = Arrays.class.getMethod("equals", o1.getClass(), o2.getClass()); // TODO: Caching
+					return (Boolean) m.invoke(null, o1, o2);
+				}
+				catch (NoSuchMethodException | SecurityException | IllegalAccessException | InvocationTargetException e) {
+					return false;
+				}
 			}
 		}
 		else {
