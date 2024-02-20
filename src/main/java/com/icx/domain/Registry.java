@@ -186,7 +186,8 @@ public class Registry<T extends DomainObject> extends Reflection {
 
 	// Check if field is of one of the types which forces to interpret field as 'data' field
 	private static boolean isDataFieldType(Class<?> cls) {
-		return (SqlDbHelpers.isBasicType(cls) && !(cls == byte.class || cls == Byte.class || cls == float.class || cls == Float.class) || cls.isArray() && cls.getComponentType().isPrimitive());
+		return (SqlDbHelpers.isBasicType(cls) && !(cls == byte.class || cls == Byte.class || cls == float.class || cls == Float.class)
+				|| cls.isArray() && (cls == byte[].class || cls == char[].class));
 	}
 
 	// Data field -> column
@@ -390,7 +391,7 @@ public class Registry<T extends DomainObject> extends Reflection {
 
 					// Table related field for array, List or Set (separate SQL table)
 					domainClassInfoMap.get(domainClass).complexFields.add(field);
-					log.info("REG:\t\t{}; \t// table related field for {}{}", fieldDeclaration, type.getSimpleName().toLowerCase(), deprecated);
+					log.info("REG:\t\t{}; \t// table related field for {}{}", fieldDeclaration, (type.isArray() ? "array" : type.getSimpleName().toLowerCase()), deprecated);
 				}
 				else if (Map.class.isAssignableFrom(type)) {
 
@@ -412,6 +413,10 @@ public class Registry<T extends DomainObject> extends Reflection {
 				}
 				else if (Byte.class.isAssignableFrom(type)) {
 					throw new DomainException("byte and Byte fields are not supported! Please use short or Short instaed of byte/Byte!");
+				}
+				else if (type.isArray() && type != byte[].class && type != char[].class) {
+					throw new DomainException(
+							"Only byte[], boolean[] and char[] are supported as arrays of primitive types! (not short[], int[], long[], float[], double[]). An array of (non primitive) objects will be stored element by element in a separate entry table like a list");
 				}
 			}
 		}
