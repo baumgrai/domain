@@ -1,11 +1,13 @@
 package com.icx.common.base;
 
+import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
 import java.util.Calendar;
 
 import com.icx.domain.DomainAnnotations.Secret;
@@ -16,8 +18,6 @@ import com.icx.domain.DomainAnnotations.Secret;
  * @author baumgrai
  */
 public abstract class CLog {
-
-	// TODO: Store secret values encrypted in database
 
 	// Secret field name prefix to avoid logging value of this field
 	public static final String SECRET = "sec_";
@@ -76,7 +76,12 @@ public abstract class CLog {
 			logString = value.getClass().getName() + "@" + ((LocalDateTime) value).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
 		}
 		else if (value.getClass().isArray()) {
-			logString = "[" + value.getClass().getComponentType().getSimpleName() + "]";
+			if (value.getClass().getComponentType() == String.class) {
+				logString = Arrays.asList((String[]) value).toString();
+			}
+			else {
+				logString = value.getClass().getComponentType().getSimpleName() + "[" + Array.getLength(value) + "]";
+			}
 		}
 		else if (value.toString().contains("@")) {
 			logString = value.toString();
