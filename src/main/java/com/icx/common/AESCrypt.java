@@ -21,8 +21,6 @@ public class AESCrypt {
 
 	private static final String ALGORITHM = "AES/CBC/PKCS5Padding";
 
-	// TODO: Support file encryption
-
 	public static SecretKey getKeyFromPassword(String password, String salt) throws NoSuchAlgorithmException, InvalidKeySpecException {
 
 		SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
