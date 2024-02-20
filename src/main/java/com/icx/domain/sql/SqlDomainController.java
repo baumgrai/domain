@@ -51,7 +51,6 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 
 	static final Logger log = LoggerFactory.getLogger(SqlDomainController.class);
 
-	// TODO: Support direct file storing
 	// TODO: Support file encryption
 	// TODO: Allow non-public fields
 
@@ -849,6 +848,9 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 		List<SqlDomainObject> unregisteredObjects = new ArrayList<>(); // Collect objects unregistered during deletion process to allow re-registering on exception
 		try {
 			// Delete object and children
+			if (log.isDebugEnabled()) {
+				log.debug("SDC: Delete {}", obj.name());
+			}
 			DeleteHelpers.deleteRecursiveFromDatabase(cn, this, obj, unregisteredObjects, null, 0);
 			if (log.isDebugEnabled()) {
 				log.debug("SDC: Deleted {}", obj.name());

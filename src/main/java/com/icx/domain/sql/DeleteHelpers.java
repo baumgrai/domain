@@ -79,8 +79,8 @@ public class DeleteHelpers extends Common {
 		if (objectsToCheck == null) {
 			objectsToCheck = new ArrayList<>();
 		}
-		if (log.isDebugEnabled()) {
-			log.debug("SDC: {}Delete {}", CLog.tabs(stackSize), obj.name());
+		if (log.isTraceEnabled()) {
+			log.trace("SDC: {}Delete {}", CLog.tabs(stackSize), obj.name());
 		}
 
 		// Unregister this object
