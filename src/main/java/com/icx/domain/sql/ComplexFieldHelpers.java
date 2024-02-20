@@ -188,7 +188,7 @@ public abstract class ComplexFieldHelpers extends Common {
 	// Value stored in database table column -> collection element or value of map entry
 	// Method will only be used for elements of collections or keys or values of maps - so here lists of lists, lists of maps, maps with lists or maps as keys or values will be handled
 	@SuppressWarnings("unchecked")
-	private static Object columnValue2Element(Type elementType, Object columnValue) {
+	static Object columnValue2Element(Type elementType, Object columnValue) {
 
 		if (elementType instanceof ParameterizedType) {
 
