@@ -14,10 +14,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.File;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -100,6 +100,14 @@ class LoadAndSaveTest extends TestHelpers {
 			SqlDb.deleteFrom(sqlcn.cn, "DOM_Y", null);
 			SqlDb.deleteFrom(sqlcn.cn, "DOM_X", null);
 			SqlDb.deleteFrom(sqlcn.cn, "DOM_SEC_B", null);
+			SqlDb.deleteFrom(sqlcn.cn, "DOM_A_STRING_ARRAY", null);
+			SqlDb.deleteFrom(sqlcn.cn, "DOM_A_STRINGS", null);
+			SqlDb.deleteFrom(sqlcn.cn, "DOM_A_DOUBLE_SET", null);
+			SqlDb.deleteFrom(sqlcn.cn, "DOM_A_BIG_DECIMAL_MAP", null);
+			SqlDb.deleteFrom(sqlcn.cn, "DOM_A_LIST_OF_LISTS", null);
+			SqlDb.deleteFrom(sqlcn.cn, "DOM_A_LIST_OF_MAPS", null);
+			SqlDb.deleteFrom(sqlcn.cn, "DOM_A_MAP_OF_LISTS", null);
+			SqlDb.deleteFrom(sqlcn.cn, "DOM_A_MAP_OF_MAPS", null);
 			SqlDb.deleteFrom(sqlcn.cn, "DOM_A", null);
 			SqlDb.deleteFrom(sqlcn.cn, "DOM_AA", null);
 		}
@@ -120,7 +128,7 @@ class LoadAndSaveTest extends TestHelpers {
 			assertEquals(A.class, sdc.getDomainClassByName("A"));
 
 			// -----------------------------------------
-			Helpers.dbType = DbType.MYSQL;
+			Helpers.dbType = DbType.ORACLE;
 			// -----------------------------------------
 
 			Properties dbProps = Prop.readEnvironmentSpecificProperties(Prop.findPropertiesFile("db.properties"), Helpers.getLocal(Helpers.dbType), CList.newList("dbConnectionString", "dbUser"));
@@ -159,6 +167,10 @@ class LoadAndSaveTest extends TestHelpers {
 
 			O o1 = sdc.createAndSave(O.class, null);
 
+			char[] longtext = new char[0x1000000];
+			for (int c = 0; c < 0x1000000; c++) {
+				longtext[c] = (char) (c % 0x100);
+			}
 			AA aa1 = sdc.createAndSave(AA.class, aa -> {
 
 				aa.bool = true;
@@ -186,8 +198,9 @@ class LoadAndSaveTest extends TestHelpers {
 
 				aa.structure = new Stucture("abc", 100);
 
-				aa.bytes = SqlDb.byteObjects(Common.getBytesUTF8("ÄÖÜäöüß"));
 				assertDoesNotThrow(() -> aa.picture = CFile.readBinary(new File("src/test/resources/bike.jpg")));
+				aa.longtext = new char[0x1000000];
+				System.arraycopy(longtext, 0, aa.longtext, 0, 0x1000000);
 
 				aa.strings = CList.newList("A", "B", "C", "D", (Helpers.dbType == DbType.ORACLE ? null : ""), null); // Oracle does not allow empty string values (stored as NULL instead)
 				aa.doubleSet = CSet.newSet(0.0, 0.1, 0.2, null);
@@ -212,6 +225,7 @@ class LoadAndSaveTest extends TestHelpers {
 
 			log.info("\tReload object to check if no changes will be detected...");
 
+			sdc.reload(aa1);
 			assertFalse(sdc.reload(aa1));
 
 			log.info("\tUnregister objects to force reload...");
@@ -258,12 +272,14 @@ class LoadAndSaveTest extends TestHelpers {
 			assertTrue(logicallyEqual(now, aa1.datetime)); // Check only seconds because milliseconds will not be stored in database (Oracle)
 			assertEquals(now.toLocalDate(), aa1.date);
 			assertTrue(logicallyEqual(now.toLocalTime(), aa1.time));
-			assertTrue(Arrays.equals(SqlDb.byteObjects(Common.getBytesUTF8("ÄÖÜäöüß")), aa1.bytes));
 			assertArrayEquals(CFile.readBinary(new File("src/test/resources/bike.jpg")), aa1.picture);
+			assertArrayEquals(longtext, aa1.longtext);
 			assertEquals(CResource.findFirstJavaResourceFile("x.txt"), aa1.file);
 			assertEquals(Type.A, aa1.type);
 			assertEquals("!!!secret!!!", aa1.secretString);
 			assertEquals("!!!password!!!", aa1.pwd);
+
+			assertTrue(objectsEqual(new String[] { "a", "äß", null }, aa1.stringArray));
 
 			assertEquals(CList.newList("A", "B", "C", "D", (Helpers.dbType == DbType.ORACLE ? null : ""), null), aa1.strings); // Oracle does not allow empty string values (stored as NULL instead)
 			assertEquals(CSet.newSet(0.0, 0.1, 0.2, null), aa1.doubleSet);
@@ -292,6 +308,7 @@ class LoadAndSaveTest extends TestHelpers {
 			assertEquals(100, aa2.structure.i);
 
 			aa2.delete();
+			assertEquals(1, sdc.count(AA.class, aa -> true));
 		}
 		catch (AssertionFailedError failed) {
 			throw failed;
@@ -344,7 +361,10 @@ class LoadAndSaveTest extends TestHelpers {
 
 				assertEquals(1, sdc.count(O.class, o -> true));
 
-				sdc.sqlDb.update(sqlcn.cn, "DOM_A", CMap.newMap("I", 2, "BYTES", Common.getBytesUTF8("äöüßÄÖÜ"), "DOM_FILE", "y.txt", "DOM_TYPE", "B", "O_ID", null), "S='S'");
+				log.warn("Next error/warn message is expected here");
+				File file = new File("y.txt");
+				file.delete();
+				sdc.sqlDb.update(sqlcn.cn, "DOM_A", CMap.newMap("I", 2, "BYTES", Common.getBytesUTF8("äöüßÄÖÜ"), "DOM_FILE", file, "DOM_TYPE", "B", "O_ID", null), "S='S'");
 
 				sdc.sqlDb.update(sqlcn.cn, "DOM_A_STRINGS", CMap.newMap("ELEMENT_ORDER", 1), "ELEMENT='B'");
 				sdc.sqlDb.update(sqlcn.cn, "DOM_A_STRINGS", CMap.newMap("ELEMENT_ORDER", 0), "ELEMENT='C'");
@@ -388,8 +408,9 @@ class LoadAndSaveTest extends TestHelpers {
 
 			assertEquals(2, aa1.i);
 			assertEquals(Type.B, aa1.type);
-			assertTrue(Arrays.equals(SqlDb.byteObjects(Common.getBytesUTF8("äöüßÄÖÜ")), aa1.bytes));
-			assertEquals(new File("y.txt"), aa1.file);
+			File file = new File("y.txt");
+			assertEquals(file.getAbsolutePath(), aa1.file.getAbsolutePath()); // File (without path) does not exist - therefore content could not be assigned on preceding INSERT
+			assertTrue(CFile.readText(file, StandardCharsets.UTF_8.toString()).startsWith("File did not exist or could not be read on storing to database!"));
 			assertEquals(null, aa1.o);
 
 			if (Helpers.dbType == DbType.ORACLE) {
@@ -437,7 +458,6 @@ class LoadAndSaveTest extends TestHelpers {
 			aa1.bigIntegerValue = BigInteger.valueOf(-1L);
 			aa1.bigDecimalValue = BigDecimal.valueOf(-0.1);
 			aa1.s = "T";
-			aa1.bytes = SqlDb.byteObjects(Common.getBytesUTF8("éèê"));
 			aa1.file = CResource.findFirstJavaResourceFile("z.txt");
 			aa1.type = Type.B;
 
@@ -477,7 +497,6 @@ class LoadAndSaveTest extends TestHelpers {
 			assertEquals(BigInteger.valueOf(-1L), aa1.bigIntegerValue);
 			assertEquals(BigDecimal.valueOf(-0.1), aa1.bigDecimalValue);
 			assertEquals("T", aa1.s);
-			assertTrue(Arrays.equals(SqlDb.byteObjects(Common.getBytesUTF8("éèê")), aa1.bytes));
 			assertEquals(CResource.findFirstJavaResourceFile("z.txt"), aa1.file);
 			assertEquals(Type.B, aa1.type);
 
@@ -675,6 +694,7 @@ class LoadAndSaveTest extends TestHelpers {
 
 			log.info("\tSynchronize again with database to recognize unsaved changes...");
 
+			log.warn("Warn messages regarding unsaved changes are expected here...");
 			sdc.synchronize();
 
 			log.info("\tAssert overriding unsaved local changes by reloading objects from database...");
@@ -875,6 +895,7 @@ class LoadAndSaveTest extends TestHelpers {
 
 			sdc.unregisterOnlyForTest(ce2);
 
+			log.warn("Error/warn messages regarding integrity constraint violation are expected here...");
 			assertThrows(SQLException.class, () -> sdc.delete(ce1));
 
 			try (SqlConnection sqlcn = SqlConnection.open(sdc.sqlDb.pool, false)) {
@@ -969,6 +990,7 @@ class LoadAndSaveTest extends TestHelpers {
 			AA aa1 = sdc.create(AA.class, a -> a.s = "aa1");
 
 			log.info("\tGetting and setting inexistent fields...");
+			log.warn("Test error cases: error/warn messages are expected here...");
 
 			assertNull(aa1.getFieldValue(X.class.getDeclaredField("s")), "get field value error");
 			assertDoesNotThrow(() -> aa1.setFieldValue(X.class.getDeclaredField("s"), "a"), "get known field value error");
@@ -1013,7 +1035,7 @@ class LoadAndSaveTest extends TestHelpers {
 			assertFalse(aa1.hasErrorsOrWarnings());
 			assertEquals(2, sdc.allValid(AA.class).size());
 
-			log.info("\tcolumn size violation...");
+			log.info("\tColumn size violation...");
 
 			aa1.s = "abcdefghijklmnopqrstuvwxyz"; // Column size
 

@@ -68,8 +68,8 @@ class RegistryTest extends TestHelpers {
 		relevantDomainClasses.add(RemovedClass.class);
 
 		List<Field> dataFieldsOfA = fields(A.class, "bool", "booleanValue", "c", "charValue", "sh", "shortValue", "i", "integerValue", "l", "longValue", "d", "doubleValue", "bigIntegerValue",
-				"bigDecimalValue", "datetime", "date", "time", "s", "structure", "deprecatedField", "bytes", "picture", "file", "type", "secretString", "pwd");
-		List<Field> complexFieldsOfA = fields(A.class, "strings", "doubleSet", "bigDecimalMap", "listOfLists", "listOfMaps", "mapOfLists", "mapOfMaps");
+				"bigDecimalValue", "datetime", "date", "time", "s", "structure", "deprecatedField", "picture", "longtext", "file", "type", "secretString", "pwd");
+		List<Field> complexFieldsOfA = fields(A.class, "stringArray", "strings", "doubleSet", "bigDecimalMap", "listOfLists", "listOfMaps", "mapOfLists", "mapOfMaps");
 		List<Field> referenceFieldsOfA = fields(A.class, "o");
 		List<Field> accumulationFieldsOfA = fields(A.class, "inners", "xs");
 		List<Field> allFieldsReferencingA = fields(A.Inner.class, "a");
@@ -186,7 +186,6 @@ class RegistryTest extends TestHelpers {
 
 		assertEquals("DOM_A", ((SqlRegistry) sdc.registry).getTableFor(A.class).name, "Associated table for class A");
 		assertEquals("DOM_AA", ((SqlRegistry) sdc.registry).getTableFor(AA.class).name, "Associated table for class AA (name specified in SqlTable annotation");
-		assertEquals("BYTES", ((SqlRegistry) sdc.registry).getColumnFor(A.class.getDeclaredField("bytes")).name, "Associated column for data field");
 		assertEquals("BOOLEAN", ((SqlRegistry) sdc.registry).getColumnFor(A.class.getDeclaredField("bool")).name, "Associated column for data field (name specified in SqlColumn annotation");
 		assertEquals("O_ID", ((SqlRegistry) sdc.registry).getColumnFor(A.class.getDeclaredField("o")).name, "Associated column for reference field");
 		assertEquals("DOM_A_STRINGS", ((SqlRegistry) sdc.registry).getEntryTableFor(A.class.getDeclaredField("strings")).name, "Associated entry table for list");

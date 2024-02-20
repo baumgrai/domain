@@ -102,11 +102,11 @@ public abstract class A extends SqlDomainObject {
 	@StoreAsString
 	public Stucture structure = null;
 
-	public Byte[] bytes;
 	public byte[] picture;
+	public char[] longtext;
 
 	@SqlColumn(charsize = 1024)
-	public File file;
+	public File file = null;
 
 	@Changed(versions = { "1.1:notNull=true", "1.2:notNull=false", "1.3:notNull=true" })
 	@SqlColumn(notNull = true)
@@ -127,7 +127,9 @@ public abstract class A extends SqlDomainObject {
 	@Crypt
 	public String pwd = "!!!password!!!";
 
-	// Collection and map fields
+	// Arrays, collections and maps
+
+	public String[] stringArray = new String[] { "a", "äß", null };
 
 	@Created(version = "1.1:collectionType=Set")
 	@Changed(versions = { "1.2:collectionType=List" })
