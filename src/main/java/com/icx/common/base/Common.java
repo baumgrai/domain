@@ -30,6 +30,16 @@ public abstract class Common {
 	// Equal
 	// -------------------------------------------------------------------------
 
+	private static Method arraysEquals = null;
+
+	static {
+		try {
+			arraysEquals = Arrays.class.getMethod("equals", Object[].class, Object[].class);
+		}
+		catch (NoSuchMethodException | SecurityException e) {
+		}
+	}
+
 	/**
 	 * Check if two - may be null - objects are equal. If objects are arrays check if arrays equal (not array objects).
 	 * 
@@ -50,7 +60,10 @@ public abstract class Common {
 		}
 		else if (o1.getClass().isArray() && o2.getClass().isArray()) {
 
-			if (o1 instanceof byte[] && o2 instanceof byte[]) {
+			if (o1.getClass().getComponentType() != o2.getClass().getComponentType()) {
+				return false;
+			}
+			else if (o1 instanceof byte[] && o2 instanceof byte[]) {
 				return Arrays.equals((byte[]) o1, (byte[]) o2);
 			}
 			else if (o1 instanceof boolean[] && o2 instanceof boolean[]) {
@@ -75,12 +88,10 @@ public abstract class Common {
 				return Arrays.equals((double[]) o1, (double[]) o2);
 			}
 			else {
-				Method m;
 				try {
-					m = Arrays.class.getMethod("equals", o1.getClass(), o2.getClass()); // TODO: Caching
-					return (Boolean) m.invoke(null, o1, o2);
+					return (Boolean) arraysEquals.invoke(null, o1, o2);
 				}
-				catch (NoSuchMethodException | SecurityException | IllegalAccessException | InvocationTargetException e) {
+				catch (SecurityException | IllegalAccessException | InvocationTargetException e) {
 					return false;
 				}
 			}
