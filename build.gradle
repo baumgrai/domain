@@ -34,7 +34,7 @@ compileTestJava {
 }
 
 group = 'com.icx.domain'
-version = '1.3.0'
+version = '1.4.0'
 
 final BUILD_DATE = new Date().format('yyyyMMdd.HHmmss');
 jar {
