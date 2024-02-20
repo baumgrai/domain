@@ -8,6 +8,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.Arrays;
+import java.util.Date;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -92,15 +93,12 @@ public class Column {
 		DbType dbType = table.dbType;
 
 		if (fieldRelatedType == boolean.class || fieldRelatedType == Boolean.class) {
-			type = (dbType == DbType.ORACLE ? "NVARCHAR2(5)" : dbType == DbType.MS_SQL ? "VARCHAR(5)" : dbType == DbType.MYSQL ? "VARCHAR(5)" : "");
+			type = (dbType == DbType.ORACLE ? "NVARCHAR2(5)" : dbType == DbType.MS_SQL ? "NVARCHAR(5)" : dbType == DbType.MYSQL ? "VARCHAR(5)" : "");
 		}
 		else if (fieldRelatedType == char.class || fieldRelatedType == Character.class) {
-			type = (dbType == DbType.ORACLE ? "NVARCHAR2(1)" : dbType == DbType.MS_SQL ? "VARCHAR(1)" : dbType == DbType.MYSQL ? "VARCHAR(1)" : "");
+			type = (dbType == DbType.ORACLE ? "NVARCHAR2(1)" : dbType == DbType.MS_SQL ? "NVARCHAR(1)" : dbType == DbType.MYSQL ? "VARCHAR(1)" : "");
 		}
-		// Note: Byte type is not supported because negative byte value will not be stored correctly using MS/SQL database (stored as positive value) - use 'short' instead
-		// else if (fieldRelatedType == byte.class || fieldRelatedType == Byte.class) {
-		// type = (dbType == DbType.ORACLE ? "NUMBER" : dbType == DbType.MS_SQL ? "TINYINT" : dbType == DbType.MYSQL ? "SMALLINT" : "");
-		// }
+		// Note: TODO: Byte type is not supported because negative byte value will not be stored correctly using with Jdbc driver for MS/SQL database (stored as positive value) - use 'short' instead
 		else if (fieldRelatedType == short.class || fieldRelatedType == Short.class) {
 			type = (dbType == DbType.ORACLE ? "NUMBER" : dbType == DbType.MS_SQL ? "SMALLINT" : dbType == DbType.MYSQL ? "SMALLINT" : "");
 		}
@@ -111,9 +109,6 @@ public class Column {
 			type = (dbType == DbType.ORACLE ? "NUMBER" : dbType == DbType.MS_SQL ? "BIGINT" : dbType == DbType.MYSQL ? "BIGINT" : "");
 		}
 		// Note: Float type is not supported because no JDBC driver stores and /or retrieves 'float' values correctly - use 'double' instead
-		// else if (fieldRelatedType == float.class || fieldRelatedType == Float.class) {
-		// type = (dbType == DbType.ORACLE ? "NUMBER" : dbType == DbType.MS_SQL ? "FLOAT" : dbType == DbType.MYSQL ? "FLOAT" : "");
-		// }
 		else if (fieldRelatedType == double.class || fieldRelatedType == Double.class) {
 			type = (dbType == DbType.ORACLE ? "NUMBER" : dbType == DbType.MS_SQL ? "FLOAT" : dbType == DbType.MYSQL ? "DOUBLE" : "");
 		}
@@ -142,12 +137,11 @@ public class Column {
 			type = (dbType == DbType.ORACLE ? "NVARCHAR2" : dbType == DbType.MS_SQL ? "NVARCHAR" : dbType == DbType.MYSQL ? "VARCHAR" : "") + "(" + length + ")"
 					+ (dbType == DbType.MYSQL ? " CHARACTER SET UTF8MB4" : "");
 		}
-		else if (fieldRelatedType == File.class) {
-			type = (dbType == DbType.ORACLE ? "NVARCHAR2" : dbType == DbType.MS_SQL ? "NVARCHAR" : dbType == DbType.MYSQL ? "VARCHAR" : "") + "(" + charsize + ")"
-					+ (dbType == DbType.MYSQL ? " CHARACTER SET UTF8MB4" : "");
-		}
-		else if (fieldRelatedType == byte[].class || fieldRelatedType == Byte[].class) {
+		else if (fieldRelatedType == byte[].class || fieldRelatedType == File.class) {
 			type = (dbType == DbType.ORACLE ? "BLOB" : dbType == DbType.MS_SQL ? "VARBINARY(MAX)" : dbType == DbType.MYSQL ? "LONGBLOB" : "");
+		}
+		else if (fieldRelatedType == char[].class) {
+			type = (dbType == DbType.ORACLE ? "CLOB" : dbType == DbType.MS_SQL ? "NVARCHAR(MAX)" : dbType == DbType.MYSQL ? "LONGTEXT" : "");
 		}
 		else if (LocalDate.class.isAssignableFrom(fieldRelatedType)) {
 			type = "DATE";
@@ -155,7 +149,7 @@ public class Column {
 		else if (LocalTime.class.isAssignableFrom(fieldRelatedType)) {
 			type = (dbType == DbType.ORACLE ? "TIMESTAMP" : "TIME");
 		}
-		else if (LocalDateTime.class.isAssignableFrom(fieldRelatedType)) {
+		else if (LocalDateTime.class.isAssignableFrom(fieldRelatedType) || Date.class.isAssignableFrom(fieldRelatedType)) {
 			type = (dbType == DbType.ORACLE ? "TIMESTAMP" : "DATETIME");
 		}
 		else {

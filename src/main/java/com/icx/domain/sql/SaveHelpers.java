@@ -1,6 +1,7 @@
 package com.icx.domain.sql;
 
 import java.io.File;
+import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -29,9 +30,9 @@ import com.icx.common.base.CList;
 import com.icx.common.base.CLog;
 import com.icx.common.base.CMap;
 import com.icx.common.base.Common;
+import com.icx.domain.DomainAnnotations.Crypt;
 import com.icx.domain.DomainObject;
 import com.icx.domain.Registry;
-import com.icx.domain.DomainAnnotations.Crypt;
 import com.icx.jdbc.SqlDb;
 import com.icx.jdbc.SqlDbException;
 import com.icx.jdbc.SqlDbTable;
@@ -64,7 +65,6 @@ public abstract class SaveHelpers extends Common {
 			}
 		}
 		else {
-
 			// Data fields
 			for (Field dataField : sqlRegistry.getDataFields(domainClass)) {
 				Object fieldValue = object.getFieldValue(dataField);
@@ -91,7 +91,16 @@ public abstract class SaveHelpers extends Common {
 			for (Field complexField : sqlRegistry.getComplexFields(domainClass)) {
 				SqlDbTable entryTable = sqlRegistry.getEntryTableFor(complexField);
 
-				if (Collection.class.isAssignableFrom(complexField.getType())) { // Collection
+				if (complexField.getType().isArray()) {
+
+					Object fieldArray = object.getFieldValue(complexField);
+					Object columnArray = objectRecord.get(entryTable.name);
+
+					if (!objectsEqual(fieldArray, columnArray)) {
+						fieldChangesMap.put(complexField, fieldArray);
+					}
+				}
+				else if (Collection.class.isAssignableFrom(complexField.getType())) { // Collection
 					Collection<?> fieldCollection = (Collection<?>) object.getFieldValue(complexField);
 					Collection<?> columnCollection = (Collection<?>) objectRecord.get(entryTable.name);
 
@@ -176,6 +185,7 @@ public abstract class SaveHelpers extends Common {
 	}
 
 	// DELETE, UPDATE or/and INSERT entry records reflecting table related collection or map fields (complex fields) and update object record - ignore column related fields here
+	@SuppressWarnings({ "unchecked", "rawtypes" })
 	private static void updateEntryTables(Connection cn, SqlDomainController sdc, Map<Field, Object> fieldChangesMap, SortedMap<String, Object> objectRecord, SqlDomainObject object)
 			throws SqlDbException, SQLException {
 
@@ -190,6 +200,7 @@ public abstract class SaveHelpers extends Common {
 			boolean isList = List.class.isAssignableFrom(complexField.getType());
 			boolean isSet = Set.class.isAssignableFrom(complexField.getType());
 			boolean isSortedSet = SortedSet.class.isAssignableFrom(complexField.getType());
+			boolean isArray = complexField.getType().isArray();
 
 			// DELETE, UPDATE and/or INSERT entry records for maps, sets and lists
 			try {
@@ -249,12 +260,12 @@ public abstract class SaveHelpers extends Common {
 						SortedMap<String, Object> updateMap = CMap.newSortedMap(Const.VALUE_COL, ComplexFieldHelpers.element2ColumnValue(mapEntriesToChange.get(key)));
 						Object columnKey = key;
 
-						// UPDATE <entry table> SET ENTRY_VALUE=<converted entry value> WHERE <object reference column>=<objectid> AND ENTRY_KEY=<converted entry key>
+						// UPDATE <entry table> SET ENTRY_VALUE=<entry value> WHERE <object reference column>=<objectid> AND ENTRY_KEY=<entry key>
 						sdc.sqlDb.update(cn, entryTableName, updateMap, refIdColumnName + "=" + object.getId() + " AND " + Const.KEY_COL + "="
 								+ (columnKey instanceof String || columnKey instanceof Enum || columnKey instanceof File ? "'" + columnKey + "'" : columnKey));
 					}
 
-					// Update object record by new complex object - do not use field map itself to allow detecting changes in map against map in object record
+					// Update object record by new map - do not use field map itself to allow detecting changes in map against map in object record
 					objectRecord.put(entryTableName, isSortedMap ? new TreeMap<>(newMap) : new HashMap<>(newMap));
 				}
 				else if (isSet) {
@@ -300,11 +311,11 @@ public abstract class SaveHelpers extends Common {
 
 					// Insert entry records for new elements
 					if (!elementsToInsert.isEmpty()) {
-						// (batch) INSERT INTO <entry table> (<object reference column>, ELEMENT) VALUES (<objectid>, <converted set element>)
+						// (batch) INSERT INTO <entry table> (<object reference column>, ELEMENT) VALUES (<objectid>, <set element>)
 						sdc.sqlDb.insertInto(cn, entryTableName, ComplexFieldHelpers.collection2EntryRecords(refIdColumnName, object.getId(), elementsToInsert));
 					}
 
-					// Update object record by new complex object - do not use field set itself to allow detecting changes in set against set in object record
+					// Update object record by new set - do not use field set itself to allow detecting changes in set against set in object record
 					objectRecord.put(entryTableName, isSortedSet ? new TreeSet<>(newSet) : new HashSet<>(newSet));
 				}
 				else if (isList) { // List - clear and rebuild list from scratch to avoid complexity if only order of list elements changed
@@ -312,11 +323,29 @@ public abstract class SaveHelpers extends Common {
 
 					// DELETE FROM <entry table> WHERE <object reference column>=<objectid>
 					SqlDb.deleteFrom(cn, entryTableName, refIdColumnName + "=" + object.getId());
-					// (batch) INSERT INTO <entry table> (<object reference column>, ELEMENT, ELEMENT_ORDER) VALUES (<objectid>, <converted list element>, <order>)
+					// (batch) INSERT INTO <entry table> (<object reference column>, ELEMENT, ELEMENT_ORDER) VALUES (<objectid>, <list element>, <order>)
 					sdc.sqlDb.insertInto(cn, entryTableName, ComplexFieldHelpers.collection2EntryRecords(refIdColumnName, object.getId(), newList));
 
-					// Update object record by new complex object
+					// Update object record by new list
 					objectRecord.put(entryTableName, new ArrayList<>(newList)); // Do not use field list itself to allow detecting changes in list against list in object record
+				}
+				else if (isArray) {
+					Object newArray = fieldChangesMap.get(complexField);
+					int length = Array.getLength(newArray);
+					List listOfArrayElements = new ArrayList<>();
+					for (int i = 0; i < length; i++) {
+						listOfArrayElements.add(Array.get(newArray, i));
+					}
+
+					// DELETE FROM <entry table> WHERE <object reference column>=<objectid>
+					SqlDb.deleteFrom(cn, entryTableName, refIdColumnName + "=" + object.getId());
+					// (batch) INSERT INTO <entry table> (<object reference column>, ELEMENT, ELEMENT_ORDER) VALUES (<objectid>, <array element>, <order>)
+					sdc.sqlDb.insertInto(cn, entryTableName, ComplexFieldHelpers.collection2EntryRecords(refIdColumnName, object.getId(), listOfArrayElements));
+
+					// Update object record by new array - do not use field array itself to allow detecting changes in array against array in object record
+					Object recordArray = Array.newInstance(complexField.getType().getComponentType(), length);
+					System.arraycopy(newArray, 0, recordArray, 0, length);
+					objectRecord.put(entryTableName, recordArray);
 				}
 				else {
 					log.error("SDC: Value of field '{}' is of unsupported type '{}'!", complexField.getName(), complexField.getType().getName());

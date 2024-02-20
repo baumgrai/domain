@@ -117,7 +117,7 @@ public class SqlRegistry extends Registry<SqlDomainObject> {
 				columnName = SECRET_PREFIX + columnName;
 			}
 			else if (columnName.equals("START") || columnName.equals("END") || columnName.equals("COUNT") || columnName.equals("COMMENT") || columnName.equals("DATE") || columnName.equals("TYPE")
-					|| columnName.equals("GROUP") || columnName.equals("FILE")) {
+					|| columnName.equals("GROUP") || columnName.equals("FILE") || columnName.equals("LONGTEXT")) {
 				columnName = TABLE_PREFIX + columnName;
 			}
 
@@ -298,21 +298,23 @@ public class SqlRegistry extends Registry<SqlDomainObject> {
 						// Register entry table
 						sqlTableByComplexFieldMap.put(complexField, entryTable);
 						sqlMainRecordRefIdColumnByComplexFieldMap.put(complexField, refIdColumn);
-						if (Collection.class.isAssignableFrom(complexField.getType())) {
-							Type elementType = ((ParameterizedType) complexField.getGenericType()).getActualTypeArguments()[0];
 
+						if (complexField.getType().isArray()) {
+							Class<?> elementType = complexField.getType().getComponentType();
+							entryTable.findColumnByName(Const.ELEMENT_COL).fieldType = elementType;
 							log.info("SRG: \t\t[ {} : {}.{} ({}) ]", Reflection.fieldDeclaration(complexField), entryTable.name, refIdColumn.name, elementType.getTypeName());
-
+						}
+						else if (Collection.class.isAssignableFrom(complexField.getType())) {
+							Type elementType = ((ParameterizedType) complexField.getGenericType()).getActualTypeArguments()[0];
 							entryTable.findColumnByName(Const.ELEMENT_COL).fieldType = (elementType instanceof ParameterizedType ? String.class : (Class<?>) elementType);
+							log.info("SRG: \t\t[ {} : {}.{} ({}) ]", Reflection.fieldDeclaration(complexField), entryTable.name, refIdColumn.name, elementType.getTypeName());
 						}
 						else {
 							Type keyType = ((ParameterizedType) complexField.getGenericType()).getActualTypeArguments()[0];
 							Type valueType = ((ParameterizedType) complexField.getGenericType()).getActualTypeArguments()[1];
-
-							log.info("SRG: \t\t[ {} : {}.{} ({}/{}) ]", Reflection.fieldDeclaration(complexField), entryTable.name, refIdColumn.name, keyType.getTypeName(), valueType.getTypeName());
-
 							entryTable.findColumnByName(Const.KEY_COL).fieldType = (Class<?>) keyType;
 							entryTable.findColumnByName(Const.VALUE_COL).fieldType = (valueType instanceof ParameterizedType ? String.class : (Class<?>) valueType);
+							log.info("SRG: \t\t[ {} : {}.{} ({}/{}) ]", Reflection.fieldDeclaration(complexField), entryTable.name, refIdColumn.name, keyType.getTypeName(), valueType.getTypeName());
 						}
 					}
 				}

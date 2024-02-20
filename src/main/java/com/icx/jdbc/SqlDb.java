@@ -1,8 +1,12 @@
 package com.icx.jdbc;
 
+import java.io.ByteArrayInputStream;
+import java.io.CharArrayReader;
 import java.io.File;
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
 import java.sql.Blob;
 import java.sql.Clob;
 import java.sql.Connection;
@@ -36,6 +40,7 @@ import org.slf4j.LoggerFactory;
 
 import com.icx.common.Prop;
 import com.icx.common.Reflection;
+import com.icx.common.base.CFile;
 import com.icx.common.base.CLog;
 import com.icx.common.base.CMap;
 import com.icx.common.base.Common;
@@ -253,17 +258,33 @@ public class SqlDb extends Common {
 	// Store records
 	// -------------------------------------------------------------------------
 
-	public static byte[] bytes(Byte[] byteObjects) {
+	// Build up byte array containing file path and file content . If file cannot be read store only file path in database and set file content to an error message.
+	private static byte[] buildFileByteEntry(File file, String columnName) {
 
-		if (byteObjects == null) {
-			return null;
+		byte[] pathBytes = file.getAbsolutePath().getBytes(StandardCharsets.UTF_8);
+		byte[] contentBytes;
+		try {
+			contentBytes = CFile.readBinary(file);
+		}
+		catch (IOException ioex) {
+			log.error("SQL: File '{}' cannot be read! Therfore column '{}' will be set to file path name but file itself contains an error message. ({})", file, columnName, ioex);
+			contentBytes = "File did not exist or could not be read on storing to database!".getBytes(StandardCharsets.UTF_8);
+		}
+		byte[] entryBytes = new byte[2 + pathBytes.length + contentBytes.length];
+
+		entryBytes[0] = (byte) (pathBytes.length / 0x100);
+		entryBytes[1] = (byte) (pathBytes.length % 0x100);
+
+		int b = 2;
+		for (; b < pathBytes.length + 2; b++) {
+			entryBytes[b] = pathBytes[b - 2];
 		}
 
-		byte[] bytes = new byte[byteObjects.length];
-		for (int b = 0; b < bytes.length; b++) {
-			bytes[b] = byteObjects[b];
+		for (; b < contentBytes.length + pathBytes.length + 2; b++) {
+			entryBytes[b] = contentBytes[b - pathBytes.length - 2];
 		}
-		return bytes;
+
+		return entryBytes;
 	}
 
 	// Assign value to store to place holder - convert value to string on special cases and if converter is registered for specific value type, otherwise rely on internal driver conversion
@@ -273,25 +294,33 @@ public class SqlDb extends Common {
 			if (columnValue == null) {
 				pst.setNull(c + 1, typeIntegerFromJdbcType(column.jdbcType)); // Store null value - provide JDBC type of column
 			}
-			else if (SqlDbHelpers.isBasicType(columnValue.getClass()) || columnValue.getClass().isArray()) {
-
+			else {
 				Class<?> objectClass = columnValue.getClass();
-				if (objectClass == Character.class || objectClass == Boolean.class || Enum.class.isAssignableFrom(objectClass) || objectClass == File.class) {
-					pst.setString(c + 1, columnValue.toString()); // Store values of specific classes as string
-				}
-				else if (objectClass == Byte[].class) {
-					pst.setObject(c + 1, bytes((Byte[]) columnValue)); // Store values of Byte[] as byte[]
+				if (SqlDbHelpers.isBasicType(objectClass) || objectClass.isArray()) {
+
+					if (objectClass == Character.class || objectClass == Boolean.class || Enum.class.isAssignableFrom(objectClass)) {
+						pst.setString(c + 1, columnValue.toString()); // Store values of specific classes as string
+					}
+					else if (objectClass == byte[].class) {
+						pst.setBlob(c + 1, new ByteArrayInputStream((byte[]) columnValue)); // Store other value using JDBC conversion
+					}
+					else if (objectClass == char[].class) {
+						pst.setClob(c + 1, new CharArrayReader((char[]) columnValue)); // Store other value using JDBC conversion
+					}
+					else if (objectClass == File.class) {
+						pst.setObject(c + 1, buildFileByteEntry((File) columnValue, column.name)); // Store File as byte array
+					}
+					else {
+						pst.setObject(c + 1, columnValue); // Store other value using JDBC conversion
+					}
 				}
 				else {
-					pst.setObject(c + 1, columnValue); // Store other value using JDBC conversion
+					pst.setObject(c + 1, SqlDbHelpers.tryToBuildStringValueFromColumnValue(columnValue)); // Store value as string using either registered to-string converter or declared toString()
 				}
 			}
-			else {
-				pst.setObject(c + 1, SqlDbHelpers.tryToBuildStringValueFromColumnValue(columnValue)); // Store value as string using either registered to-string converter or declared toString() method
-			}
 		}
-		catch (IllegalArgumentException iaex) {
-			log.error("SQL: Column {} could not be set to value {} ({})", column.name, CLog.forSecretLogging(tableName, column.name, columnValue), iaex);
+		catch (IllegalArgumentException ex) {
+			log.error("SQL: Column '{}' could not be set to value {} ({})", column.name, CLog.forSecretLogging(tableName, column.name, columnValue), ex);
 		}
 	}
 
@@ -299,168 +328,208 @@ public class SqlDb extends Common {
 	// Retrieve records
 	// -------------------------------------------------------------------------
 
-	// Convert array of native bytes to array of Byte objects
-	public static Byte[] byteObjects(byte[] bytes) {
+	// Rebuild file object from binary coded file entry
+	private static File rebuildFile(byte[] entryBytes) throws IOException {
 
-		if (bytes == null) {
-			return null;
+		int pathLength = 0x100 * entryBytes[0] + entryBytes[1];
+
+		int b = 2;
+		byte[] pathBytes = new byte[pathLength];
+		for (; b < pathLength + 2; b++) {
+			pathBytes[b - 2] = entryBytes[b];
+		}
+		String filepath = new String(pathBytes, StandardCharsets.UTF_8);
+
+		byte[] contentBytes = new byte[entryBytes.length - pathLength - 2];
+		for (; b < entryBytes.length; b++) {
+			contentBytes[b - pathLength - 2] = entryBytes[b];
 		}
 
-		Byte[] byteObjects = new Byte[bytes.length];
-		for (int b = 0; b < bytes.length; b++) {
-			byteObjects[b] = bytes[b];
+		File file = new File(filepath);
+		CFile.writeBinary(file, contentBytes);
+
+		return file;
+	}
+
+	// Rebuild file name from binary coded file entry (for error logging)
+	private static String rebuildFileName(byte[] entryBytes) {
+
+		int pathLength = 0x100 * entryBytes[0] + entryBytes[1];
+
+		int b = 2;
+		byte[] pathBytes = new byte[pathLength];
+		for (; b < pathLength + 2; b++) {
+			pathBytes[b - 2] = entryBytes[b];
 		}
-		return byteObjects;
+
+		return new String(pathBytes, StandardCharsets.UTF_8);
 	}
 
 	// Retrieve column values for one row from result set (of select statement or call of stored procedure)
 	@SuppressWarnings({ "unchecked", "rawtypes" })
-	private SortedMap<String, Object> retrieveRecord(ResultSet rs, ResultSetMetaData rsmd, List<String> columnNames) throws SQLException {
+	private SortedMap<String, Object> retrieveRecord(ResultSet rs, ResultSetMetaData rsmd, List<String> qualifiedColumnNames) throws SQLException {
 
 		SortedMap<String, Object> resultRecord = new TreeMap<>();
 
 		// Retrieve all values for one result record - JDBC indexes start by 1
 		for (int c = 0; c < rsmd.getColumnCount(); c++) {
 
-			// Try to determine type of associated field from registered table column by qualified column name TODO: Caching field type for column result
+			String tableName = "<unknown>";
+			String columnName = rsmd.getColumnName(c + 1);
+			int columnType = rsmd.getColumnType(c + 1);
 			Class<?> fieldType = null;
-			if (columnNames != null && columnNames.size() > c && columnNames.get(c).contains(".")) {
-				SqlDbTable table = findRegisteredTable(untilFirst(columnNames.get(c), "."));
-				if (table != null) {
-					SqlDbTable.SqlDbColumn column = table.findColumnByName(behindFirst(columnNames.get(c), "."));
-					if (column != null) {
-						fieldType = column.fieldType;
+			Object columnValue = null;
+			byte[] fileEntryBytes = null;
+
+			try {
+				// Try to determine type of associated field from registered table column by qualified column name TODO: Caching field type for column result
+				if (qualifiedColumnNames != null && qualifiedColumnNames.size() > c && qualifiedColumnNames.get(c).contains(".")) {
+					SqlDbTable table = findRegisteredTable(untilFirst(qualifiedColumnNames.get(c), "."));
+					if (table != null) {
+						tableName = table.name;
+						SqlDbTable.SqlDbColumn column = table.findColumnByName(behindFirst(qualifiedColumnNames.get(c), "."));
+						if (column != null) {
+							fieldType = column.fieldType;
+						}
+						else {
+							log.warn("SQL: Column '{}'/'{}' could not be determined!", columnName, qualifiedColumnNames.get(c));
+						}
 					}
 					else {
-						log.warn("SQL: Column '{}'/'{}' could not be determined!", rsmd.getColumnName(c + 1), columnNames.get(c));
+						log.warn("SQL: Table for column '{}'/'{}' could not be determined!", columnName, qualifiedColumnNames.get(c));
+					}
+				}
+				else if (qualifiedColumnNames == null || qualifiedColumnNames.size() <= c) {
+					log.warn("SQL: Field type of column '{}' could not be determined because column name list {} does not contain appropriate entry!", columnName, qualifiedColumnNames);
+				}
+				else if (log.isDebugEnabled()) {
+					log.debug("SQL: Table name and field type of column '{}' could not be determined because column names are not prefixed by table name ({}).", columnName, qualifiedColumnNames);
+				}
+
+				// For LOB types retrieve values based on column type
+				if (columnType == Types.BLOB) { // Assume BLOB is byte[] - max 2GB is supported
+					Blob blob = rs.getBlob(c + 1);
+					if (blob != null) {
+						columnValue = blob.getBytes(1, ((Number) blob.length()).intValue());
+						if (fieldType == File.class) {
+							columnValue = (columnValue != null ? rebuildFile((byte[]) columnValue) : null);
+						}
+					}
+				}
+				else if (columnType == Types.CLOB) { // Assume CLOB is String - max 2G characters is supported
+					Clob clob = rs.getClob(c + 1);
+					if (clob != null) {
+						columnValue = clob.getSubString(1, ((Number) clob.length()).intValue()).toCharArray();
+					}
+				}
+				else if (fieldType == null) {
+
+					// If no field type given retrieve date/time column values as Java 8 date/time objects and other column values based on column type
+					if (columnType == Types.TIMESTAMP || columnType == Types.TIMESTAMP_WITH_TIMEZONE) {
+						columnValue = rs.getObject(c + 1, LocalDateTime.class);
+					}
+					else if (columnType == Types.TIME || columnType == Types.TIME_WITH_TIMEZONE) {
+						columnValue = rs.getObject(c + 1, LocalTime.class);
+					}
+					else if (columnType == Types.DATE) {
+						columnValue = rs.getObject(c + 1, LocalDate.class);
+					}
+					else {
+						columnValue = rs.getObject(c + 1);
 					}
 				}
 				else {
-					log.warn("SQL: Table for column '{}'/'{}' could not be determined!", rsmd.getColumnName(c + 1), columnNames.get(c));
-				}
-			}
-			else if (columnNames == null || columnNames.size() <= c) {
-				log.warn("SQL: Field type of column '{}' could not be determined because column name list {} does not contain appropriate entry!", rsmd.getColumnName(c + 1), columnNames);
-			}
-			else if (log.isDebugEnabled()) {
-				log.debug("SQL: Table name and field type of column '{}' could not be determined because column names are not prefixed by table name ({}).", rsmd.getColumnName(c + 1), columnNames);
-			}
-
-			// For LOB types retrieve values based on column type
-			Object value = null;
-			int columnType = rsmd.getColumnType(c + 1);
-			if (columnType == Types.BLOB) { // Assume BLOB is byte[] - max 2GB is supported
-				Blob blob = rs.getBlob(c + 1);
-				if (blob != null) {
-					value = blob.getBytes(1, ((Number) blob.length()).intValue());
-					if (fieldType == Byte[].class) {
-						value = byteObjects((byte[]) value);
+					// If field type given retrieve value based on field type and convert values if necessary
+					if (fieldType == String.class) {
+						columnValue = rs.getObject(c + 1, String.class);
 					}
-				}
-			}
-			else if (columnType == Types.CLOB) { // Assume CLOB is String - max 2G characters is supported
-				Clob clob = rs.getClob(c + 1);
-				if (clob != null) {
-					value = clob.getSubString(1, ((Number) clob.length()).intValue());
-				}
-			}
-			else if (fieldType == null) {
+					else if (fieldType == Character.class || fieldType == char.class) {
 
-				// If no field type given retrieve date/time column values as Java 8 date/time objects and other column values based on column type
-				if (columnType == Types.TIMESTAMP || columnType == Types.TIMESTAMP_WITH_TIMEZONE) {
-					value = rs.getObject(c + 1, LocalDateTime.class);
-				}
-				else if (columnType == Types.TIME || columnType == Types.TIME_WITH_TIMEZONE) {
-					value = rs.getObject(c + 1, LocalTime.class);
-				}
-				else if (columnType == Types.DATE) {
-					value = rs.getObject(c + 1, LocalDate.class);
-				}
-				else {
-					value = rs.getObject(c + 1);
-				}
-			}
-			else {
-				// If field type given retrieve value based on field type, and convert values if necessary
-				if (fieldType == String.class) {
-					value = rs.getObject(c + 1, String.class);
-				}
-				else if (fieldType == Character.class || fieldType == char.class) {
-					String string = rs.getObject(c + 1, String.class);
-					value = (!isEmpty(string) ? string.charAt(0) : null);
-				}
-				else if (fieldType == Boolean.class || fieldType == boolean.class) {
-					value = Boolean.valueOf(rs.getObject(c + 1, String.class));
-				}
-				else if (Enum.class.isAssignableFrom(fieldType)) {
-					String string = rs.getObject(c + 1, String.class);
-					if (string != null) {
-						try {
-							value = Enum.valueOf((Class<? extends Enum>) fieldType, string);
-						}
-						catch (IllegalArgumentException iaex) {
-							log.error("SQL: Column value {} cannot be converted to enum type '{}'! ({})", CLog.forAnalyticLogging(string), ((Class<? extends Enum>) fieldType).getName(),
-									iaex.getMessage());
+						String string = rs.getObject(c + 1, String.class);
+						columnValue = (!isEmpty(string) ? string.charAt(0) : null);
+					}
+					else if (fieldType == Boolean.class || fieldType == boolean.class) {
+						columnValue = Boolean.valueOf(rs.getObject(c + 1, String.class));
+					}
+					else if (Enum.class.isAssignableFrom(fieldType)) {
+
+						String string = rs.getObject(c + 1, String.class);
+						if (string != null) {
+							columnValue = Enum.valueOf((Class<? extends Enum>) fieldType, string);
 						}
 					}
-				}
-				else if (fieldType == File.class) {
-					String string = rs.getObject(c + 1, String.class);
-					value = (!isEmpty(string) ? new File(string) : null);
-				}
-				else if (Number.class.isAssignableFrom(Reflection.getBoxingWrapperType(fieldType))) {
+					else if (Number.class.isAssignableFrom(Reflection.getBoxingWrapperType(fieldType))) {
 
-					// Do not use rs.getObject(c + 1, <fieldtype>) on numerical types because 0 may be retrieved for null values!
-					value = rs.getObject(c + 1);
-					if (value instanceof Number) {
-						if (fieldType == Short.class || fieldType == short.class) {
-							value = ((Number) value).shortValue();
-						}
-						else if (fieldType == Integer.class || fieldType == int.class) {
-							value = ((Number) value).intValue();
-						}
-						else if (fieldType == Long.class || fieldType == long.class) {
-							value = ((Number) value).longValue();
-						}
-						else if (fieldType == Double.class || fieldType == double.class) {
-							value = ((Number) value).doubleValue();
-						}
-						else if (fieldType == BigInteger.class) {
-							value = BigInteger.valueOf(((Number) value).longValue());
-						}
-						else if (fieldType == BigDecimal.class) {
-							Number number = (Number) value;
-							if (number.doubleValue() % 1.0 == 0 && number.longValue() < Long.MAX_VALUE) { // Avoid artifacts BigDecimal@4 -> BigDecimal@4.0
-								value = BigDecimal.valueOf(number.longValue());
+						// Do not use rs.getObject(c + 1, <fieldtype>) on numerical types because 0 may be retrieved for null values!
+						columnValue = rs.getObject(c + 1);
+						if (columnValue instanceof Number) {
+							if (fieldType == Short.class || fieldType == short.class) {
+								columnValue = ((Number) columnValue).shortValue();
 							}
-							else {
-								value = BigDecimal.valueOf(number.doubleValue());
+							else if (fieldType == Integer.class || fieldType == int.class) {
+								columnValue = ((Number) columnValue).intValue();
+							}
+							else if (fieldType == Long.class || fieldType == long.class) {
+								columnValue = ((Number) columnValue).longValue();
+							}
+							else if (fieldType == Double.class || fieldType == double.class) {
+								columnValue = ((Number) columnValue).doubleValue();
+							}
+							else if (fieldType == BigInteger.class) {
+								columnValue = BigInteger.valueOf(((Number) columnValue).longValue());
+							}
+							else if (fieldType == BigDecimal.class) {
+								Number number = (Number) columnValue;
+								if (number.doubleValue() % 1.0 == 0 && number.longValue() < Long.MAX_VALUE) { // Avoid artifacts BigDecimal@4 -> BigDecimal@4.0
+									columnValue = BigDecimal.valueOf(number.longValue());
+								}
+								else {
+									columnValue = BigDecimal.valueOf(number.doubleValue());
+								}
 							}
 						}
+						else if (columnValue != null) { // If driver returning other than Number object for numerical fields
+							columnValue = rs.getObject(c + 1, fieldType);
+						}
 					}
-					else if (value != null) { // If driver returning other than Number object for numerical fields
-						value = rs.getObject(c + 1, fieldType);
+					else if (fieldType == LocalDateTime.class || fieldType == LocalDate.class || fieldType == LocalTime.class || Date.class.isAssignableFrom(fieldType) || fieldType == byte[].class) {
+						columnValue = rs.getObject(c + 1, fieldType);
+					}
+					else if (fieldType == File.class) {
+
+						fileEntryBytes = rs.getObject(c + 1, byte[].class);
+						columnValue = (fileEntryBytes != null ? rebuildFile(fileEntryBytes) : null);
+					}
+					else if (fieldType == char[].class) {
+						columnValue = rs.getObject(c + 1);
+						if (columnValue instanceof String) {
+							columnValue = ((String) columnValue).toCharArray();
+						}
+					}
+					else {
+						columnValue = rs.getObject(c + 1);
+						if (columnValue instanceof String) { // Try to convert value using either registered from-string converter or declared valueOf(String) method
+							columnValue = SqlDbHelpers.tryToBuildFieldValueFromStringValue(fieldType, (String) columnValue, columnName);
+						}
 					}
 				}
-				else if (fieldType == LocalDateTime.class || fieldType == LocalDate.class || fieldType == LocalTime.class || Date.class.isAssignableFrom(fieldType)) {
-					value = rs.getObject(c + 1, fieldType);
-				}
-				else if (fieldType == byte[].class) {
-					value = rs.getObject(c + 1, byte[].class);
-				}
-				else if (fieldType == Byte[].class) {
-					value = byteObjects(rs.getObject(c + 1, byte[].class));
+
+				// Put column value retrieved into result map
+				resultRecord.put(rsmd.getColumnLabel(c + 1).toUpperCase(), columnValue);
+			}
+			catch (IllegalArgumentException iaex) {
+
+				if (fieldType != null && Enum.class.isAssignableFrom(fieldType)) {
+					log.error("SQL: Column value {} cannot be converted to enum type '{}' for column '{}.{}'! ({})", CLog.forAnalyticLogging(columnValue),
+							((Class<? extends Enum>) fieldType).getName(), tableName, columnName, iaex);
 				}
 				else {
-					value = rs.getObject(c + 1);
-					if (value instanceof String) { // Try to convert value using either registered from-string converter or declared valueOf(String) method
-						value = SqlDbHelpers.tryToBuildFieldValueFromStringValue(fieldType, (String) value, rsmd.getColumnName(c + 1));
-					}
+					log.error("SQL: Value of column '{}.{}' could not be retrieved - {}", tableName, columnName, iaex);
 				}
 			}
-
-			// Put column value retrieved into result map
-			resultRecord.put(rsmd.getColumnLabel(c + 1).toUpperCase(), value);
+			catch (IOException ioex) {
+				log.error("SQL: File '{}' retrieved from column '{}.{}' cannot be written! ({})", rebuildFileName(fileEntryBytes), tableName, columnName, ioex);
+			}
 		}
 
 		return resultRecord;
@@ -540,39 +609,31 @@ public class SqlDb extends Common {
 				// Cancel timer on successful execution
 				timer.cancel();
 
-				// Build result structure
-				try {
-					// Retrieve result set metadata
-					ResultSetMetaData rsmd = rs.getMetaData();
-					if (rsmd == null) { // may happen on calling stored procedures using MySQL
-						log.warn("SQL: No result set meta information available!");
-					}
-
-					// Retrieve results from result set
-					List<SortedMap<String, Object>> resultRecords = new ArrayList<>();
-					while (rs.next()) {
-						resultRecords.add(retrieveRecord(rs, rsmd, orderedColumnNames));
-					}
-
-					if (resultRecords.isEmpty() && log.isDebugEnabled()) {
-						log.debug("SQL: No records found");
-					}
-					else if (rsmd != null && log.isDebugEnabled()) {
-						SqlDbHelpers.logResultRecords(rsmd, sql, resultRecords);
-					}
-
-					return resultRecords;
+				// Retrieve result set metadata
+				ResultSetMetaData rsmd = rs.getMetaData();
+				if (rsmd == null) { // may happen on calling stored procedures using MySQL
+					log.warn("SQL: No result set meta information available!");
 				}
-				catch (SQLException sqlex) {
-					log.error("SQL: {} '{}' on retrieving results '{}' ({})", sqlex.getClass().getSimpleName(), sqlex.getMessage().trim(),
-							SqlDbHelpers.forSecretLoggingSelect(sql, valuesOfPlaceholders, null), exceptionStackToString(sqlex));
-					throw sqlex;
+
+				// Retrieve results from result set
+				List<SortedMap<String, Object>> resultRecords = new ArrayList<>();
+				while (rs.next()) {
+					resultRecords.add(retrieveRecord(rs, rsmd, orderedColumnNames));
 				}
+
+				if (resultRecords.isEmpty() && log.isDebugEnabled()) {
+					log.debug("SQL: No records found");
+				}
+				else if (rsmd != null && log.isDebugEnabled()) {
+					SqlDbHelpers.logResultRecords(rsmd, sql, resultRecords);
+				}
+
+				return resultRecords;
 			}
 		}
-		catch (SQLException sqlex) {
-			log.error("SQL: {} '{}' on '{}'", sqlex.getClass().getSimpleName(), sqlex.getMessage().trim(), SqlDbHelpers.forSecretLoggingSelect(sql, valuesOfPlaceholders, null));
-			throw sqlex;
+		catch (Exception ex) {
+			log.error("SQL: {} '{}' on '{}'", ex.getClass().getSimpleName(), ex.getMessage().trim(), SqlDbHelpers.forSecretLoggingSelect(sql, valuesOfPlaceholders, null));
+			throw ex;
 		}
 	}
 
@@ -1019,12 +1080,12 @@ public class SqlDb extends Common {
 			}
 		}
 
-		// Check for non existent columns
-		for (String columnName : columnValueMap.keySet()) {
-			if (!table.getColumnNames().contains(columnName)) {
-				throw new SQLException("SQL: UPDATE: Try to set column '" + columnName + "' which does not exist in table '" + table.name + "'");
-			}
-		}
+		// // Check for non existent columns
+		// for (String columnName : columnValueMap.keySet()) {
+		// if (!table.getColumnNames().contains(columnName)) {
+		// throw new SQLException("SQL: UPDATE: Try to set column '" + columnName + "' which does not exist in table '" + table.name + "'");
+		// }
+		// }
 
 		// Build SQL update statement
 		StringBuilder sqlBuilder = new StringBuilder();

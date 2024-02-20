@@ -1,5 +1,6 @@
 package com.icx.domain.sql;
 
+import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.ParameterizedType;
 import java.sql.Connection;
@@ -85,7 +86,7 @@ public abstract class LoadHelpers extends Common {
 	}
 
 	// Build joined table expression for entry tables (storing collections and maps)
-	private static SelectDescription buildSelectDescriptionForEntryRecords(SqlRegistry sqlRegistry, String baseTableExpression, String objectTableName, Field complexField) {
+	private static SelectDescription buildSelectDescriptionForEntryRecords(SqlRegistry sqlRegistry, String baseTableExpression, String objectTableName, Field complexField) throws SqlDbException {
 
 		// Build table and column clause for entry records - join entry table and main object table
 		SelectDescription sde = new SelectDescription();
@@ -96,22 +97,27 @@ public abstract class LoadHelpers extends Common {
 
 		Class<?> fieldClass = complexField.getType();
 
-		if (Collection.class.isAssignableFrom(fieldClass)) {
+		if (Collection.class.isAssignableFrom(fieldClass) || fieldClass.isArray()) {
 
 			// Column for elements of collection
 			sde.allColumnNames.add(entryTableName + "." + Const.ELEMENT_COL);
-			if (List.class.isAssignableFrom(fieldClass)) {
+			if (List.class.isAssignableFrom(fieldClass) || fieldClass.isArray()) {
 
 				// Column for list order and ORDER BY clause
 				sde.allColumnNames.add(entryTableName + "." + Const.ORDER_COL);
 				sde.orderByClause = Const.ORDER_COL;
 			}
 		}
-		else {
+		else if (Map.class.isAssignableFrom(fieldClass)) {
+
 			// Column for keys and values of map
 			sde.allColumnNames.add(entryTableName + "." + Const.KEY_COL);
 			sde.allColumnNames.add(entryTableName + "." + Const.VALUE_COL);
 		}
+		else {
+			throw new SqlDbException("Complex field '" + complexField + "' is neither array nor collection nor map!");
+		}
+
 		return sde;
 	}
 
@@ -187,15 +193,28 @@ public abstract class LoadHelpers extends Common {
 					// Build collection or map from entry records and add it to loaded object record with entry table name as key
 					// (perform table entries -> collection/map conversion here and not later during assignment of values to objects)
 					String entryTableName = ((SqlRegistry) sdc.registry).getEntryTableFor(complexField).name;
-					ParameterizedType genericFieldType = ((ParameterizedType) complexField.getGenericType());
-					if (Collection.class.isAssignableFrom(complexField.getType())) { // Collection
+					if (complexField.getType().isArray()) {
 						for (long objectId : entryRecordsByObjectIdMap.keySet()) {
-							loadedRecordMap.get(objectId).put(entryTableName, ComplexFieldHelpers.entryRecords2Collection(genericFieldType, entryRecordsByObjectIdMap.get(objectId)));
+							Object array = Array.newInstance(complexField.getType().getComponentType(), entryRecordsByObjectIdMap.get(objectId).size());
+							int r = 0;
+							for (SortedMap<String, Object> entryRecord : entryRecordsByObjectIdMap.get(objectId)) {
+								Array.set(array, r++, entryRecord.get(Const.ELEMENT_COL)); // Element of array cannot be a collection or map itself! (not supported)
+							}
+
+							loadedRecordMap.get(objectId).put(entryTableName, array);
 						}
 					}
-					else { // Map
-						for (long objectId : entryRecordsByObjectIdMap.keySet()) {
-							loadedRecordMap.get(objectId).put(entryTableName, ComplexFieldHelpers.entryRecords2Map(genericFieldType, entryRecordsByObjectIdMap.get(objectId)));
+					else {
+						ParameterizedType genericFieldType = ((ParameterizedType) complexField.getGenericType());
+						if (Collection.class.isAssignableFrom(complexField.getType())) { // Collection
+							for (long objectId : entryRecordsByObjectIdMap.keySet()) {
+								loadedRecordMap.get(objectId).put(entryTableName, ComplexFieldHelpers.entryRecords2Collection(genericFieldType, entryRecordsByObjectIdMap.get(objectId)));
+							}
+						}
+						else { // Map
+							for (long objectId : entryRecordsByObjectIdMap.keySet()) {
+								loadedRecordMap.get(objectId).put(entryTableName, ComplexFieldHelpers.entryRecords2Map(genericFieldType, entryRecordsByObjectIdMap.get(objectId)));
+							}
 						}
 					}
 				}
@@ -387,32 +406,24 @@ public abstract class LoadHelpers extends Common {
 	}
 
 	// Check if object has unsaved changes in a collection or map
-	private static void assignFieldWarningOnUnsavedComplexFieldChange(SqlDomainController sdc, SqlDomainObject obj, Field complexField, String entryTableName, Object collectionOrMapFromObject,
-			boolean isCollection) {
+	private static void assignFieldWarningOnUnsavedComplexFieldChange(SqlDomainController sdc, SqlDomainObject obj, Field complexField, String entryTableName, Object complexObjectFromField) {
 
-		if (isCollection) { // Collection
-			Collection<?> colFromObjRecord = (Collection<?>) sdc.recordMap.get(obj.getClass()).get(obj.getId()).get(entryTableName);
-			if (!objectsEqual(collectionOrMapFromObject, colFromObjRecord)) {
-				log.warn("SDC: Collection field '{}' of object '{}' {} has unsaved changes and will be overridden by collection {} from database!", complexField.getName(), obj.name(),
-						CLog.forSecretLogging(complexField, collectionOrMapFromObject), CLog.forSecretLogging(complexField, colFromObjRecord));
-				obj.setFieldWarning(complexField,
-						"Discarded unsaved changed collection " + collectionOrMapFromObject + " of field '" + complexField.getName() + "' on loading collection from database");
-			}
-		}
-		else { // Map
-			Map<?, ?> mapFromObjRecord = (Map<?, ?>) sdc.recordMap.get(obj.getClass()).get(obj.getId()).get(entryTableName);
-			if (!objectsEqual(collectionOrMapFromObject, mapFromObjRecord)) {
-				log.warn("SDC: Key/value map field '{}' of object '{}' {} has unsaved changes and will be overridden by map {} from database!", complexField.getName(), obj.name(),
-						CLog.forSecretLogging(complexField, collectionOrMapFromObject), CLog.forSecretLogging(complexField, mapFromObjRecord));
-				obj.setFieldWarning(complexField, "Discarded unsaved changed key/value map " + collectionOrMapFromObject + " of field '" + complexField.getName() + "' on loading map from database");
-			}
+		Object complexObjectFromColumn = sdc.recordMap.get(obj.getClass()).get(obj.getId()).get(entryTableName);
+		String objectType = (complexObjectFromField.getClass().isArray() ? "Array" : complexObjectFromField instanceof Collection ? "Collection" : "Map");
+
+		if (!objectsEqual(complexObjectFromField, complexObjectFromColumn)) {
+			log.warn("SDC: {} field '{}' of object '{}' {} has unsaved changes and will be overridden by value {} from database!", objectType, complexField.getName(), obj.name(),
+					CLog.forSecretLogging(complexField, complexObjectFromField), CLog.forSecretLogging(complexField, complexObjectFromColumn));
+			obj.setFieldWarning(complexField, "Discarded unsaved changed value " + complexObjectFromField + " of field '" + complexField.getName() + "' on loading from database");
 		}
 	}
+
+	// TODO: Arrays of other simple Java types than byte
 
 	// Assign changed data in record from database to corresponding fields of domain object - check for unsaved changes before, which will then be discarded
 	@SuppressWarnings("unchecked")
 	private static void assignDataToDomainObject(SqlDomainController sdc, SqlDomainObject obj, boolean isNew, SortedMap<String, Object> databaseChangesMap,
-			Set<SqlDomainObject> objectsWhereReferencesChanged, List<UnresolvedReference> unresolvedReferences) {
+			Set<SqlDomainObject> objectsWhereReferencesChanged, List<UnresolvedReference> unresolvedReferences) throws SqlDbException {
 
 		// Assign loaded data to fields for all inherited domain classes of domain object
 		for (Class<? extends SqlDomainObject> domainClass : sdc.registry.getDomainClassesFor(obj.getClass())) {
@@ -503,27 +514,35 @@ public abstract class LoadHelpers extends Common {
 				databaseChangesMap.put(columnName, fieldValue);
 			}
 
-			// Complex (table related) fields: set field values of object to collection or map (conversion from entry table record was already done directly after loading entry records)
+			// Complex (table related) fields: set field values of object to collection or map (conversion from entry table record was already done on loading entry records)
 			Predicate<Field> hasEntriesChangedPredicate = (f -> databaseChangesMap.containsKey(((SqlRegistry) sdc.registry).getEntryTableFor(f).name));
 			for (Field complexField : sdc.registry.getComplexFields(domainClass).stream().filter(hasEntriesChangedPredicate).collect(Collectors.toList())) {
 
 				String entryTableName = ((SqlRegistry) sdc.registry).getEntryTableFor(complexField).name;
-				boolean isCollection = Collection.class.isAssignableFrom(complexField.getType());
-				Object collectionOrMapFromObject = obj.getFieldValue(complexField);
+				Object complexObjectFromField = obj.getFieldValue(complexField);
 
 				if (!isNew) {
-					assignFieldWarningOnUnsavedComplexFieldChange(sdc, obj, complexField, entryTableName, collectionOrMapFromObject, isCollection);
+					assignFieldWarningOnUnsavedComplexFieldChange(sdc, obj, complexField, entryTableName, complexObjectFromField);
 				}
 
-				if (isCollection) { // Collection
-					Collection<Object> colFromObject = (Collection<Object>) collectionOrMapFromObject;
-					colFromObject.clear();
-					colFromObject.addAll((Collection<Object>) databaseChangesMap.get(entryTableName));
+				if (complexField.getType().isArray()) {
+					Object arrayFromColumn = databaseChangesMap.get(entryTableName);
+					Object arrayForField = Array.newInstance(complexField.getType().getComponentType(), Array.getLength(arrayFromColumn));
+					System.arraycopy(arrayFromColumn, 0, arrayForField, 0, Array.getLength(arrayFromColumn));
+					obj.setFieldValue(complexField, arrayForField);
 				}
-				else { // Map
-					Map<Object, Object> mapFromObject = (Map<Object, Object>) collectionOrMapFromObject;
-					mapFromObject.clear();
-					mapFromObject.putAll((Map<Object, Object>) databaseChangesMap.get(entryTableName));
+				else if (Collection.class.isAssignableFrom(complexField.getType())) { // Collection
+					Collection<Object> collectionFromField = (Collection<Object>) complexObjectFromField;
+					collectionFromField.clear();
+					collectionFromField.addAll((Collection<Object>) databaseChangesMap.get(entryTableName));
+				}
+				else if (Map.class.isAssignableFrom(complexField.getType())) { // Map
+					Map<Object, Object> mapFromField = (Map<Object, Object>) complexObjectFromField;
+					mapFromField.clear();
+					mapFromField.putAll((Map<Object, Object>) databaseChangesMap.get(entryTableName));
+				}
+				else {
+					throw new SqlDbException("Complex field '" + complexField + "' is neither array nor collection nor map!");
 				}
 			}
 		}
@@ -539,7 +558,7 @@ public abstract class LoadHelpers extends Common {
 
 	// Update local object records, instantiate new objects and assign data to all new or changed objects. Collect objects having changed and/or still unresolved references
 	static boolean buildObjectsFromLoadedRecords(SqlDomainController sdc, Map<Class<? extends SqlDomainObject>, Map<Long, SortedMap<String, Object>>> loadedRecordsMap,
-			Set<SqlDomainObject> loadedObjects, Set<SqlDomainObject> objectsWhereReferencesChanged, List<UnresolvedReference> unresolvedReferences) {
+			Set<SqlDomainObject> loadedObjects, Set<SqlDomainObject> objectsWhereReferencesChanged, List<UnresolvedReference> unresolvedReferences) throws SqlDbException {
 
 		if (!CMap.isEmpty(loadedRecordsMap) && log.isTraceEnabled()) {
 			log.trace("SDC: Build objects from loaded records...");

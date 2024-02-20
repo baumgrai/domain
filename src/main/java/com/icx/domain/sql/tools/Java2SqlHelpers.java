@@ -181,20 +181,6 @@ public class Java2SqlHelpers extends SqlDbHelpers {
 	// Build entry table for Set, List or Map field
 	public static Table buildEntryTable(Field field, String currentCollectionTypeString, DbType dbType) {
 
-		// Use explicitly specified type if given, field type otherwise
-		Class<?> currentType = field.getType();
-		if (currentCollectionTypeString != null) {
-			if (currentCollectionTypeString.equalsIgnoreCase("list")) {
-				currentType = List.class;
-			}
-			else if (currentCollectionTypeString.equalsIgnoreCase("set")) {
-				currentType = Set.class;
-			}
-			else if (currentCollectionTypeString.equalsIgnoreCase("both")) {
-				currentType = null;
-			}
-		}
-
 		// Create table
 		Table entryTable = new Table(field, dbType);
 
@@ -206,11 +192,17 @@ public class Java2SqlHelpers extends SqlDbHelpers {
 		mainTableRefColumn.addFkConstraint(ConstraintType.MAIN_TABLE, registry.getCastedDeclaringDomainClass(field));
 
 		// Create entry columns
-		if (currentType == null || currentType.isArray() || Collection.class.isAssignableFrom(currentType)) { // Collection field
+		if (field.getType().isArray()) {
+
+			// Create element column - do not support collections or maps as elements of array! - and order column
+			entryTable.addStandardColumn(Const.ELEMENT_COL, field.getType().getComponentType());
+			entryTable.addStandardColumn(Const.ORDER_COL, Integer.class);
+		}
+		else if (Collection.class.isAssignableFrom(field.getType())) { // Collection field
 
 			Type elementType = ((ParameterizedType) field.getGenericType()).getActualTypeArguments()[0];
 
-			// Create element column - allow collections or maps of simple objects as element type - convert with string2list and string2map and vice versa
+			// Create element column - support also collections or maps of simple objects as element type - convert with string2list and string2map and vice versa
 			Column elementColumn = null;
 			if (elementType instanceof Class<?>) {
 				elementColumn = entryTable.addStandardColumn(Const.ELEMENT_COL, (Class<?>) elementType);
@@ -219,18 +211,23 @@ public class Java2SqlHelpers extends SqlDbHelpers {
 				elementColumn = entryTable.addStandardColumn(Const.ELEMENT_COL, String.class);
 			}
 
+			// Avoid null pointer exception on following tests
+			if (currentCollectionTypeString == null) {
+				currentCollectionTypeString = "";
+			}
+
 			// Add UNIQUE constraint for element sets (or if type is unknown)
-			if (currentType == null || Set.class.isAssignableFrom(currentType)) {
-				elementColumn.charsize = 512; // Less bytes allowed for keys in UNIQUE constraints (differs by database type)
+			if (Set.class.isAssignableFrom(field.getType()) || currentCollectionTypeString.equalsIgnoreCase("set") || currentCollectionTypeString.equalsIgnoreCase("both")) {
+				elementColumn.charsize = 512; // Less bytes allowed for keys in UNIQUE constraints (differs for different database types)
 				entryTable.addUniqueConstraintFor(mainTableRefColumn, elementColumn);
 			}
 
 			// Add add order column for element lists (or if type is unknown)
-			if (currentType == null || currentType.isArray() || List.class.isAssignableFrom(currentType)) {
+			if (List.class.isAssignableFrom(field.getType()) || currentCollectionTypeString.equalsIgnoreCase("list") || currentCollectionTypeString.equalsIgnoreCase("both")) {
 				entryTable.addStandardColumn(Const.ORDER_COL, Integer.class);
 			}
 		}
-		else { // Map field
+		else if (Map.class.isAssignableFrom(field.getType())) { // Map field
 
 			Type keyType = ((ParameterizedType) field.getGenericType()).getActualTypeArguments()[0];
 			Type valueType = ((ParameterizedType) field.getGenericType()).getActualTypeArguments()[1];
