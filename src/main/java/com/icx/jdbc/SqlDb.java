@@ -88,10 +88,14 @@ public class SqlDb extends Common {
 	 * Supported database types: <code>ORACLE, MS_SQL, MYSQL</code>
 	 */
 	public enum DbType {
-		ORACLE, MS_SQL, MYSQL;
+		ORACLE, MS_SQL, MYSQL, MARIA;
+
+		public boolean isMySql() {
+			return (this == MYSQL || this == MARIA);
+		}
 
 		public String dateTemplate() {
-			return (this == ORACLE ? ORACLE_DATE_TMPL : this == MS_SQL ? MS_SQL_DATE_TMPL : this == MYSQL ? MYSQL_DATE_TMPL : null);
+			return (this == ORACLE ? ORACLE_DATE_TMPL : this == MS_SQL ? MS_SQL_DATE_TMPL : this.isMySql() ? MYSQL_DATE_TMPL : null);
 		}
 	}
 
@@ -101,6 +105,7 @@ public class SqlDb extends Common {
 			put(DbType.ORACLE, "SYSDATE");
 			put(DbType.MS_SQL, "GETDATE()");
 			put(DbType.MYSQL, "SYSDATE()");
+			put(DbType.MARIA, "SYSDATE()");
 		}
 	};
 
@@ -153,8 +158,11 @@ public class SqlDb extends Common {
 		else if (dbProdName.contains("Oracle")) {
 			type = DbType.ORACLE;
 		}
-		else if (dbProdName.contains("MySQL") || dbProdName.contains("MariaDB")) {
+		else if (dbProdName.contains("MySQL")) {
 			type = DbType.MYSQL;
+		}
+		else if (dbProdName.contains("MariaDB")) {
+			type = DbType.MARIA;
 		}
 		else {
 			throw new ConfigException("Unsupported database type!");
@@ -268,7 +276,7 @@ public class SqlDb extends Common {
 			contentBytes = CFile.readBinary(file);
 		}
 		catch (IOException ioex) {
-			log.error("SQL: File '{}' cannot be read! Therfore column '{}' will be set to file path name but file itself contains an error message. ({})", file, columnName, ioex);
+			log.error("SQL: File '{}' cannot be read! Therfore column '{}' will be set to file path name but file itself contains an error message. ({})", file, columnName, ioex.getMessage());
 			contentBytes = "File did not exist or could not be read on storing to database!".getBytes(StandardCharsets.UTF_8);
 		}
 		byte[] entryBytes = new byte[2 + pathBytes.length + contentBytes.length];
@@ -775,7 +783,7 @@ public class SqlDb extends Common {
 			sql.append(" ORDER BY " + orderByClause);
 		}
 
-		if (limit > 0 && getDbType() == DbType.MYSQL) {
+		if (limit > 0 && getDbType().isMySql()) {
 			sql.append(" LIMIT " + limit);
 		}
 
