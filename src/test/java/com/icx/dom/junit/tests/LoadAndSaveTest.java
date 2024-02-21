@@ -62,6 +62,12 @@ class LoadAndSaveTest extends TestHelpers {
 
 	static final Logger log = LoggerFactory.getLogger(LoadAndSaveTest.class);
 
+	// +++ Please set log level to 'trace' in src/main/resources/log4j2.xml to achieve maximum coverage +++
+	// +++ You may run tests multiple times with 'dbType' set to different database types +++
+	// +++ ---------------------------------------------------------
+	public static DbType dbType = DbType.MYSQL;
+	// +++ ---------------------------------------------------------
+
 	static SqlDomainController sdc = new SqlDomainController();
 
 	static void cleanup() throws Exception {
@@ -127,11 +133,10 @@ class LoadAndSaveTest extends TestHelpers {
 
 			assertEquals(A.class, sdc.getDomainClassByName("A"));
 
-			// -----------------------------------------
-			Helpers.dbType = DbType.ORACLE;
-			// -----------------------------------------
+			File dbPropsFile = Prop.findPropertiesFile("db.properties");
+			String localConf = "local/" + dbType.toString().toLowerCase() + "/junit";
+			Properties dbProps = Prop.readEnvironmentSpecificProperties(dbPropsFile, localConf, CList.newList("dbConnectionString", "dbUser"));
 
-			Properties dbProps = Prop.readEnvironmentSpecificProperties(Prop.findPropertiesFile("db.properties"), Helpers.getLocal(Helpers.dbType), CList.newList("dbConnectionString", "dbUser"));
 			Properties domainProps = Prop.readProperties(Prop.findPropertiesFile("domain.properties"));
 
 			log.info("\tRegister all domain classes in package, establish logical database connection and associate Java <-> SQL...");
@@ -182,7 +187,7 @@ class LoadAndSaveTest extends TestHelpers {
 				aa.integerValue = Integer.MAX_VALUE;
 				aa.l = Long.MIN_VALUE;
 				aa.longValue = Long.MAX_VALUE;
-				aa.d = 123456789.123456789; // Double.MIN_VALUE: underflow with Oracle
+				aa.d = 123456789.123456; // Double.MIN_VALUE: underflow with Oracle
 				aa.doubleValue = -0.0000123456789; // Double.MAX_VALUE: underflow with Oracle
 
 				aa.c = 'a';
@@ -202,7 +207,7 @@ class LoadAndSaveTest extends TestHelpers {
 				aa.longtext = new char[0x1000000];
 				System.arraycopy(longtext, 0, aa.longtext, 0, 0x1000000);
 
-				aa.strings = CList.newList("A", "B", "C", "D", (Helpers.dbType == DbType.ORACLE ? null : ""), null); // Oracle does not allow empty string values (stored as NULL instead)
+				aa.strings = CList.newList("A", "B", "C", "D", (dbType == DbType.ORACLE ? null : ""), null); // Oracle does not allow empty string values (stored as NULL instead)
 				aa.doubleSet = CSet.newSet(0.0, 0.1, 0.2, null);
 				aa.bigDecimalMap = CMap.newMap("a", BigDecimal.valueOf(1L), "b", BigDecimal.valueOf(2L), "c", BigDecimal.valueOf(3.1), "d", null, null, BigDecimal.valueOf(0L));
 
@@ -260,7 +265,7 @@ class LoadAndSaveTest extends TestHelpers {
 			assertEquals(Integer.MAX_VALUE, aa1.integerValue);
 			assertEquals(Long.MIN_VALUE, aa1.l);
 			assertEquals(Long.MAX_VALUE, aa1.longValue);
-			assertEquals(123456789.123456789, aa1.d);
+			assertEquals(123456789.123456, aa1.d);
 			assertEquals(-0.0000123456789, aa1.doubleValue);
 			assertEquals(BigInteger.valueOf(Long.MAX_VALUE), aa1.bigIntegerValue);
 			assertEquals(BigDecimal.valueOf(123456789), aa1.bigDecimalValue);
@@ -281,7 +286,7 @@ class LoadAndSaveTest extends TestHelpers {
 
 			assertTrue(objectsEqual(new String[] { "a", "äß", null }, aa1.stringArray));
 
-			assertEquals(CList.newList("A", "B", "C", "D", (Helpers.dbType == DbType.ORACLE ? null : ""), null), aa1.strings); // Oracle does not allow empty string values (stored as NULL instead)
+			assertEquals(CList.newList("A", "B", "C", "D", (dbType == DbType.ORACLE ? null : ""), null), aa1.strings); // Oracle does not allow empty string values (stored as NULL instead)
 			assertEquals(CSet.newSet(0.0, 0.1, 0.2, null), aa1.doubleSet);
 			assertEquals(CMap.newMap("a", BigDecimal.valueOf(1L), "b", BigDecimal.valueOf(2L), "c", BigDecimal.valueOf(3.1), "d", null, null, BigDecimal.valueOf(0L)), aa1.bigDecimalMap);
 
@@ -370,7 +375,7 @@ class LoadAndSaveTest extends TestHelpers {
 				sdc.sqlDb.update(sqlcn.cn, "DOM_A_STRINGS", CMap.newMap("ELEMENT_ORDER", 0), "ELEMENT='C'");
 				SqlDb.deleteFrom(sqlcn.cn, "DOM_A_STRINGS", "ELEMENT='D'");
 
-				if (Helpers.dbType == DbType.ORACLE) {
+				if (dbType == DbType.ORACLE) {
 					sdc.sqlDb.update(sqlcn.cn, "DOM_A_STRINGS", CMap.newMap("ELEMENT", "E"), "ELEMENT IS NULL");
 				}
 				else {
@@ -413,7 +418,7 @@ class LoadAndSaveTest extends TestHelpers {
 			assertTrue(CFile.readText(file, StandardCharsets.UTF_8.toString()).startsWith("File did not exist or could not be read on storing to database!"));
 			assertEquals(null, aa1.o);
 
-			if (Helpers.dbType == DbType.ORACLE) {
+			if (dbType == DbType.ORACLE) {
 				assertEquals(CList.newList("C", "B", "E", "E", "E", "G"), aa1.strings);
 			}
 			else {

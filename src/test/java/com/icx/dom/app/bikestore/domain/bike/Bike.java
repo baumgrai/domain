@@ -2,8 +2,8 @@ package com.icx.dom.app.bikestore.domain.bike;
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
+import java.util.SortedMap;
 
 import com.icx.common.base.CList;
 import com.icx.common.base.Common;
@@ -64,7 +64,7 @@ public abstract class Bike extends SqlDomainObject {
 	// Lists, Sets and Maps will be stored in separate 'entry' tables - there is no column associated with a List/Set or Map field
 	public List<Size> sizes;
 
-	public Map<Size, Integer> availabilityMap;
+	public SortedMap<Size, Integer> availabilityMap;
 
 	@SqlColumn(notNull = true) // Forces NOT NULL constraint for assigned column
 	public BigDecimal price;

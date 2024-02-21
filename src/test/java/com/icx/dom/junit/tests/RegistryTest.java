@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.File;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
@@ -39,7 +40,6 @@ import com.icx.domain.sql.SqlDomainController;
 import com.icx.domain.sql.SqlDomainObject;
 import com.icx.domain.sql.SqlRegistry;
 import com.icx.domain.sql.tools.Java2Sql;
-import com.icx.jdbc.SqlDb.DbType;
 import com.icx.jdbc.SqlDbTable;
 import com.icx.jdbc.SqlDbTable.SqlDbColumn;
 import com.icx.jdbc.SqlDbTable.SqlDbUniqueConstraint;
@@ -223,14 +223,13 @@ class RegistryTest extends TestHelpers {
 
 		log.info("\tTEST 3: java2sql()");
 
-		log.info("\tJava2Sql...");
-
 		Java2Sql.main(new String[] { "com.icx.dom.junit.domain" });
 
 		log.info("\tError cases...");
 
-		Helpers.dbType = DbType.MYSQL;
-		Properties dbProps = Prop.readEnvironmentSpecificProperties(Prop.findPropertiesFile("db.properties"), Helpers.getLocal(Helpers.dbType), CList.newList("dbConnectionString", "dbUser"));
+		File dbPropsFile = Prop.findPropertiesFile("db.properties");
+		String localConf = "local/" + LoadAndSaveTest.dbType.toString().toLowerCase() + "/junit";
+		Properties dbProps = Prop.readEnvironmentSpecificProperties(dbPropsFile, localConf, CList.newList("dbConnectionString", "dbUser"));
 		Properties domainProps = Prop.readProperties(Prop.findPropertiesFile("domain.properties"));
 		sdc.initialize(dbProps, domainProps, "com.icx.dom.junit.domain");
 

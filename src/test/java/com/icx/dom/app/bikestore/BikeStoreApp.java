@@ -15,6 +15,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.icx.common.Prop;
+import com.icx.common.base.CList;
 import com.icx.dom.app.bikestore.domain.Manufacturer;
 import com.icx.dom.app.bikestore.domain.bike.Bike;
 import com.icx.dom.app.bikestore.domain.bike.Bike.Size;
@@ -24,6 +25,8 @@ import com.icx.dom.app.bikestore.domain.client.Client.RegionInProgress;
 import com.icx.dom.app.bikestore.domain.client.Order;
 import com.icx.domain.sql.LoadHelpers;
 import com.icx.domain.sql.SqlDomainController;
+import com.icx.jdbc.SqlDb;
+import com.icx.jdbc.SqlDb.DbType;
 
 /**
  * International bike store. Test app simulates bike ordering by different clients, order processing and and bike delivery.
@@ -56,6 +59,9 @@ public class BikeStoreApp {
 	// List of bike models with availabilities for different sizes
 	protected static List<Bike> bikes = null;
 
+	// To force ending order processing and bike delivery threads
+	public static boolean stopOrderProcessing = false;
+
 	// Methods
 
 	private static void checkOrdersAndStock() {
@@ -73,7 +79,7 @@ public class BikeStoreApp {
 				orders.addAll(successfulOrdersForBikeInSize);
 
 				if (availableBikesInSizeCount + successfulOrdersForBikeInSize.size() != AVAILABLE_BIKES) {
-					log.error("Sum of ordered and still avaliable {}s in size {} does differs from initial availability: {}+{} != {}!", bike, size, availableBikesInSizeCount,
+					log.error("Sum of ordered and still avaliable {}s in size {} differs from initial availability: {}+{} != {}!", bike, size, availableBikesInSizeCount,
 							successfulOrdersForBikeInSize.size(), AVAILABLE_BIKES);
 				}
 			}
@@ -83,8 +89,15 @@ public class BikeStoreApp {
 	// Main
 	public static void main(String[] args) throws Exception {
 
+		// -------------------------------------------------
+		SqlDb.DbType dbType = DbType.ORACLE;
+		// -------------------------------------------------
+
 		// Read JDBC and Domain properties. Note: you should not have multiple properties files with same name in your class path
-		Properties dbProps = Prop.readEnvironmentSpecificProperties(Prop.findPropertiesFile("db.properties"), "local/mysql/bikes", null);
+		File dbPropsFile = Prop.findPropertiesFile("db.properties");
+		String localConf = "local/" + dbType.toString().toLowerCase() + "/bikes";
+		Properties dbProps = Prop.readEnvironmentSpecificProperties(dbPropsFile, localConf, CList.newList("dbConnectionString", "dbUser"));
+
 		Properties domainProps = Prop.readProperties(Prop.findPropertiesFile("domain.properties"));
 
 		// Associate domain classes and database tables
@@ -114,9 +127,8 @@ public class BikeStoreApp {
 
 				// Start order processing and bike delivery thread for region
 				// Note: there are separate order and bike delivery threads for every region but they have access to all orders independently in which region they were generated - this is only to
-				// force
-				// concurrent access collisions
-				Thread orderProcessingThread = new Thread(new Order.SendInvoices(sdc));
+				// force concurrent access collisions
+				Thread orderProcessingThread = new Thread(new Order.ProcessOrder(sdc));
 				orderProcessingThread.setName("--ORDER (" + region + ") --");
 				orderProcessingThread.start();
 				orderThreadMap.put(region, orderProcessingThread);
@@ -135,24 +147,31 @@ public class BikeStoreApp {
 				Thread.sleep(1000);
 			}
 
+			log.info("Threads started.");
+
 			// Wait until all client instances have finished
 			for (Entry<Region, Thread> entry : instanceThreadMap.entrySet()) {
 				Thread instanceThread = entry.getValue();
 				instanceThread.join(120000);
 			}
 
+			log.info("Client threads ended.");
+			stopOrderProcessing = true;
+
 			// Force ending order and bike delivery threads
 			for (Entry<Region, Thread> entry : orderThreadMap.entrySet()) {
 				Thread orderProcessingThread = entry.getValue();
-				orderProcessingThread.interrupt();
 				orderProcessingThread.join(10000);
 			}
 
+			log.info("Order threads ended.");
+
 			for (Entry<Region, Thread> entry : bikeDeliveryThreadMap.entrySet()) {
 				Thread bikeDeliveryThread = entry.getValue();
-				bikeDeliveryThread.interrupt();
 				bikeDeliveryThread.join(10000);
 			}
+
+			log.info("Delivery threads ended.");
 
 			// Synchronize with database to load orders generated from bike store instances
 			sdc.synchronize();
