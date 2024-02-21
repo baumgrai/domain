@@ -418,8 +418,6 @@ public abstract class LoadHelpers extends Common {
 		}
 	}
 
-	// TODO: Arrays of other simple Java types than byte
-
 	// Assign changed data in record from database to corresponding fields of domain object - check for unsaved changes before, which will then be discarded
 	@SuppressWarnings("unchecked")
 	private static void assignDataToDomainObject(SqlDomainController sdc, SqlDomainObject obj, boolean isNew, SortedMap<String, Object> databaseChangesMap,
