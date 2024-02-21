@@ -331,9 +331,7 @@ public abstract class LoadHelpers extends Common {
 				}
 			}
 			catch (SQLException sqlex) {
-				if (log.isDebugEnabled()) {
-					log.info("SDC: {} record with id {} is already in progress (by another instance)", objectDomainClass.getSimpleName(), id);
-				}
+				log.info("SDC: {} record with id {} is already in progress (by another instance)", objectDomainClass.getSimpleName(), id);
 				inUseByDifferentInstanceAccessCount++;
 			}
 			catch (SqlDbException sqldbex) {
