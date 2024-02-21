@@ -115,8 +115,8 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	 */
 	public static void registerStringConvertersForType(Class<?> cls, Function<Object, String> toStringConverter, Function<String, Object> fromStringConverter) {
 
-		SqlDbHelpers.toStringConverterMap.put(cls, toStringConverter);
-		SqlDbHelpers.fromStringConverterMap.put(cls, fromStringConverter);
+		SqlDbHelpers.addToStringConverter(cls, toStringConverter);
+		SqlDbHelpers.addFromStringConverter(cls, fromStringConverter);
 	}
 
 	// -------------------------------------------------------------------------
@@ -803,6 +803,7 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 			save(obj);
 		}
 		catch (SQLException | SqlDbException e) {
+			log.error("SDC: {} could not be saved!", obj);
 		}
 
 		return obj;
