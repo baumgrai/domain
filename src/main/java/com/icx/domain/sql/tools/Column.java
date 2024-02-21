@@ -98,7 +98,7 @@ public class Column {
 		else if (fieldRelatedType == char.class || fieldRelatedType == Character.class) {
 			type = (dbType == DbType.ORACLE ? "NVARCHAR2(1)" : dbType == DbType.MS_SQL ? "NVARCHAR(1)" : dbType == DbType.MYSQL ? "VARCHAR(1)" : "");
 		}
-		// Note: TODO: Byte type is not supported because negative byte value will not be stored correctly using with Jdbc driver for MS/SQL database (stored as positive value) - use 'short' instead
+		// Note: Byte type is not supported because negative byte value will not be stored correctly using with Jdbc driver for MS/SQL database (stored as positive value) - use 'short' instead
 		else if (fieldRelatedType == short.class || fieldRelatedType == Short.class) {
 			type = (dbType == DbType.ORACLE ? "NUMBER" : dbType == DbType.MS_SQL ? "SMALLINT" : dbType == DbType.MYSQL ? "SMALLINT" : "");
 		}
