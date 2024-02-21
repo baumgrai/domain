@@ -54,7 +54,29 @@ public class Client extends SqlDomainObject {
 	}
 
 	public enum Region {
-		AFRICA, AMERICA_AUSTRALIA, MIDDLE_ASIA, EAST_ASIA, EAST_EUROPE, WEST_EUROPE
+		AFRICA, AMERICA_AUSTRALIA, MIDDLE_ASIA, EAST_ASIA, EAST_EUROPE, WEST_EUROPE;
+
+		public String shortname() {
+
+			if (this == AFRICA) {
+				return "AF";
+			}
+			else if (this == AMERICA_AUSTRALIA) {
+				return "AA";
+			}
+			else if (this == MIDDLE_ASIA) {
+				return "MA";
+			}
+			else if (this == EAST_ASIA) {
+				return "EA";
+			}
+			else if (this == EAST_EUROPE) {
+				return "EE";
+			}
+			else {
+				return "WE";
+			}
+		}
 	}
 
 	// Inner classes
