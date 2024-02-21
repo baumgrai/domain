@@ -90,7 +90,7 @@ public class BikeStoreApp {
 	public static void main(String[] args) throws Exception {
 
 		// -------------------------------------------------
-		SqlDb.DbType dbType = DbType.ORACLE;
+		SqlDb.DbType dbType = DbType.MS_SQL;
 		// -------------------------------------------------
 
 		// Read JDBC and Domain properties. Note: you should not have multiple properties files with same name in your class path
@@ -129,18 +129,18 @@ public class BikeStoreApp {
 				// Note: there are separate order and bike delivery threads for every region but they have access to all orders independently in which region they were generated - this is only to
 				// force concurrent access collisions
 				Thread orderProcessingThread = new Thread(new Order.ProcessOrder(sdc));
-				orderProcessingThread.setName("--ORDER (" + region + ") --");
+				orderProcessingThread.setName("ORDER " + region.shortname());
 				orderProcessingThread.start();
 				orderThreadMap.put(region, orderProcessingThread);
 
 				Thread bikeDeliveryThread = new Thread(new Order.DeliverBikes(sdc));
-				bikeDeliveryThread.setName("-DELIVER (" + region + ")-");
+				bikeDeliveryThread.setName("DELIVER " + region.shortname());
 				bikeDeliveryThread.start();
 				bikeDeliveryThreadMap.put(region, bikeDeliveryThread);
 
 				// Start bike store client thread for region
 				Thread instanceThread = new Thread(new ClientInstance(dbProps, domainProps, region));
-				instanceThread.setName("--INSTANCE for " + region + " --");
+				instanceThread.setName("INSTANCE " + region.shortname());
 				instanceThread.start();
 				instanceThreadMap.put(region, instanceThread);
 
