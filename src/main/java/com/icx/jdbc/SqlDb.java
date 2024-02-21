@@ -23,6 +23,7 @@ import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -49,15 +50,15 @@ import com.icx.jdbc.SqlDbTable.SqlDbForeignKeyColumn;
 import com.icx.jdbc.SqlDbTable.SqlDbUniqueConstraint;
 
 /**
- * Based on {@link ConnectionPool} provides high level methods to perform SQL SELECT, INSERT, UPDATE, DELETE statements and to CALL TODO: Stored Procedures.
+ * Based on {@link ConnectionPool} provides high level methods to perform SQL SELECT, INSERT, UPDATE, DELETE statements.
  * <p>
  * {@code SqlDb} object can be created using {@link #SqlDb(Properties)} from {@link Properties} object containing <b>{@code dbConnectionString}</b>, <b>{@code dbUser}</b>, <b>{@code dbPassword}</b>
  * properties.
  * <p>
- * Using these high level methods programmer avoids to have to deal with details of JDBC programming like handling {@code ResultSet} and {@code ResultSetMetaData}. Outputs (of SELECT methods and
- * Stored Procedures) and inputs (of INSERT and UPDATE methods and Stored Procedures) are sorted maps or list of sorted maps, where such a map is the representation of one table or view record. A
- * record map contains [ column name (label) : value ] pairs and is sorted by column name (or label). The types of the column values are the JDBC types associated to the columns and therefore database
- * type specific. Use {@link #getDbType()} to check database type programmatically.
+ * Using these high level methods programmer avoids to have to deal with details of JDBC programming like handling {@code ResultSet} and {@code ResultSetMetaData}. Outputs (of SELECT methods) and
+ * inputs (of INSERT and UPDATE methods) are sorted maps or list of sorted maps, where such a map is the representation of one table or view record. A record map contains [ column name (label) : value
+ * ] pairs and is sorted by column name (or label). The types of the column values are the JDBC types associated to the columns and therefore database type specific. Use {@link #getDbType()} to check
+ * database type programmatically.
  * <p>
  * Most methods come in two types here: one with a parameter for database connection (which can, but not have to be retrieved from connection pool of this {@code SqlDb} object), the other where
  * database connection is retrieved internally from connection pool of {@code SqlDb} object. Methods of first type support database transactions spanning more than one SQL statement (using
@@ -94,7 +95,7 @@ public class SqlDb extends Common {
 		}
 	}
 
-	public static final Map<DbType, String> DB_DATE_FUNCT = new EnumMap<DbType, String>(DbType.class) {
+	protected static final Map<DbType, String> DB_DATE_FUNCT = new EnumMap<DbType, String>(DbType.class) {
 		static final long serialVersionUID = 1L;
 		{
 			put(DbType.ORACLE, "SYSDATE");
@@ -331,6 +332,10 @@ public class SqlDb extends Common {
 	// Rebuild file object from binary coded file entry
 	private static File rebuildFile(byte[] entryBytes) throws IOException {
 
+		if (entryBytes == null) {
+			return null;
+		}
+
 		int pathLength = 0x100 * entryBytes[0] + entryBytes[1];
 
 		int b = 2;
@@ -354,6 +359,10 @@ public class SqlDb extends Common {
 	// Rebuild file name from binary coded file entry (for error logging)
 	private static String rebuildFileName(byte[] entryBytes) {
 
+		if (entryBytes == null) {
+			return "unknown file";
+		}
+
 		int pathLength = 0x100 * entryBytes[0] + entryBytes[1];
 
 		int b = 2;
@@ -365,7 +374,53 @@ public class SqlDb extends Common {
 		return new String(pathBytes, StandardCharsets.UTF_8);
 	}
 
-	// Retrieve column values for one row from result set (of select statement or call of stored procedure)
+	// Get potentially cached table from qualified column name
+	private static Map<String, SqlDbTable> tableCacheMap = new HashMap<>();
+
+	private SqlDbTable getTableFromQualifiedColumnName(String qualifiedColumnName) {
+
+		SqlDbTable table = null;
+		if (tableCacheMap.containsKey(qualifiedColumnName)) {
+			table = tableCacheMap.get(qualifiedColumnName);
+		}
+		else {
+			String tableName = untilFirst(qualifiedColumnName, ".");
+			table = findRegisteredTable(tableName);
+			if (table != null) {
+				tableCacheMap.put(qualifiedColumnName, table);
+			}
+			else {
+				log.warn("SQL: Table for column '{}' could not be determined!", qualifiedColumnName);
+			}
+		}
+
+		return table;
+	}
+
+	// Get potentially cached field type for column from qualified column name
+	private static Map<String, Class<?>> fieldtypeCacheMap = new HashMap<>();
+
+	private static Class<?> getFieldTypeFromQualifiedColumnName(SqlDbTable table, String qualifiedColumnName) {
+
+		Class<?> fieldType = null;
+		if (fieldtypeCacheMap.containsKey(qualifiedColumnName)) {
+			fieldType = fieldtypeCacheMap.get(qualifiedColumnName);
+		}
+		else {
+			SqlDbTable.SqlDbColumn column = table.findColumnByName(behindFirst(qualifiedColumnName, "."));
+			if (column != null) {
+				fieldType = column.fieldType;
+				fieldtypeCacheMap.put(qualifiedColumnName, fieldType);
+			}
+			else {
+				log.warn("SQL: Field type for column '{}' could not be determined!", qualifiedColumnName);
+			}
+		}
+
+		return fieldType;
+	}
+
+	// Retrieve column values for one row from result set of SELECT statement
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	private SortedMap<String, Object> retrieveRecord(ResultSet rs, ResultSetMetaData rsmd, List<String> qualifiedColumnNames) throws SQLException {
 
@@ -376,27 +431,17 @@ public class SqlDb extends Common {
 
 			String tableName = "<unknown>";
 			String columnName = rsmd.getColumnName(c + 1);
-			int columnType = rsmd.getColumnType(c + 1);
 			Class<?> fieldType = null;
 			Object columnValue = null;
 			byte[] fileEntryBytes = null;
-
 			try {
-				// Try to determine type of associated field from registered table column by qualified column name TODO: Caching field type for column result
+				// Try to determine type of associated field from registered table column by qualified column name
+				SqlDbTable table = null;
 				if (qualifiedColumnNames != null && qualifiedColumnNames.size() > c && qualifiedColumnNames.get(c).contains(".")) {
-					SqlDbTable table = findRegisteredTable(untilFirst(qualifiedColumnNames.get(c), "."));
+					table = getTableFromQualifiedColumnName(qualifiedColumnNames.get(c));
 					if (table != null) {
 						tableName = table.name;
-						SqlDbTable.SqlDbColumn column = table.findColumnByName(behindFirst(qualifiedColumnNames.get(c), "."));
-						if (column != null) {
-							fieldType = column.fieldType;
-						}
-						else {
-							log.warn("SQL: Column '{}'/'{}' could not be determined!", columnName, qualifiedColumnNames.get(c));
-						}
-					}
-					else {
-						log.warn("SQL: Table for column '{}'/'{}' could not be determined!", columnName, qualifiedColumnNames.get(c));
+						fieldType = getFieldTypeFromQualifiedColumnName(table, qualifiedColumnNames.get(c));
 					}
 				}
 				else if (qualifiedColumnNames == null || qualifiedColumnNames.size() <= c) {
@@ -407,6 +452,7 @@ public class SqlDb extends Common {
 				}
 
 				// For LOB types retrieve values based on column type
+				int columnType = rsmd.getColumnType(c + 1);
 				if (columnType == Types.BLOB) { // Assume BLOB is byte[] - max 2GB is supported
 					Blob blob = rs.getBlob(c + 1);
 					if (blob != null) {
@@ -600,32 +646,26 @@ public class SqlDb extends Common {
 					}
 				}
 			}, (queryTimeout + 1) * 1000L); // A bit more than timeout for setQueryTimeout()
-
 			st.setQueryTimeout(queryTimeout); // Does not work (for Oracle?)
 
 			// Execute SELECT statement and retrieve results
 			try (ResultSet rs = st.executeQuery()) {
-
-				// Cancel timer on successful execution
 				timer.cancel();
 
 				// Retrieve result set metadata
-				ResultSetMetaData rsmd = rs.getMetaData();
-				if (rsmd == null) { // may happen on calling stored procedures using MySQL
-					log.warn("SQL: No result set meta information available!");
-				}
-
-				// Retrieve results from result set
 				List<SortedMap<String, Object>> resultRecords = new ArrayList<>();
-				while (rs.next()) {
-					resultRecords.add(retrieveRecord(rs, rsmd, orderedColumnNames));
-				}
+				ResultSetMetaData rsmd = rs.getMetaData();
+				if (rsmd != null) {
 
-				if (resultRecords.isEmpty() && log.isDebugEnabled()) {
-					log.debug("SQL: No records found");
+					// Retrieve results from result set
+					while (rs.next()) {
+						resultRecords.add(retrieveRecord(rs, rsmd, orderedColumnNames));
+					}
+
+					SqlDbHelpers.logResultRecordsOnDebugLevel(rsmd, sql, resultRecords);
 				}
-				else if (rsmd != null && log.isDebugEnabled()) {
-					SqlDbHelpers.logResultRecords(rsmd, sql, resultRecords);
+				else {
+					log.error("SQL: No result set meta information available! Results cannot be retrieved.");
 				}
 
 				return resultRecords;
@@ -764,7 +804,7 @@ public class SqlDb extends Common {
 	}
 
 	// -------------------------------------------------------------------------
-	// Helpers for INSERT, UPDATE, stored procedures
+	// Helpers for INSERT and UPDATE
 	// -------------------------------------------------------------------------
 
 	// Get JDBC type from Java type
@@ -1369,12 +1409,18 @@ public class SqlDb extends Common {
 			}
 
 			// Retrieve foreign key column meta data
+			List<String> keys = new ArrayList<>();
 			try (ResultSet rs = dbmd.getImportedKeys(null, schemaName, tableName)) {
 
 				while (rs.next()) {
 
-					// Build foreign key column from same-name table column
 					String columnName = rs.getString("FKCOLUMN_NAME").toUpperCase();
+					if (keys.contains(columnName)) { // On Oracle keys appear twice in result set
+						break;
+					}
+					keys.add(columnName);
+
+					// Build foreign key column from same-name table column
 					SqlDbColumn column = table.findColumnByName(columnName);
 					if (column == null) {
 						throw new SqlDbException("Foreign key column '" + columnName + "' is not a column of '" + tableName + "'");
