@@ -596,7 +596,8 @@ public abstract class SaveHelpers extends Common {
 						// On trying to insert temporary in-progress records assume duplicate key exception here and suppress error messages and error handling because this is not an error case
 						// (in-progress records protect associated objects from multiple parallel access)
 						if (log.isDebugEnabled()) {
-							log.debug("SDC: {}@{} is currently in use by another thread/instance and therefore cannot be allocated excusively! (this is not an error case)",
+							log.debug(
+									"SDC: {}@{} is currently in use by another instance and therefore cannot be allocated excusively! ('InProgress' object could not be inserted due to unique constraint for 'id' column)",
 									(obj.getClass().getEnclosingClass() != null ? obj.getClass().getEnclosingClass().getSimpleName() : ""), obj.getId());
 						}
 					}
