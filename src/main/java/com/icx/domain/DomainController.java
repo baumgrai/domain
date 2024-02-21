@@ -14,6 +14,7 @@ import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.function.Consumer;
@@ -170,6 +171,10 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 	public final <S extends T> S create(final Class<S> domainObjectClass, Consumer<S> init) {
 
 		S obj = instantiate(domainObjectClass);
+		if (obj == null) {
+			return obj;
+		}
+
 		if (init != null) {
 			init.accept(obj);
 		}
@@ -610,7 +615,7 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 	 * 
 	 * @return map with (accumulated) objects grouped by classifier
 	 */
-	public <S1, S2 extends T> Map<S1, Set<S2>> groupBy(Set<S2> accumulation, Function<S2, S1> classifier) {
+	public <S1, S2 extends T> SortedMap<S1, Set<S2>> groupBy(Set<S2> accumulation, Function<S2, S1> classifier) {
 
 		// Group only elements where classifier applies a non-null result to avoid assertNonNull exception thrown by groupingBy()
 		Map<S1, List<S2>> t2ListsGroupedByT1Map = accumulation.stream().filter(e -> classifier.apply(e) != null).collect(Collectors.groupingBy(classifier));
@@ -625,7 +630,7 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 			t2SetsGroupedByT1Map.put(null, t2sWithT1NullReference);
 		}
 
-		return t2SetsGroupedByT1Map;
+		return new TreeMap<>(t2SetsGroupedByT1Map);
 	}
 
 	/**
@@ -644,10 +649,10 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 	 * 
 	 * @return map with count of (accumulated) objects grouped by classifier
 	 */
-	public <S1, S2 extends T> Map<S1, Integer> countBy(Set<S2> accumulation, Function<S2, S1> classifier) {
+	public <S1, S2 extends T> SortedMap<S1, Integer> countBy(Set<S2> accumulation, Function<S2, S1> classifier) {
 
-		Map<S1, Set<S2>> t2GroupedByT1Map = groupBy(accumulation, classifier);
-		Map<S1, Integer> countGroupedByT1Map = new HashMap<>();
+		SortedMap<S1, Set<S2>> t2GroupedByT1Map = groupBy(accumulation, classifier);
+		SortedMap<S1, Integer> countGroupedByT1Map = new TreeMap<>();
 		for (Entry<S1, Set<S2>> entry : t2GroupedByT1Map.entrySet()) {
 			countGroupedByT1Map.put(entry.getKey(), entry.getValue().size());
 		}
