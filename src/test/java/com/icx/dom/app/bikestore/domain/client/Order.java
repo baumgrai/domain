@@ -131,7 +131,7 @@ public class Order extends SqlDomainObject {
 				}
 
 				try {
-					Thread.sleep(0, 1);
+					Thread.sleep(1);
 				}
 				catch (InterruptedException e) {
 					Thread.currentThread().interrupt();
@@ -170,7 +170,7 @@ public class Order extends SqlDomainObject {
 				}
 
 				try {
-					Thread.sleep(0, 1);
+					Thread.sleep(1);
 				}
 				catch (InterruptedException e) {
 					Thread.currentThread().interrupt();
