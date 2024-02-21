@@ -138,11 +138,11 @@ public class SqlDb extends Common {
 		// Get database meta data
 		String dbProdName = null;
 		try (SqlConnection connection = SqlConnection.open(pool, true)) {
-			DatabaseMetaData databaseMetaData = connection.cn.getMetaData();
+			DatabaseMetaData dbmd = connection.cn.getMetaData();
 
-			dbProdName = databaseMetaData.getDatabaseProductName();
-			log.info("SQL: {}, Version: {}.{}", dbProdName, databaseMetaData.getDatabaseMajorVersion(), databaseMetaData.getDatabaseMinorVersion());
-			log.info("SQL: {}, Version: {}.{}", databaseMetaData.getDriverName(), databaseMetaData.getJDBCMajorVersion(), databaseMetaData.getJDBCMinorVersion());
+			dbProdName = dbmd.getDatabaseProductName();
+			log.info("SQL: {}, version: {}.{}", dbProdName, dbmd.getDatabaseMajorVersion(), dbmd.getDatabaseMinorVersion());
+			log.info("SQL: {}, version: {}, JDBC version: {}.{}", dbmd.getDriverName(), dbmd.getDriverVersion(), dbmd.getJDBCMajorVersion(), dbmd.getJDBCMinorVersion());
 			log.info("SQL: ----------------");
 		}
 
