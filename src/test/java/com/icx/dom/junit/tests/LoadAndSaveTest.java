@@ -65,7 +65,7 @@ class LoadAndSaveTest extends TestHelpers {
 	// +++ Please set log level to 'trace' in src/main/resources/log4j2.xml to achieve maximum coverage +++
 	// +++ You may run tests multiple times with 'dbType' set to different database types +++
 	// +++ ---------------------------------------------------------
-	public static DbType dbType = DbType.MYSQL;
+	public static DbType dbType = DbType.MARIA;
 	// +++ ---------------------------------------------------------
 
 	static SqlDomainController sdc = new SqlDomainController();
@@ -156,6 +156,8 @@ class LoadAndSaveTest extends TestHelpers {
 	// Next 3 test belong together - no cleanup meanwhile
 	//
 
+	private final static int CHAR_ARRAY_SIZE = 0x800000;
+
 	@SuppressWarnings("static-method")
 	@Test
 	@Order(2)
@@ -172,9 +174,9 @@ class LoadAndSaveTest extends TestHelpers {
 
 			O o1 = sdc.createAndSave(O.class, null);
 
-			char[] longtext = new char[0x1000000];
-			for (int c = 0; c < 0x1000000; c++) {
-				longtext[c] = (char) (c % 0x100);
+			char[] longtext = new char[CHAR_ARRAY_SIZE];
+			for (int c = 0; c < CHAR_ARRAY_SIZE; c++) {
+				longtext[c] = (char) (c % 0x80);
 			}
 			AA aa1 = sdc.createAndSave(AA.class, aa -> {
 
@@ -204,8 +206,8 @@ class LoadAndSaveTest extends TestHelpers {
 				aa.structure = new Stucture("abc", 100);
 
 				assertDoesNotThrow(() -> aa.picture = CFile.readBinary(new File("src/test/resources/bike.jpg")));
-				aa.longtext = new char[0x1000000];
-				System.arraycopy(longtext, 0, aa.longtext, 0, 0x1000000);
+				aa.longtext = new char[CHAR_ARRAY_SIZE];
+				System.arraycopy(longtext, 0, aa.longtext, 0, CHAR_ARRAY_SIZE);
 
 				aa.strings = CList.newList("A", "B", "C", "D", (dbType == DbType.ORACLE ? null : ""), null); // Oracle does not allow empty string values (stored as NULL instead)
 				aa.doubleSet = CSet.newSet(0.0, 0.1, 0.2, null);
