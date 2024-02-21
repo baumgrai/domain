@@ -34,10 +34,10 @@ import com.icx.domain.DomainException;
 import com.icx.domain.DomainObject;
 import com.icx.jdbc.ConfigException;
 import com.icx.jdbc.ConnectionPool;
-import com.icx.jdbc.SqlDbHelpers;
 import com.icx.jdbc.SqlConnection;
 import com.icx.jdbc.SqlDb;
 import com.icx.jdbc.SqlDbException;
+import com.icx.jdbc.SqlDbHelpers;
 import com.icx.jdbc.SqlDbTable;
 import com.icx.jdbc.SqlDbTable.SqlDbColumn;
 import com.icx.jdbc.SqlDbTable.SqlDbUniqueConstraint;
@@ -667,9 +667,17 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 
 			return wasChanged;
 		}
-		catch (SqlDbException | SQLException sqlex) { // Error logs are already written
-			cn.rollback();
-			log.warn("SDC: Whole save transaction rolled back!");
+		catch (SqlDbException | SQLException sqlex) { // Error logs are already written (or an 'in-progress' object for exclusive access could not be created - which is not an error case)
+
+			if (!cn.getAutoCommit()) {
+				try {
+					cn.rollback();
+					log.warn("SDC: Whole save transaction rolled back!");
+				}
+				catch (SQLException ex) {
+					log.warn("SDC: Roll back of transaction failed!", ex);
+				}
+			}
 
 			throw sqlex;
 		}
@@ -866,8 +874,15 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 			obj.currentException = sqlex;
 
 			// ROLL BACK complete DELETE transaction
-			cn.rollback();
-			log.warn("SDC: Whole delete transaction rolled back!");
+			if (!cn.getAutoCommit()) {
+				try {
+					cn.rollback();
+					log.warn("SDC: Whole delete transaction rolled back!");
+				}
+				catch (SQLException ex) {
+					log.warn("SDC: Roll back of transaction failed!", ex);
+				}
+			}
 
 			// Re-register already unregistered objects and re-generate object records
 			for (SqlDomainObject o : unregisteredObjects) {
