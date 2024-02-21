@@ -118,7 +118,11 @@ public abstract class SqlDbHelpers extends Common {
 	// -------------------------------------------------------------------------
 
 	// Map containing to-string converters for storing values
-	public static Map<Class<?>, Function<Object, String>> toStringConverterMap = new HashMap<>();
+	static Map<Class<?>, Function<Object, String>> toStringConverterMap = new HashMap<>();
+
+	public static void addToStringConverter(Class<?> cls, Function<Object, String> toStringConverter) {
+		toStringConverterMap.put(cls, toStringConverter);
+	}
 
 	// Map containing to-string converter or null for all classes which were once checked for having to-string converter
 	private static Map<Class<?>, Method> toStringMethodCacheMap = new HashMap<>();
@@ -175,7 +179,11 @@ public abstract class SqlDbHelpers extends Common {
 	}
 
 	// Map containing registered from-string converters for classes
-	public static Map<Class<?>, Function<String, Object>> fromStringConverterMap = new HashMap<>();
+	static Map<Class<?>, Function<String, Object>> fromStringConverterMap = new HashMap<>();
+
+	public static void addFromStringConverter(Class<?> cls, Function<String, Object> fromStringConverter) {
+		fromStringConverterMap.put(cls, fromStringConverter);
+	}
 
 	// Map containing valueOf(String) method or null for all classes which were once checked for having valueOf(String) declared
 	private static Map<Class<?>, Method> valueOfStringMethodCacheMap = new HashMap<>();
@@ -405,8 +413,17 @@ public abstract class SqlDbHelpers extends Common {
 	// Controls if logs of SELECT methods contain (some of) selected records
 	public static boolean listRecordsInLog = true;
 
-	// Build and log result
-	protected static void logResultRecords(ResultSetMetaData rsmd, String stmt, List<SortedMap<String, Object>> resultRecords) throws SQLException {
+	// Log result
+	protected static void logResultRecordsOnDebugLevel(ResultSetMetaData rsmd, String stmt, List<SortedMap<String, Object>> resultRecords) throws SQLException {
+
+		if (!log.isDebugEnabled()) {
+			return;
+		}
+
+		if (resultRecords.isEmpty()) {
+			log.debug("SQL: No records found");
+			return;
+		}
 
 		// Build ordered lists of column and table names to check secret condition in logging results
 		List<String> columnNamesFromStatment = extractColumnNamesForSelectStatement(stmt);
