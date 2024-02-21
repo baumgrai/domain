@@ -107,11 +107,11 @@ public class Order extends SqlDomainObject {
 	// Thread
 
 	// Check for incoming orders and send invoices
-	public static class SendInvoices implements Runnable {
+	public static class ProcessOrder implements Runnable {
 
 		SqlDomainController sdc = null;
 
-		public SendInvoices(
+		public ProcessOrder(
 				SqlDomainController sdc) {
 			this.sdc = sdc;
 		}
@@ -122,7 +122,7 @@ public class Order extends SqlDomainObject {
 			log.info("Order processing thread started");
 			LocalDateTime start = LocalDateTime.now();
 
-			while (true) {
+			while (!BikeStoreApp.stopOrderProcessing) {
 				try {
 					sdc.computeExclusivelyOnObjects(Order.class, Order.InProgress.class, "INVOICE_DATE IS NULL", o -> o.sendInvoice());
 				}
@@ -135,10 +135,12 @@ public class Order extends SqlDomainObject {
 				}
 				catch (InterruptedException e) {
 					Thread.currentThread().interrupt();
-					log.info("Order processing thread ended {}s after start", ChronoUnit.SECONDS.between(start, LocalDateTime.now()));
+					log.warn("Order processing thread interrupted!");
 					return;
 				}
 			}
+
+			log.info("Order processing thread ended {}s after start", ChronoUnit.SECONDS.between(start, LocalDateTime.now()));
 		}
 	}
 
@@ -158,7 +160,7 @@ public class Order extends SqlDomainObject {
 			log.info("Bike delivery thread started");
 			LocalDateTime start = LocalDateTime.now();
 
-			while (true) {
+			while (!BikeStoreApp.stopOrderProcessing) {
 
 				try {
 					sdc.computeExclusivelyOnObjects(Order.class, Order.InProgress.class, "PAY_DATE IS NOT NULL AND DELIVERY_DATE IS NULL", o -> o.deliverBike());
@@ -172,10 +174,12 @@ public class Order extends SqlDomainObject {
 				}
 				catch (InterruptedException e) {
 					Thread.currentThread().interrupt();
-					log.info("Bike delivery thread ended {}s after start", ChronoUnit.SECONDS.between(start, LocalDateTime.now()));
+					log.info("Bike delivery thread interrupted!");
 					return;
 				}
 			}
+
+			log.info("Bike delivery thread ended {}s after start", ChronoUnit.SECONDS.between(start, LocalDateTime.now()));
 		}
 	}
 
