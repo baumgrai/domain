@@ -12,7 +12,6 @@ import org.slf4j.LoggerFactory;
 import com.icx.common.base.Common;
 import com.icx.domain.sql.SqlRegistry;
 import com.icx.jdbc.SqlDbHelpers;
-import com.icx.jdbc.SqlDb.DbType;
 
 /**
  * Modeling an index in context of {@link Java2Sql} tool
@@ -59,7 +58,7 @@ public class Index {
 
 		String indexName = SqlRegistry.TABLE_PREFIX + "IDX_" + table.name.substring(SqlRegistry.TABLE_PREFIX.length()); // Skip 'DOM_'
 		for (String columnName : columnNames) {
-			indexName += (table.dbType == DbType.MYSQL ? "$" : "#") + columnName;
+			indexName += (table.dbType.isMySql() ? "$" : "#") + columnName;
 		}
 
 		return SqlDbHelpers.identifier(indexName, table.dbType);

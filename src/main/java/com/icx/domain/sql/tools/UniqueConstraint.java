@@ -12,7 +12,6 @@ import org.slf4j.LoggerFactory;
 import com.icx.common.base.Common;
 import com.icx.domain.sql.SqlRegistry;
 import com.icx.jdbc.SqlDbHelpers;
-import com.icx.jdbc.SqlDb.DbType;
 
 /**
  * Modeling a unique constraint in context of {@link Java2Sql} tool
@@ -59,7 +58,7 @@ public class UniqueConstraint {
 
 		String constraintName = "UNIQUE_" + table.name.substring(SqlRegistry.TABLE_PREFIX.length());
 		for (String columnName : columnNames) {
-			constraintName += (table.dbType == DbType.MYSQL ? "$" : "#") + Common.untilLast(columnName, "_");
+			constraintName += (table.dbType.isMySql() ? "$" : "#") + Common.untilLast(columnName, "_");
 		}
 
 		return SqlDbHelpers.identifier(constraintName, table.dbType);
@@ -74,6 +73,6 @@ public class UniqueConstraint {
 	}
 
 	public String alterTableDropConstraintStatement() {
-		return "ALTER TABLE " + table.name + " DROP " + (table.dbType == DbType.MYSQL ? "INDEX " : "CONSTRAINT ") + name() + ";\n";
+		return "ALTER TABLE " + table.name + " DROP " + (table.dbType.isMySql() ? "INDEX " : "CONSTRAINT ") + name() + ";\n";
 	}
 }

@@ -5,7 +5,6 @@ import org.slf4j.LoggerFactory;
 
 import com.icx.domain.sql.SqlRegistry;
 import com.icx.jdbc.SqlDbHelpers;
-import com.icx.jdbc.SqlDb.DbType;
 
 /**
  * Modeling a foreign key constraint for a table column in context of {@link Java2Sql} tool
@@ -47,7 +46,7 @@ public class FkConstraint {
 		String part1 = "FK_" + column.table.name.substring(SqlRegistry.TABLE_PREFIX.length());
 		String part2 = (type == ConstraintType.INHERITANCE ? ConstraintType.INHERITANCE.name() : column.name.substring(0, column.name.length() - "_ID".length()));
 
-		return SqlDbHelpers.identifier(part1 + (column.table.dbType == DbType.MYSQL ? "$" : "#") + part2, column.table.dbType);
+		return SqlDbHelpers.identifier(part1 + (column.table.dbType.isMySql() ? "$" : "#") + part2, column.table.dbType);
 	}
 
 	public String alterTableAddForeignKeyStatement() {
@@ -69,7 +68,7 @@ public class FkConstraint {
 
 		StringBuilder sb = new StringBuilder();
 
-		sb.append("ALTER TABLE " + column.table.name + " DROP " + (column.table.dbType == DbType.MYSQL ? "FOREIGN KEY " : "CONSTRAINT ") + name() + ";\n");
+		sb.append("ALTER TABLE " + column.table.name + " DROP " + (column.table.dbType.isMySql() ? "FOREIGN KEY " : "CONSTRAINT ") + name() + ";\n");
 
 		return sb.toString();
 	}

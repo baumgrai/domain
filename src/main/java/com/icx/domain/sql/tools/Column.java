@@ -93,38 +93,38 @@ public class Column {
 		DbType dbType = table.dbType;
 
 		if (fieldRelatedType == boolean.class || fieldRelatedType == Boolean.class) {
-			type = (dbType == DbType.ORACLE ? "NVARCHAR2(5)" : dbType == DbType.MS_SQL ? "NVARCHAR(5)" : dbType == DbType.MYSQL ? "VARCHAR(5)" : "");
+			type = (dbType == DbType.ORACLE ? "NVARCHAR2(5)" : dbType == DbType.MS_SQL ? "NVARCHAR(5)" : dbType.isMySql() ? "VARCHAR(5)" : "");
 		}
 		else if (fieldRelatedType == char.class || fieldRelatedType == Character.class) {
-			type = (dbType == DbType.ORACLE ? "NVARCHAR2(1)" : dbType == DbType.MS_SQL ? "NVARCHAR(1)" : dbType == DbType.MYSQL ? "VARCHAR(1)" : "");
+			type = (dbType == DbType.ORACLE ? "NVARCHAR2(1)" : dbType == DbType.MS_SQL ? "NVARCHAR(1)" : dbType.isMySql() ? "VARCHAR(1)" : "");
 		}
 		// Note: Byte type is not supported because negative byte value will not be stored correctly using with Jdbc driver for MS/SQL database (stored as positive value) - use 'short' instead
 		else if (fieldRelatedType == short.class || fieldRelatedType == Short.class) {
-			type = (dbType == DbType.ORACLE ? "NUMBER" : dbType == DbType.MS_SQL ? "SMALLINT" : dbType == DbType.MYSQL ? "SMALLINT" : "");
+			type = (dbType == DbType.ORACLE ? "NUMBER" : dbType == DbType.MS_SQL ? "SMALLINT" : dbType.isMySql() ? "SMALLINT" : "");
 		}
 		else if (fieldRelatedType == int.class || fieldRelatedType == Integer.class) {
-			type = (dbType == DbType.ORACLE ? "NUMBER" : dbType == DbType.MS_SQL ? "INTEGER" : dbType == DbType.MYSQL ? "INTEGER" : "");
+			type = (dbType == DbType.ORACLE ? "NUMBER" : dbType == DbType.MS_SQL ? "INTEGER" : dbType.isMySql() ? "INTEGER" : "");
 		}
 		else if (fieldRelatedType == long.class || fieldRelatedType == Long.class) {
-			type = (dbType == DbType.ORACLE ? "NUMBER" : dbType == DbType.MS_SQL ? "BIGINT" : dbType == DbType.MYSQL ? "BIGINT" : "");
+			type = (dbType == DbType.ORACLE ? "NUMBER" : dbType == DbType.MS_SQL ? "BIGINT" : dbType.isMySql() ? "BIGINT" : "");
 		}
 		// Note: Float type is not supported because no JDBC driver stores and /or retrieves 'float' values correctly - use 'double' instead
 		else if (fieldRelatedType == double.class || fieldRelatedType == Double.class) {
-			type = (dbType == DbType.ORACLE ? "NUMBER" : dbType == DbType.MS_SQL ? "FLOAT" : dbType == DbType.MYSQL ? "DOUBLE" : "");
+			type = (dbType == DbType.ORACLE ? "NUMBER" : dbType == DbType.MS_SQL ? "FLOAT" : dbType.isMySql() ? "DOUBLE" : "");
 		}
 		else if (fieldRelatedType == BigInteger.class) {
-			type = (dbType == DbType.ORACLE ? "NUMBER" : dbType == DbType.MS_SQL ? "BIGINT" : dbType == DbType.MYSQL ? "BIGINT" : "");
+			type = (dbType == DbType.ORACLE ? "NUMBER" : dbType == DbType.MS_SQL ? "BIGINT" : dbType.isMySql() ? "BIGINT" : "");
 		}
 		else if (fieldRelatedType == BigDecimal.class) {
-			type = (dbType == DbType.ORACLE ? "NUMBER" : dbType == DbType.MS_SQL ? "FLOAT" : dbType == DbType.MYSQL ? "DOUBLE" : "");
+			type = (dbType == DbType.ORACLE ? "NUMBER" : dbType == DbType.MS_SQL ? "FLOAT" : dbType.isMySql() ? "DOUBLE" : "");
 		}
 		else if (fieldRelatedType == String.class) {
 			if (isText) {
-				type = (dbType == DbType.ORACLE ? "CLOB" : dbType == DbType.MS_SQL ? "NVARCHAR(MAX)" : dbType == DbType.MYSQL ? "LONGTEXT CHARACTER SET UTF8MB4" : "");
+				type = (dbType == DbType.ORACLE ? "CLOB" : dbType == DbType.MS_SQL ? "NVARCHAR(MAX)" : dbType.isMySql() ? "LONGTEXT CHARACTER SET UTF8MB4" : "");
 			}
 			else {
-				type = (dbType == DbType.ORACLE ? "NVARCHAR2" : dbType == DbType.MS_SQL ? "NVARCHAR" : dbType == DbType.MYSQL ? "VARCHAR" : "") + "(" + charsize + ")"
-						+ (dbType == DbType.MYSQL ? " CHARACTER SET UTF8MB4" : "");
+				type = (dbType == DbType.ORACLE ? "NVARCHAR2" : dbType == DbType.MS_SQL ? "NVARCHAR" : dbType.isMySql() ? "VARCHAR" : "") + "(" + charsize + ")"
+						+ (dbType.isMySql() ? " CHARACTER SET UTF8MB4" : "");
 			}
 		}
 		else if (Enum.class.isAssignableFrom(fieldRelatedType)) {
@@ -134,14 +134,14 @@ public class Column {
 			if (length < Java2Sql.MAX_ENUM_VALUE_LENGTH) {
 				length = Java2Sql.MAX_ENUM_VALUE_LENGTH;
 			}
-			type = (dbType == DbType.ORACLE ? "NVARCHAR2" : dbType == DbType.MS_SQL ? "NVARCHAR" : dbType == DbType.MYSQL ? "VARCHAR" : "") + "(" + length + ")"
-					+ (dbType == DbType.MYSQL ? " CHARACTER SET UTF8MB4" : "");
+			type = (dbType == DbType.ORACLE ? "NVARCHAR2" : dbType == DbType.MS_SQL ? "NVARCHAR" : dbType.isMySql() ? "VARCHAR" : "") + "(" + length + ")"
+					+ (dbType.isMySql() ? " CHARACTER SET UTF8MB4" : "");
 		}
 		else if (fieldRelatedType == byte[].class || fieldRelatedType == File.class) {
-			type = (dbType == DbType.ORACLE ? "BLOB" : dbType == DbType.MS_SQL ? "VARBINARY(MAX)" : dbType == DbType.MYSQL ? "LONGBLOB" : "");
+			type = (dbType == DbType.ORACLE ? "BLOB" : dbType == DbType.MS_SQL ? "VARBINARY(MAX)" : dbType.isMySql() ? "LONGBLOB" : "");
 		}
 		else if (fieldRelatedType == char[].class) {
-			type = (dbType == DbType.ORACLE ? "CLOB" : dbType == DbType.MS_SQL ? "NVARCHAR(MAX)" : dbType == DbType.MYSQL ? "LONGTEXT" : "");
+			type = (dbType == DbType.ORACLE ? "CLOB" : dbType == DbType.MS_SQL ? "NVARCHAR(MAX)" : dbType.isMySql() ? "LONGTEXT" : "");
 		}
 		else if (LocalDate.class.isAssignableFrom(fieldRelatedType)) {
 			type = "DATE";
