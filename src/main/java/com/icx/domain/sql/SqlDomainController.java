@@ -32,6 +32,8 @@ import com.icx.domain.DomainAnnotations.UseDataHorizon;
 import com.icx.domain.DomainController;
 import com.icx.domain.DomainException;
 import com.icx.domain.DomainObject;
+import com.icx.domain.sql.LoadHelpers.IntermediateLoadResult;
+import com.icx.domain.sql.LoadHelpers.UnresolvedReference;
 import com.icx.jdbc.ConfigException;
 import com.icx.jdbc.ConnectionPool;
 import com.icx.jdbc.SqlConnection;
@@ -52,7 +54,6 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	static final Logger log = LoggerFactory.getLogger(SqlDomainController.class);
 
 	// TODO: Support file encryption
-	// TODO: Allow non-public fields
 
 	// -------------------------------------------------------------------------
 	// Finals
@@ -275,6 +276,68 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	// Synchronization
 	// -------------------------------------------------------------------------
 
+	// Load result containing objects loaded in all load cycles and information, if changes were detected in any load cycle
+	static class LoadResult {
+		boolean hasChanges = false;
+		Set<SqlDomainObject> loadedObjects = null;
+	}
+
+	// Load objects from database using SELECT supplier, finalize these objects and load and load missing referenced objects in a loop to ensure referential integrity.
+	private LoadResult loadAssuringReferentialIntegrity(Function<Connection, Map<Class<? extends SqlDomainObject>, Map<Long, SortedMap<String, Object>>>> select) throws SQLException, SqlDbException {
+
+		// Get database connection from pool
+		try (SqlConnection sqlcn = SqlConnection.open(sqlDb.pool, true)) {
+
+			// Initially load object records using given select-supplier
+			Map<Class<? extends SqlDomainObject>, Map<Long, SortedMap<String, Object>>> loadedRecordsMap = select.apply(sqlcn.cn);
+
+			// Instantiate newly loaded objects, assign changed data and references to objects, collect initially unresolved references
+			IntermediateLoadResult intermediateLoadResult = LoadHelpers.buildObjectsFromLoadedRecords(this, loadedRecordsMap);
+
+			// Determine if database changes were detected (ignoring unsaved local object changes) and collect loaded objects and objects where references were changed in initial load cycle
+			LoadResult loadResult = new LoadResult();
+			loadResult.hasChanges = intermediateLoadResult.hasChanges;
+			loadResult.loadedObjects = new HashSet<>(intermediateLoadResult.loadedObjects);
+			Set<SqlDomainObject> objectsWhereReferencesChanged = new HashSet<>(intermediateLoadResult.objectsWhereReferencesChanged);
+
+			// Cyclicly load and instantiate missing referenced objects and detect unresolved references on these objects
+			int c = 1;
+			Map<Class<? extends SqlDomainObject>, Map<Long, SortedMap<String, Object>>> missingRecordsMap;
+			List<UnresolvedReference> currentUnresolvedReferences = null;
+			while (!intermediateLoadResult.unresolvedReferences.isEmpty()) {
+
+				if (log.isDebugEnabled()) {
+					log.debug("SDC: There were in total {} unresolved reference(s) of {} objects referenced by {} objects detected in {}. load cycle",
+							intermediateLoadResult.unresolvedReferences.size(),
+							intermediateLoadResult.unresolvedReferences.stream().map(ur -> ur.refField.getType().getSimpleName()).distinct().collect(Collectors.toList()),
+							intermediateLoadResult.unresolvedReferences.stream().map(ur -> ur.obj.getClass().getSimpleName()).distinct().collect(Collectors.toList()), c++);
+				}
+
+				// Load and instantiate missing objects of unresolved references
+				missingRecordsMap = LoadHelpers.loadMissingObjects(sqlcn.cn, this, intermediateLoadResult.unresolvedReferences);
+
+				// Store current unresolved references to later resolve them after all missing objects were initiated and initialized
+				currentUnresolvedReferences = new ArrayList<>(intermediateLoadResult.unresolvedReferences);
+
+				// Instantiate and initialize missed objects, store current unresolved references and determine further unresolved references
+				intermediateLoadResult = LoadHelpers.buildObjectsFromLoadedRecords(this, missingRecordsMap);
+
+				// Determine if database changes were detected in subsequent load cycle and further collect loaded objects and objects where references were changed
+				loadResult.hasChanges |= intermediateLoadResult.hasChanges;
+				loadResult.loadedObjects.addAll(intermediateLoadResult.loadedObjects);
+				objectsWhereReferencesChanged.addAll(intermediateLoadResult.objectsWhereReferencesChanged);
+
+				// Resolve current unresolved references after missing objects were instantiated and initialized
+				LoadHelpers.resolveUnresolvedReferences(this, currentUnresolvedReferences);
+			}
+
+			// Update accumulations of all objects which are referenced by any of the objects where references changed
+			objectsWhereReferencesChanged.forEach(this::updateAccumulationsOfParentObjects);
+
+			return loadResult;
+		}
+	}
+
 	/**
 	 * Synchronize domain objects controlled by this domain controller instance with the associated database.
 	 * <p>
@@ -316,17 +379,16 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 		}
 
 		// Load all objects from database - override unsaved local object changes by changes in database on contradiction
-		Set<SqlDomainObject> loadedObjects = new HashSet<>();
-		boolean hasChanges = LoadHelpers.loadAssuringReferentialIntegrity(this, cn -> LoadHelpers.selectAll(cn, this, objectDomainClassesToExclude), loadedObjects);
+		LoadResult loadResult = loadAssuringReferentialIntegrity(cn -> LoadHelpers.selectAll(cn, this, objectDomainClassesToExclude));
 
 		// Unregister existing objects which were not loaded from database again (deleted in database by another instance or fell out of data horizon) and which are not referenced by any object
-		for (SqlDomainObject obj : findAll(o -> !loadedObjects.contains(o) && !isReferenced(o))) {
+		for (SqlDomainObject obj : findAll(o -> !loadResult.loadedObjects.contains(o) && !isReferenced(o))) {
 			unregister(obj);
 		}
 
 		log.info("SDC: Synchronization with database done.");
 
-		return hasChanges;
+		return loadResult.hasChanges;
 	}
 
 	// -------------------------------------------------------------------------
@@ -367,9 +429,10 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 			log.debug("SDC: Load {}'{}' objects{}", (maxCount > 0 ? "max " + maxCount + " " : ""), objectDomainClass.getSimpleName(),
 					(!isEmpty(whereClause) ? " WHERE " + whereClause.toUpperCase() : ""));
 		}
-		Set<SqlDomainObject> loadedObjects = new HashSet<>();
-		LoadHelpers.loadAssuringReferentialIntegrity(this, cn -> LoadHelpers.select(cn, this, objectDomainClass, whereClause, maxCount), loadedObjects);
-		return loadedObjects;
+
+		LoadResult loadResult = loadAssuringReferentialIntegrity(cn -> LoadHelpers.select(cn, this, objectDomainClass, whereClause, maxCount));
+
+		return loadResult.loadedObjects;
 	}
 
 	/**
@@ -407,7 +470,10 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 		if (log.isDebugEnabled()) {
 			log.debug("SDC: Load {} from database", obj.name());
 		}
-		return LoadHelpers.loadAssuringReferentialIntegrity(this, cn -> LoadHelpers.selectObjectRecord(cn, this, obj), new HashSet<>());
+
+		LoadResult loadResult = loadAssuringReferentialIntegrity(cn -> LoadHelpers.selectObjectRecord(cn, this, obj));
+
+		return loadResult.hasChanges;
 	}
 
 	// -------------------------------------------------------------------------
@@ -460,12 +526,10 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 		}
 
 		// Load objects related to given object domain class
-		Set<S> allocatedObjects = new HashSet<>();
-		LoadHelpers.loadAssuringReferentialIntegrity(this, cn -> LoadHelpers.selectExclusively(cn, this, objectDomainClass, inProgressClass, whereClause, maxCount),
-				(Set<SqlDomainObject>) allocatedObjects);
+		LoadResult loadResult = loadAssuringReferentialIntegrity(cn -> LoadHelpers.selectExclusively(cn, this, objectDomainClass, inProgressClass, whereClause, maxCount));
 
 		// Filter objects of object domain class itself (because loaded objects may contain referenced objects of other domain classes too)
-		allocatedObjects = allocatedObjects.stream().filter(o -> o.getClass().equals(objectDomainClass)).collect(Collectors.toSet());
+		Set<S> allocatedObjects = new HashSet<>(loadResult.loadedObjects.stream().filter(o -> o.getClass().equals(objectDomainClass)).map(o -> (S) o).collect(Collectors.toSet()));
 		if (!allocatedObjects.isEmpty()) {
 			if (log.isDebugEnabled()) {
 				log.debug("SDC: {} '{}' objects exclusively allocated {} ", allocatedObjects.size(), objectDomainClass.getSimpleName(),
