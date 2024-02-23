@@ -97,7 +97,15 @@ public abstract class A extends SqlDomainObject {
 	@Created(version = "1.1:isText=true")
 	@Changed(versions = { "1.2:isText=false;unique=false", "1.3:charsize=16;unique=true" })
 	@SqlColumn(unique = true, charsize = 16)
-	public String s;
+	private String s;
+
+	public String getS() {
+		return s;
+	}
+
+	public void setS(String s) {
+		this.s = s;
+	}
 
 	@StoreAsString
 	public Stucture structure = null;

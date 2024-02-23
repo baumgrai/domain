@@ -16,11 +16,11 @@ public class AB extends A {
 			String s) {
 
 		this.o = o;
-		this.s = s;
+		setS(s);
 	}
 
 	@Override
 	public int compareTo(DomainObject o) {
-		return s.compareTo(((AB) o).s);
+		return getS().compareTo(((AB) o).getS());
 	}
 }
