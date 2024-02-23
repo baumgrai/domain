@@ -3,10 +3,8 @@ package com.icx.jdbc;
 import java.io.ByteArrayInputStream;
 import java.io.CharArrayReader;
 import java.io.File;
-import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.nio.charset.StandardCharsets;
 import java.sql.Blob;
 import java.sql.Clob;
 import java.sql.Connection;
@@ -41,7 +39,6 @@ import org.slf4j.LoggerFactory;
 
 import com.icx.common.Prop;
 import com.icx.common.Reflection;
-import com.icx.common.base.CFile;
 import com.icx.common.base.CLog;
 import com.icx.common.base.CMap;
 import com.icx.common.base.Common;
@@ -267,35 +264,6 @@ public class SqlDb extends Common {
 	// Store records
 	// -------------------------------------------------------------------------
 
-	// Build up byte array containing file path and file content . If file cannot be read store only file path in database and set file content to an error message.
-	private static byte[] buildFileByteEntry(File file, String columnName) {
-
-		byte[] pathBytes = file.getAbsolutePath().getBytes(StandardCharsets.UTF_8);
-		byte[] contentBytes;
-		try {
-			contentBytes = CFile.readBinary(file);
-		}
-		catch (IOException ioex) {
-			log.error("SQL: File '{}' cannot be read! Therfore column '{}' will be set to file path name but file itself contains an error message. ({})", file, columnName, ioex.getMessage());
-			contentBytes = "File did not exist or could not be read on storing to database!".getBytes(StandardCharsets.UTF_8);
-		}
-		byte[] entryBytes = new byte[2 + pathBytes.length + contentBytes.length];
-
-		entryBytes[0] = (byte) (pathBytes.length / 0x100);
-		entryBytes[1] = (byte) (pathBytes.length % 0x100);
-
-		int b = 2;
-		for (; b < pathBytes.length + 2; b++) {
-			entryBytes[b] = pathBytes[b - 2];
-		}
-
-		for (; b < contentBytes.length + pathBytes.length + 2; b++) {
-			entryBytes[b] = contentBytes[b - pathBytes.length - 2];
-		}
-
-		return entryBytes;
-	}
-
 	// Assign value to store to place holder - convert value to string on special cases and if converter is registered for specific value type, otherwise rely on internal driver conversion
 	private static void assignValue(PreparedStatement pst, int c, String tableName, SqlDbColumn column, Object columnValue) throws SQLException {
 
@@ -316,9 +284,6 @@ public class SqlDb extends Common {
 					else if (objectClass == char[].class) {
 						pst.setClob(c + 1, new CharArrayReader((char[]) columnValue)); // Store other value using JDBC conversion
 					}
-					else if (objectClass == File.class) {
-						pst.setObject(c + 1, buildFileByteEntry((File) columnValue, column.name)); // Store File as byte array
-					}
 					else {
 						pst.setObject(c + 1, columnValue); // Store other value using JDBC conversion
 					}
@@ -336,51 +301,6 @@ public class SqlDb extends Common {
 	// -------------------------------------------------------------------------
 	// Retrieve records
 	// -------------------------------------------------------------------------
-
-	// Rebuild file object from binary coded file entry
-	private static File rebuildFile(byte[] entryBytes) throws IOException {
-
-		if (entryBytes == null) {
-			return null;
-		}
-
-		int pathLength = 0x100 * entryBytes[0] + entryBytes[1];
-
-		int b = 2;
-		byte[] pathBytes = new byte[pathLength];
-		for (; b < pathLength + 2; b++) {
-			pathBytes[b - 2] = entryBytes[b];
-		}
-		String filepath = new String(pathBytes, StandardCharsets.UTF_8);
-
-		byte[] contentBytes = new byte[entryBytes.length - pathLength - 2];
-		for (; b < entryBytes.length; b++) {
-			contentBytes[b - pathLength - 2] = entryBytes[b];
-		}
-
-		File file = new File(filepath);
-		CFile.writeBinary(file, contentBytes);
-
-		return file;
-	}
-
-	// Rebuild file name from binary coded file entry (for error logging)
-	private static String rebuildFileName(byte[] entryBytes) {
-
-		if (entryBytes == null) {
-			return "unknown file";
-		}
-
-		int pathLength = 0x100 * entryBytes[0] + entryBytes[1];
-
-		int b = 2;
-		byte[] pathBytes = new byte[pathLength];
-		for (; b < pathLength + 2; b++) {
-			pathBytes[b - 2] = entryBytes[b];
-		}
-
-		return new String(pathBytes, StandardCharsets.UTF_8);
-	}
 
 	// Get potentially cached table from qualified column name
 	private static Map<String, SqlDbTable> tableCacheMap = new HashMap<>();
@@ -441,7 +361,6 @@ public class SqlDb extends Common {
 			String columnName = rsmd.getColumnName(c + 1);
 			Class<?> fieldType = null;
 			Object columnValue = null;
-			byte[] fileEntryBytes = null;
 			try {
 				// Try to determine type of associated field from registered table column by qualified column name
 				SqlDbTable table = null;
@@ -465,9 +384,6 @@ public class SqlDb extends Common {
 					Blob blob = rs.getBlob(c + 1);
 					if (blob != null) {
 						columnValue = blob.getBytes(1, ((Number) blob.length()).intValue());
-						if (fieldType == File.class) {
-							columnValue = (columnValue != null ? rebuildFile((byte[]) columnValue) : null);
-						}
 					}
 				}
 				else if (columnType == Types.CLOB) { // Assume CLOB is String - max 2G characters is supported
@@ -549,10 +465,8 @@ public class SqlDb extends Common {
 					else if (fieldType == LocalDateTime.class || fieldType == LocalDate.class || fieldType == LocalTime.class || Date.class.isAssignableFrom(fieldType) || fieldType == byte[].class) {
 						columnValue = rs.getObject(c + 1, fieldType);
 					}
-					else if (fieldType == File.class) {
-
-						fileEntryBytes = rs.getObject(c + 1, byte[].class);
-						columnValue = (fileEntryBytes != null ? rebuildFile(fileEntryBytes) : null);
+					else if (File.class.isAssignableFrom(fieldType)) {
+						columnValue = rs.getObject(c + 1, byte[].class);
 					}
 					else if (fieldType == char[].class) {
 						columnValue = rs.getObject(c + 1);
@@ -571,7 +485,7 @@ public class SqlDb extends Common {
 				// Put column value retrieved into result map
 				resultRecord.put(rsmd.getColumnLabel(c + 1).toUpperCase(), columnValue);
 			}
-			catch (IllegalArgumentException iaex) {
+			catch (IllegalArgumentException iaex) { // Thrown if enum field does not accept column content
 
 				if (fieldType != null && Enum.class.isAssignableFrom(fieldType)) {
 					log.error("SQL: Column value {} cannot be converted to enum type '{}' for column '{}.{}'! ({})", CLog.forAnalyticLogging(columnValue),
@@ -581,12 +495,10 @@ public class SqlDb extends Common {
 					log.error("SQL: Value of column '{}.{}' could not be retrieved - {}", tableName, columnName, iaex);
 				}
 			}
-			catch (IOException ioex) {
-				log.error("SQL: File '{}' retrieved from column '{}.{}' cannot be written! ({})", rebuildFileName(fileEntryBytes), tableName, columnName, ioex);
-			}
 		}
 
 		return resultRecord;
+
 	}
 
 	// -------------------------------------------------------------------------
