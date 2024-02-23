@@ -1,8 +1,10 @@
 package com.icx.domain.sql;
 
 import java.io.File;
+import java.io.IOException;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
+import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
@@ -26,6 +28,7 @@ import org.slf4j.LoggerFactory;
 
 import com.icx.common.AESCrypt;
 import com.icx.common.Reflection;
+import com.icx.common.base.CFile;
 import com.icx.common.base.CList;
 import com.icx.common.base.CLog;
 import com.icx.common.base.CMap;
@@ -122,6 +125,44 @@ public abstract class SaveHelpers extends Common {
 		return fieldChangesMap;
 	}
 
+	// Build up byte array containing file path and file content . If file cannot be read store only file path in database and set file content to an error message.
+	public static byte[] buildFileByteEntry(File file, String columnName) {
+
+		if (file == null) {
+			log.warn("SDC: File to store is null");
+			return new byte[0];
+		}
+
+		byte[] pathBytes = file.getAbsolutePath().getBytes(StandardCharsets.UTF_8);
+		byte[] contentBytes;
+		try {
+			contentBytes = CFile.readBinary(file);
+		}
+		catch (IOException ioex) {
+			log.warn("SDC: File '{}' cannot be read! Therefore column '{}' will be set to file path name but file itself contains an error message - {}", file, columnName, ioex.getMessage());
+			contentBytes = "File did not exist or could not be read on storing to database!".getBytes(StandardCharsets.UTF_8);
+		}
+		byte[] entryBytes = new byte[2 + pathBytes.length + contentBytes.length];
+
+		entryBytes[0] = (byte) (pathBytes.length / 0x100);
+		entryBytes[1] = (byte) (pathBytes.length % 0x100);
+
+		int b = 2;
+		for (; b < pathBytes.length + 2; b++) {
+			entryBytes[b] = pathBytes[b - 2];
+		}
+
+		for (; b < contentBytes.length + pathBytes.length + 2; b++) {
+			entryBytes[b] = contentBytes[b - pathBytes.length - 2];
+		}
+
+		if (log.isDebugEnabled()) {
+			log.debug("SDC: Store file '{}' containing {} bytes", file, contentBytes.length);
+		}
+
+		return entryBytes;
+	}
+
 	// Build column value map for SQL INSERT or UPDATE from field changes map - consider only fields where columns are associated with - ignore table related fields
 	// Note: Type conversion to column values will be done here
 	static SortedMap<String, Object> fieldChangesMap2ColumnValueMap(SqlDomainController sdc, Map<Field, Object> fieldChangesMap, SqlDomainObject obj /* used only on error */) {
@@ -172,6 +213,9 @@ public abstract class SaveHelpers extends Common {
 
 					obj.setFieldWarning(field, "CONTENT_TRUNCATED_IN_DATABASE");
 					columnValue = ((String) fieldValue).substring(0, column.maxlen);
+				}
+				else if (fieldValue instanceof File) {
+					columnValue = buildFileByteEntry((File) fieldValue, column.name);
 				}
 				else {
 					columnValue = fieldValue;
