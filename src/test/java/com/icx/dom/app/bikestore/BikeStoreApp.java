@@ -90,7 +90,7 @@ public class BikeStoreApp {
 	public static void main(String[] args) throws Exception {
 
 		// -------------------------------------------------
-		SqlDb.DbType dbType = DbType.MS_SQL;
+		SqlDb.DbType dbType = DbType.MYSQL;
 		// -------------------------------------------------
 
 		// Read JDBC and Domain properties. Note: you should not have multiple properties files with same name in your class path

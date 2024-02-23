@@ -67,7 +67,7 @@ class LoadAndSaveTest extends TestHelpers {
 	// +++ Please set log level to 'trace' in src/main/resources/logback.xml to achieve maximum coverage +++
 	// +++ You may run tests multiple times with 'dbType' set to different database types +++
 	// +++ ---------------------------------------------------------
-	public static DbType dbType = DbType.MS_SQL;
+	public static DbType dbType = DbType.MYSQL;
 	// +++ ---------------------------------------------------------
 
 	static SqlDomainController sdc = new SqlDomainController();
