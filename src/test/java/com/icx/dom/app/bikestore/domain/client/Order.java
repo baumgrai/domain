@@ -127,7 +127,7 @@ public class Order extends SqlDomainObject {
 					sdc.computeExclusivelyOnObjects(Order.class, Order.InProgress.class, "INVOICE_DATE IS NULL", o -> o.sendInvoice());
 				}
 				catch (Exception e) {
-					log.error(" {} exception occured sending invoices!", e.getClass().getSimpleName());
+					log.error("Exception occured sending invoices! - {}", e);
 				}
 
 				try {
@@ -166,7 +166,7 @@ public class Order extends SqlDomainObject {
 					sdc.computeExclusivelyOnObjects(Order.class, Order.InProgress.class, "PAY_DATE IS NOT NULL AND DELIVERY_DATE IS NULL", o -> o.deliverBike());
 				}
 				catch (Exception e) {
-					log.error(" {} exception occured sending delivery notes!", e.getClass().getSimpleName());
+					log.error("Exception occured sending delivery notes! - {}", e);
 				}
 
 				try {
