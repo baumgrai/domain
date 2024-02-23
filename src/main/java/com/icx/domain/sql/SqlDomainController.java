@@ -53,6 +53,7 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 
 	static final Logger log = LoggerFactory.getLogger(SqlDomainController.class);
 
+	// TODO: Review performance
 	// TODO: Support file encryption
 
 	// -------------------------------------------------------------------------
