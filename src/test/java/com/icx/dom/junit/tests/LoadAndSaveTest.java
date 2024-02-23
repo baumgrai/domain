@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -51,6 +52,7 @@ import com.icx.dom.junit.domain.O;
 import com.icx.dom.junit.domain.sub.X;
 import com.icx.dom.junit.domain.sub.Y;
 import com.icx.dom.junit.domain.sub.Z;
+import com.icx.domain.sql.SaveHelpers;
 import com.icx.domain.sql.SqlDomainController;
 import com.icx.domain.sql.SqlDomainObject;
 import com.icx.jdbc.SqlConnection;
@@ -62,10 +64,10 @@ class LoadAndSaveTest extends TestHelpers {
 
 	static final Logger log = LoggerFactory.getLogger(LoadAndSaveTest.class);
 
-	// +++ Please set log level to 'trace' in src/main/resources/log4j2.xml to achieve maximum coverage +++
+	// +++ Please set log level to 'trace' in src/main/resources/logback.xml to achieve maximum coverage +++
 	// +++ You may run tests multiple times with 'dbType' set to different database types +++
 	// +++ ---------------------------------------------------------
-	public static DbType dbType = DbType.MARIA;
+	public static DbType dbType = DbType.MS_SQL;
 	// +++ ---------------------------------------------------------
 
 	static SqlDomainController sdc = new SqlDomainController();
@@ -178,6 +180,9 @@ class LoadAndSaveTest extends TestHelpers {
 			for (int c = 0; c < CHAR_ARRAY_SIZE; c++) {
 				longtext[c] = (char) (c % 0x80);
 			}
+
+			File oriFile = CResource.findFirstJavaResourceFile("bike.jpg");
+
 			AA aa1 = sdc.createAndSave(AA.class, aa -> {
 
 				aa.bool = true;
@@ -201,7 +206,7 @@ class LoadAndSaveTest extends TestHelpers {
 				aa.date = now.toLocalDate();
 				aa.time = now.toLocalTime();
 
-				aa.s = "S";
+				aa.setS("S");
 
 				aa.structure = new Stucture("abc", 100);
 
@@ -218,7 +223,7 @@ class LoadAndSaveTest extends TestHelpers {
 				aa.mapOfLists = CMap.newMap(0L, new ArrayList<>(), 1L, CList.newList("A"), 2L, CList.newList("A", "B"), 3L, CList.newList("A", "B", null));
 				aa.mapOfMaps = CMap.newMap("0", new HashMap<>(), "1", CMap.newMap(Type.A, true), "2", CMap.newMap(Type.A, true, Type.B, false, Type.C, null));
 			});
-			aa1.file = CResource.findFirstJavaResourceFile("x.txt");
+			aa1.file = oriFile;
 			aa1.o = o1;
 			sdc.save(aa1);
 
@@ -232,7 +237,6 @@ class LoadAndSaveTest extends TestHelpers {
 
 			log.info("\tReload object to check if no changes will be detected...");
 
-			sdc.reload(aa1);
 			assertFalse(sdc.reload(aa1));
 
 			log.info("\tUnregister objects to force reload...");
@@ -247,6 +251,7 @@ class LoadAndSaveTest extends TestHelpers {
 
 			log.info("\tLoad objects from database...");
 
+			assertTrue(oriFile.setWritable(true));
 			sdc.synchronize();
 
 			log.info("\tAssertions on loaded objects...");
@@ -273,7 +278,7 @@ class LoadAndSaveTest extends TestHelpers {
 			assertEquals(BigDecimal.valueOf(123456789), aa1.bigDecimalValue);
 			assertEquals('a', aa1.c);
 			assertEquals('ß', aa1.charValue);
-			assertEquals("S", aa1.s);
+			assertEquals("S", aa1.getS());
 			assertEquals("abc", aa1.structure.s);
 			assertEquals(100, aa1.structure.i);
 			assertTrue(logicallyEqual(now, aa1.datetime)); // Check only seconds because milliseconds will not be stored in database (Oracle)
@@ -281,7 +286,10 @@ class LoadAndSaveTest extends TestHelpers {
 			assertTrue(logicallyEqual(now.toLocalTime(), aa1.time));
 			assertArrayEquals(CFile.readBinary(new File("src/test/resources/bike.jpg")), aa1.picture);
 			assertArrayEquals(longtext, aa1.longtext);
-			assertEquals(CResource.findFirstJavaResourceFile("x.txt"), aa1.file);
+
+			assertEquals(oriFile, aa1.file);
+			assertArrayEquals(CFile.readBinary(oriFile), CFile.readBinary(aa1.file));
+
 			assertEquals(Type.A, aa1.type);
 			assertEquals("!!!secret!!!", aa1.secretString);
 			assertEquals("!!!password!!!", aa1.pwd);
@@ -298,6 +306,19 @@ class LoadAndSaveTest extends TestHelpers {
 			assertEquals(CMap.newMap("0", new HashMap<>(), "1", CMap.newMap(Type.A, true), "2", CMap.newMap(Type.A, true, Type.B, false, Type.C, null)), aa1.mapOfMaps);
 
 			assertEquals(o1, aa1.o);
+
+			log.info("\tCheck if file cannot be written...");
+
+			oriFile.setWritable(false);
+			sdc.unregisterOnlyForTest(aa1);
+
+			sdc.synchronize();
+
+			aa1 = sdc.findAny(AA.class, aa -> true);
+
+			assertNotEquals(oriFile, aa1.file);
+			assertEquals(oriFile.getName(), aa1.file.getName());
+			assertArrayEquals(CFile.readBinary(oriFile), CFile.readBinary(aa1.file));
 
 			log.info("\tCheck registered string converter...");
 
@@ -369,9 +390,10 @@ class LoadAndSaveTest extends TestHelpers {
 				assertEquals(1, sdc.count(O.class, o -> true));
 
 				log.warn("Next error/warn message is expected here");
-				File file = new File("y.txt");
-				file.delete();
-				sdc.sqlDb.update(sqlcn.cn, "DOM_A", CMap.newMap("I", 2, "BYTES", Common.getBytesUTF8("äöüßÄÖÜ"), "DOM_FILE", file, "DOM_TYPE", "B", "O_ID", null), "S='S'");
+				File file = new File("bike1.jpg");
+				file.delete(); // Forces putting an error message in file content in entry
+				sdc.sqlDb.update(sqlcn.cn, "DOM_A",
+						CMap.newMap("I", 2, "BYTES", Common.getBytesUTF8("äöüßÄÖÜ"), "DOM_FILE", SaveHelpers.buildFileByteEntry(file, "DOM_FILE"), "DOM_TYPE", "B", "O_ID", null), "S='S'");
 
 				sdc.sqlDb.update(sqlcn.cn, "DOM_A_STRINGS", CMap.newMap("ELEMENT_ORDER", 1), "ELEMENT='B'");
 				sdc.sqlDb.update(sqlcn.cn, "DOM_A_STRINGS", CMap.newMap("ELEMENT_ORDER", 0), "ELEMENT='C'");
@@ -415,8 +437,9 @@ class LoadAndSaveTest extends TestHelpers {
 
 			assertEquals(2, aa1.i);
 			assertEquals(Type.B, aa1.type);
-			File file = new File("y.txt");
-			assertEquals(file.getAbsolutePath(), aa1.file.getAbsolutePath()); // File (without path) does not exist - therefore content could not be assigned on preceding INSERT
+			File file = new File("bike1.jpg");
+			String pathNameFromDatabase = (aa1.file != null ? aa1.file.getAbsolutePath() : null);
+			assertEquals(file.getAbsolutePath(), pathNameFromDatabase); // File (without path) does not exist - therefore content could not be assigned on preceding INSERT
 			assertTrue(CFile.readText(file, StandardCharsets.UTF_8.toString()).startsWith("File did not exist or could not be read on storing to database!"));
 			assertEquals(null, aa1.o);
 
@@ -464,7 +487,7 @@ class LoadAndSaveTest extends TestHelpers {
 			aa1.doubleValue = -0.1;
 			aa1.bigIntegerValue = BigInteger.valueOf(-1L);
 			aa1.bigDecimalValue = BigDecimal.valueOf(-0.1);
-			aa1.s = "T";
+			aa1.setS("T");
 			aa1.file = CResource.findFirstJavaResourceFile("z.txt");
 			aa1.type = Type.B;
 
@@ -503,7 +526,7 @@ class LoadAndSaveTest extends TestHelpers {
 			assertEquals(-0.1, aa1.doubleValue);
 			assertEquals(BigInteger.valueOf(-1L), aa1.bigIntegerValue);
 			assertEquals(BigDecimal.valueOf(-0.1), aa1.bigDecimalValue);
-			assertEquals("T", aa1.s);
+			assertEquals("T", aa1.getS());
 			assertEquals(CResource.findFirstJavaResourceFile("z.txt"), aa1.file);
 			assertEquals(Type.B, aa1.type);
 
@@ -613,7 +636,7 @@ class LoadAndSaveTest extends TestHelpers {
 			sdc.synchronize();
 			sdc.dataHorizonPeriod = dataHorizonPeriod;
 
-			log.info("\tAssert reloading of referneced objects...");
+			log.info("\tAssert reloading of referenced objects...");
 
 			assertEquals(3, sdc.count(X.class, x -> true)); // Re-registered X object which are referenced by Z objects
 			assertEquals(3, aa1.xs.size()); // Accumulation after reloading out-of-data-horizon objects
@@ -642,7 +665,7 @@ class LoadAndSaveTest extends TestHelpers {
 
 			log.info("\tCreate objects with - also circular - references and save one object to force saving all others...");
 
-			AA aa1 = sdc.create(AA.class, aa -> aa.s = "aa1");
+			AA aa1 = sdc.create(AA.class, aa -> aa.setS("aa1"));
 			Z z1 = sdc.create(Z.class, null);
 			Y y1 = sdc.create(Y.class, y -> y.z = z1);
 			y1.y = y1;
@@ -662,7 +685,7 @@ class LoadAndSaveTest extends TestHelpers {
 			assertTrue(x1.isStored());
 
 			AA aa2 = sdc.createAndSave(AA.class, aa -> {
-				aa.s = "aa2";
+				aa.setS("aa2");
 				aa.integerValue = 2;
 			});
 			X x2 = sdc.createAndSave(X.class, null);
@@ -682,7 +705,7 @@ class LoadAndSaveTest extends TestHelpers {
 			log.info("\tChange values in database externally...");
 
 			AA aa3 = sdc.createAndSave(AA.class, aa -> {
-				aa.s = "aa3";
+				aa.setS("aa3");
 				aa.integerValue = 3;
 			});
 			X x3 = sdc.createAndSave(X.class, null);
@@ -737,7 +760,7 @@ class LoadAndSaveTest extends TestHelpers {
 			AA aa1 = sdc.createAndSave(AA.class, aa -> aa.o = o1);
 			AB ab1 = sdc.createAndSave(AB.class, ab -> {
 				ab.i = 1;
-				ab.s = "ab";
+				ab.setS("ab");
 			});
 			X x1a = sdc.createAndSave(X.class, x -> {
 				x.a = aa1;
@@ -966,7 +989,7 @@ class LoadAndSaveTest extends TestHelpers {
 
 			assertEquals(CList.newList(aaa, aab, aac, aad), sdc.sort(CList.newList(aad, aab, aac, aaa)));
 
-			assertEquals(CMap.newMap("A", CSet.newSet(aaa), "B", CSet.newSet(aab), "C", CSet.newSet(aac), "D", CSet.newSet(aad)), sdc.groupBy(o1.as, a -> a.s));
+			assertEquals(CMap.newMap("A", CSet.newSet(aaa), "B", CSet.newSet(aab), "C", CSet.newSet(aac), "D", CSet.newSet(aad)), sdc.groupBy(o1.as, a -> a.getS()));
 			assertEquals(CMap.newMap(false, CSet.newSet(aaa, aac), true, CSet.newSet(aab, aad)), sdc.groupBy(o1.as, a -> a.bool));
 			assertEquals(2, sdc.countBy(o1.as, a -> a.bool).get(true));
 
@@ -994,7 +1017,7 @@ class LoadAndSaveTest extends TestHelpers {
 
 			log.info("\tTEST 11: errorCases()");
 
-			AA aa1 = sdc.create(AA.class, a -> a.s = "aa1");
+			AA aa1 = sdc.create(AA.class, a -> a.setS("aa1"));
 
 			log.info("\tGetting and setting inexistent fields...");
 			log.warn("Test error cases: error/warn messages are expected here...");
@@ -1021,7 +1044,7 @@ class LoadAndSaveTest extends TestHelpers {
 
 			aa1.i = 0;
 			aa1.integerValue = 1;
-			AA aa2 = sdc.create(AA.class, a -> a.s = "aa2");
+			AA aa2 = sdc.create(AA.class, a -> a.setS("aa2"));
 			aa2.i = 0;
 			aa2.integerValue = 1;
 
@@ -1032,7 +1055,7 @@ class LoadAndSaveTest extends TestHelpers {
 			assertThrows(SQLException.class, () -> sdc.save(aa2));
 
 			aa2.integerValue = 2;
-			aa2.s = "s";
+			aa2.setS("s");
 
 			assertFalse(sdc.hasConstraintViolations(aa1));
 			assertFalse(sdc.hasConstraintViolations(aa2));
@@ -1044,7 +1067,7 @@ class LoadAndSaveTest extends TestHelpers {
 
 			log.info("\tColumn size violation...");
 
-			aa1.s = "abcdefghijklmnopqrstuvwxyz"; // Column size
+			aa1.setS("abcdefghijklmnopqrstuvwxyz"); // Column size
 
 			assertTrue(sdc.hasConstraintViolations(aa1));
 
