@@ -197,7 +197,7 @@ public abstract class SqlDbHelpers extends Common {
 
 			// Convert string value by registered from-string converter
 			if (log.isTraceEnabled()) {
-				log.trace("SQL: Use registered from-string converter for class '{}'", fieldType.getSimpleName());
+				log.trace("SQL: Convert string to object using registered from-string converter for class '{}'", fieldType.getSimpleName());
 			}
 
 			return (T) fromStringConverterMap.get(fieldType).apply(stringValue);
@@ -227,7 +227,7 @@ public abstract class SqlDbHelpers extends Common {
 				// Convert String value to object using declared valueOf(String)
 				try {
 					if (log.isTraceEnabled()) {
-						log.trace("SQL: Invoke declared method valueOf(String) for class '{}'", fieldType.getSimpleName());
+						log.trace("SQL: Convert string to object: Invoke declared method valueOf(String) for class '{}'", fieldType.getSimpleName());
 					}
 					return (T) valueOfString.invoke(null, stringValue);
 				}
