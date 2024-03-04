@@ -104,6 +104,19 @@ public class Order extends SqlDomainObject {
 		log.info("Bike was delivered for order '{}'", this);
 	}
 
+	// Delay order processing threads a bit to allow more client traffic
+	static void sleep(long ms, String threadName) {
+
+		try {
+			Thread.sleep(ms);
+		}
+		catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			log.info(threadName, " thread interrupted!");
+			return;
+		}
+	}
+
 	// Thread
 
 	// Check for incoming orders and send invoices
@@ -130,14 +143,7 @@ public class Order extends SqlDomainObject {
 					log.error("Exception occured sending invoices! - {}", e);
 				}
 
-				try {
-					Thread.sleep(1);
-				}
-				catch (InterruptedException e) {
-					Thread.currentThread().interrupt();
-					log.warn("Order processing thread interrupted!");
-					return;
-				}
+				sleep(1, "Process order");
 			}
 
 			log.info("Order processing thread ended {}s after start", ChronoUnit.SECONDS.between(start, LocalDateTime.now()));
@@ -169,14 +175,7 @@ public class Order extends SqlDomainObject {
 					log.error("Exception occured sending delivery notes! - {}", e);
 				}
 
-				try {
-					Thread.sleep(1);
-				}
-				catch (InterruptedException e) {
-					Thread.currentThread().interrupt();
-					log.info("Bike delivery thread interrupted!");
-					return;
-				}
+				sleep(1, "Bike delivery");
 			}
 
 			log.info("Bike delivery thread ended {}s after start", ChronoUnit.SECONDS.between(start, LocalDateTime.now()));
