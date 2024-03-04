@@ -16,7 +16,6 @@ import com.icx.dom.app.bikestore.domain.client.Client.Gender;
 import com.icx.dom.app.bikestore.domain.client.Client.Region;
 import com.icx.dom.app.bikestore.domain.client.Client.RegionInProgress;
 import com.icx.dom.app.bikestore.domain.client.Order;
-import com.icx.domain.sql.SqlDomainController;
 
 public class ClientInstance extends Common implements Runnable {
 
@@ -31,8 +30,8 @@ public class ClientInstance extends Common implements Runnable {
 	// World region
 	private Region region = null;
 
-	// Domain controller object
-	private SqlDomainController sdc = new SqlDomainController();
+	// Domain controller object (with overridden #generatUniqueId() method)
+	private BikeDomainController sdc = new BikeDomainController();
 
 	private int n; // may not be a local variable which is not accepted by Java Functional interface (not 'static' enough'
 
@@ -76,12 +75,10 @@ public class ClientInstance extends Common implements Runnable {
 						// Logical initialization by init routine will be performed before object registration.
 						// Note: Alternatively you may use specific constructors for object creation and register and save objects there or afterwards explicitly - see examples in Initialize.java
 
-						// Create client
-						Client client = sdc.create(Client.class, c -> c.init(clientName, ((n % 10) < 5 ? Gender.MALE : Gender.FEMALE), country, Size.values()[n % 5], 12000.0 + (n % 10) * 1000.0));
+						// Create and save client
+						Client client = sdc.createAndSave(Client.class,
+								c -> c.init(clientName, ((n % 10) < 5 ? Gender.MALE : Gender.FEMALE), country, Size.values()[n % 5], 12000.0 + (n % 10) * 1000.0));
 						n++;
-
-						// Save client
-						sdc.save(client);
 
 						// Create client thread to order bikes
 						Thread clientThread = new Thread(client.new OrderBikes(client));
