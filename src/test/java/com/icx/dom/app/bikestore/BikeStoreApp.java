@@ -21,7 +21,6 @@ import com.icx.dom.app.bikestore.domain.bike.Bike;
 import com.icx.dom.app.bikestore.domain.bike.Bike.Size;
 import com.icx.dom.app.bikestore.domain.client.Client;
 import com.icx.dom.app.bikestore.domain.client.Client.Region;
-import com.icx.dom.app.bikestore.domain.client.Client.RegionInProgress;
 import com.icx.dom.app.bikestore.domain.client.Order;
 import com.icx.domain.sql.LoadHelpers;
 import com.icx.domain.sql.SqlDomainController;
@@ -29,13 +28,14 @@ import com.icx.jdbc.SqlDb;
 import com.icx.jdbc.SqlDb.DbType;
 
 /**
- * International bike store. Test app simulates bike ordering by different clients, order processing and and bike delivery.
+ * International bike store. Test app simulates bike ordering by different clients, order processing, bike delivery and decrementing bike stock.
  * 
  * Code demonstrates how to register domain classes and associate them with tables of (existing) persistence database, how to load and save domain objects and also most of the additional features
  * provided by Domain persistence mechanism. See comments in {@code Java2Sql.java} for how to create persistence database from domain classes.
  * 
- * One instance of this test program processes orders from clients of one of six world regions ({@link Client#country}, {@link RegionInProgress#region}). So one can run six parallel instances to cover
- * whole world. Parallel database operations are synchronized by database synchronization using unique shadow 'in-progress' records for records of objects to update exclusively.
+ * Test program processes orders from clients of six world regions, where a region is represented by one domain controller instance and clients are represented by threads. Concurrent access will be
+ * made to decrement bike stock if one bike could successfully ordered and also to bike orders for processing and delivering bikes. Concurrent database operations will be synchronized by database
+ * internal synchronization using unique 'in-progress' shadow records ({@code InProgress} objects). SELECT FOR UPDATE statements will not be used anywhere!
  * 
  * @author baumgrai
  */
@@ -48,7 +48,8 @@ public class BikeStoreApp {
 	public static final File BIKE_PICTURE = new File("src/test/resources/bike.jpg");
 
 	// Delay time between client bike order requests. One client tries to order bikes of 3 different types. Acts also as delay time for start of client's ordering threads.
-	public static final long ORDER_DELAY_TIME_MS = 200;
+	// Note: Values lower 100ms lead to problems with Oracle connections - at least in local test environment with Oracle 11g Express edition (11.2)
+	public static final long ORDER_DELAY_TIME_MS = 100;
 
 	// Initially available bikes for any provided size
 	public static final int AVAILABLE_BIKES = 15;
@@ -106,15 +107,14 @@ public class BikeStoreApp {
 		// Synchronize with database on startup to load potentially existing objects (manufacturers. bikes, orders, etc.) which will be deleted during initial cleanup
 		sdc.synchronize();
 
-		// Cleanup persistence database on startup
+		// Cleanup persistence database and create bike stock on startup
 		Initialize.deleteExistingObjects();
-		Initialize.createObjects();
+		Initialize.createBikeStock();
 
 		// Sort bikes by manufacturer and model using overridden compareTo() method
-		// Note: No difference between all() and allValid() here - but generally, if domain objects exist which are not savable (by database constraint violation), they are marked as invalid
-		bikes = sdc.sort(sdc.allValid(Bike.class));
+		bikes = sdc.sort(sdc.all(Bike.class));
 
-		// Log bike store before ordering/buying bikes...
+		// Log bike store before ordering and delivering bikes...
 		bikes.forEach(b -> log.info("'{}': price: {}€, sizes: {}, availability: {}", b, b.price, b.sizes, b.availabilityMap));
 
 		try {
@@ -126,8 +126,8 @@ public class BikeStoreApp {
 			for (Region region : Region.values()) {
 
 				// Start order processing and bike delivery thread for region
-				// Note: there are separate order and bike delivery threads for every region but they have access to all orders independently in which region they were generated - this is only to
-				// force concurrent access collisions
+				// Note: there are separate order and bike delivery threads for every region but they use the same domain controller and have access to all orders independently in which region they
+				// were generated - this is to force concurrent access collisions
 				Thread orderProcessingThread = new Thread(new Order.ProcessOrder(sdc));
 				orderProcessingThread.setName("ORDER " + region.shortname());
 				orderProcessingThread.start();
@@ -143,8 +143,6 @@ public class BikeStoreApp {
 				instanceThread.setName("INSTANCE " + region.shortname());
 				instanceThread.start();
 				instanceThreadMap.put(region, instanceThread);
-
-				Thread.sleep(1000);
 			}
 
 			log.info("Threads started.");
