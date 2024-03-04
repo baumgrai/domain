@@ -60,8 +60,8 @@ import com.icx.jdbc.SqlDb;
 import com.icx.jdbc.SqlDb.DbType;
 
 /**
- * Tests were performed using local databases: Oracle 11g (11.2), Microsoft SQL Sever 2017, MySQL 8.0.36, MariaDB 11.3 - and JDBC drivers: ojdbc8:23.3.0.23.09, mssql-jdbc:12.6.0.jre8,
- * mysql-connector-j:8.0.32, mariadb-java-client:3.3.3.
+ * Tests were performed on a Lenovo X1/2019 laptop with Windows 11 using local databases: Oracle 11g (11.2), Microsoft SQL Sever 2017, MySQL 8.0.36, MariaDB 11.3 - and JDBC drivers:
+ * ojdbc8:23.3.0.23.09, mssql-jdbc:12.6.0.jre8, mysql-connector-j:8.0.32, mariadb-java-client:3.3.3.
  */
 @TestMethodOrder(OrderAnnotation.class)
 class LoadAndSaveTest extends TestHelpers {
@@ -967,12 +967,11 @@ class LoadAndSaveTest extends TestHelpers {
 
 			log.info("\tCheck default object order (id containes creation time)...");
 
-			X b1 = new X();
-			sdc.register(b1);
-			Thread.sleep(1);
-			X b2 = new X();
-			sdc.register(b2);
-			assertTrue(b2.compareTo(b1) > 0);
+			X x1 = new X();
+			sdc.register(x1);
+			X x2 = new X();
+			sdc.register(x2);
+			assertTrue(x2.compareTo(x1) > 0);
 
 			log.info("\tCheck object order on overridden compareTo()...");
 
