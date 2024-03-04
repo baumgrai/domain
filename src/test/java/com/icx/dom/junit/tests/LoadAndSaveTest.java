@@ -59,6 +59,10 @@ import com.icx.jdbc.SqlConnection;
 import com.icx.jdbc.SqlDb;
 import com.icx.jdbc.SqlDb.DbType;
 
+/**
+ * Tests were performed using local databases: Oracle 11g (11.2), Microsoft SQL Sever 2017, MySQL 8.0.36, MariaDB 11.3 - and JDBC drivers: ojdbc8:23.3.0.23.09, mssql-jdbc:12.6.0.jre8,
+ * mysql-connector-j:8.0.32, mariadb-java-client:3.3.3.
+ */
 @TestMethodOrder(OrderAnnotation.class)
 class LoadAndSaveTest extends TestHelpers {
 
@@ -158,7 +162,7 @@ class LoadAndSaveTest extends TestHelpers {
 	// Next 3 test belong together - no cleanup meanwhile
 	//
 
-	private final static int CHAR_ARRAY_SIZE = 0x800000;
+	private final static int CHAR_ARRAY_SIZE = 0x800000; // Maximum with MariaDB standard configuration
 
 	@SuppressWarnings("static-method")
 	@Test
