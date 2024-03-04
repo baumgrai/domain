@@ -71,7 +71,7 @@ public class Initialize {
 	static int n = 0;
 
 	// Create manufacturers and bikes
-	public static void createObjects() throws ConfigException, SQLException, SqlDbException, IOException {
+	public static void createBikeStock() throws ConfigException, SQLException, SqlDbException, IOException {
 
 		log.info("Create objects...");
 
