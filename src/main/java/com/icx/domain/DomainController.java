@@ -17,6 +17,7 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -122,17 +123,25 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 	// Create domain objects
 	// -------------------------------------------------------------------------
 
-	// Use milliseconds, thread id and random value for unique identifier
-	protected synchronized <S extends T> long generateUniqueId(Class<S> domainObjectClass) {
+	static AtomicInteger counterWithinMilliseconds = new AtomicInteger(0);
+	static long last = new Date().getTime();
 
-		@SuppressWarnings("deprecation") // New method threadId() does not exist in older Java versions
-		long id = new Date().getTime() * 100000 + (Thread.currentThread().getId() % 100) * 1000 + CRandom.randomInt(1000);
-		for (Class<? extends T> domainClass : registry.getDomainClassesFor(domainObjectClass)) {
-			while (objectMap.get(domainClass).containsKey(id)) {
-				id++;
-			}
+	// Use milliseconds, atomic int and random value for unique identifier
+	private static synchronized long generateUniqueIdStatic() {
+
+		long now = new Date().getTime();
+		if (now > last) {
+			last = now;
+			counterWithinMilliseconds = new AtomicInteger(CRandom.randomInt(100) * 100);
 		}
-		return id;
+
+		return now * 1000000 + (counterWithinMilliseconds.getAndIncrement() % 1000) * 1000 + CRandom.randomInt(1000);
+	}
+
+	// Provide non-static unique id generation method to allow overriding
+	@SuppressWarnings("static-method")
+	protected synchronized long generateUniqueId() {
+		return generateUniqueIdStatic();
 	}
 
 	// Instantiate domain object - called on loading new object from database and if objects are created using create() methods of domain controller
@@ -310,7 +319,7 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 	 */
 	public <S extends T> S register(S obj) {
 		initializeFields(obj);
-		registerById(obj, generateUniqueId(registry.castDomainClass(obj.getClass())));
+		registerById(obj, generateUniqueId());
 		return obj;
 	}
 
