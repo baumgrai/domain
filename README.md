@@ -3,7 +3,7 @@
 
 If you - for any reason - do not want to use Hibernate, Spring etc. for your persistence needs, this software may be worth a look. 
 
-*domain* supports *Oracle*, *MS-SQL-Server*, *MySQL* and *MariaDB*.
+**-domain- supports -Oracle-, -MS-SQL-Server-, -MySQL- and -MariaDB-**
 
 How to use:
 1) Let all your classes to persist extend `SqlDomainObject` class directly or indirectly (inheritance is supported)
