@@ -26,7 +26,7 @@ The following topics are addressed by *Domain*:
 - direct access to children by managed 'accumulations' fields (`class Manufacturer {... @Accumulation Set<Bike> bikes; }`)
 - circular references on class and object level (`class X { X next; }`, `class A { B b; }`, `class B { C c; }`, `class C { A a; }`)
 - n:m relations between domain objects - using helper classes (`class A {...}`, `class B {...}`, `class AB { A a; B b; }`)
-- protection of sensitive data - store data encrypted in database using `@Crypt` annotation and suppress logging sensitive data using `@Secret` annotation
+- protection of sensitive data - encrypt data in database using `@Crypt` annotation and suppress logging sensitive data using `@Secret` annotation
 - house keeping - keep only relevant objects in heap (which are newer than a configurable time in the past) using `@UseDataHorizon` annotation and `dataHorizonPeriod` property  
 - selective object loading - load only a part of the persisted objects using `SqlDomainController#loadOnly()`[^1]
 - concurrent access - operate with multiple domain controller instances on the same persistence database, synchronize concurrent access using `SqlDomainController#allocateObjectsExclusively()`[^1]
