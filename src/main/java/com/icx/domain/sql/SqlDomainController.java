@@ -720,7 +720,9 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 		}
 
 		try {
+			// Save object
 			boolean wasChanged = SaveHelpers.save(cn, this, obj, new ArrayList<>());
+
 			if (log.isDebugEnabled()) {
 				if (wasChanged) {
 					log.debug("SDC: Saved {}", obj.name());
@@ -730,19 +732,17 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 				}
 			}
 
+			// COMMIT whole save transaction if any INSERT or UPDATE statement was performed
+			if (wasChanged) {
+				SqlConnection.commit(cn);
+			}
+
 			return wasChanged;
 		}
 		catch (SqlDbException | SQLException sqlex) { // Error logs are already written (or an 'in-progress' object for exclusive access could not be created - which is not an error case)
 
-			if (!cn.getAutoCommit()) {
-				try {
-					cn.rollback();
-					log.warn("SDC: Whole save transaction rolled back!");
-				}
-				catch (SQLException ex) {
-					log.warn("SDC: Roll back of transaction failed!", ex);
-				}
-			}
+			// ROLL BACK complete save transaction
+			SqlConnection.rollback(cn);
 
 			throw sqlex;
 		}
@@ -767,7 +767,7 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	 */
 	public boolean save(SqlDomainObject obj) throws SQLException, SqlDbException {
 
-		// Use one transaction for all INSERTs and UPDATEs to allow ROLL BACK of whole transaction on error - on success transaction will automatically be committed on closing connection
+		// Use one transaction for all INSERTs and UPDATEs to allow ROLL BACK of whole transaction on error - on success transaction will be committed
 		try (SqlConnection sqlcn = SqlConnection.open(sqlDb.pool, false)) {
 			return save(sqlcn.cn, obj);
 		}
@@ -921,33 +921,31 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 
 		List<SqlDomainObject> unregisteredObjects = new ArrayList<>(); // Collect objects unregistered during deletion process to allow re-registering on exception
 		try {
-			// Delete object and children
 			if (log.isDebugEnabled()) {
 				log.debug("SDC: Delete {}", obj.name());
 			}
+
+			// Delete object and children
 			DeleteHelpers.deleteRecursiveFromDatabase(cn, this, obj, unregisteredObjects, null, 0);
+
 			if (log.isDebugEnabled()) {
 				log.debug("SDC: Deleted {}", obj.name());
 				if (log.isTraceEnabled()) {
 					log.trace("SDC: Deletion of {} and all children took: {}", obj.name(), ChronoUnit.MILLIS.between(now, LocalDateTime.now()) + "ms");
 				}
 			}
+
+			// COMMIT whole delete transaction
+			SqlConnection.commit(cn);
+
 			return true;
 		}
 		catch (SQLException | SqlDbException sqlex) {
 			log.error("SDC: Delete: Object {} cannot be deleted", obj.name());
 			obj.currentException = sqlex;
 
-			// ROLL BACK complete DELETE transaction
-			if (!cn.getAutoCommit()) {
-				try {
-					cn.rollback();
-					log.warn("SDC: Whole delete transaction rolled back!");
-				}
-				catch (SQLException ex) {
-					log.warn("SDC: Roll back of transaction failed!", ex);
-				}
-			}
+			// ROLL BACK complete delete transaction
+			SqlConnection.rollback(cn);
 
 			// Re-register already unregistered objects and re-generate object records
 			for (SqlDomainObject o : unregisteredObjects) {
