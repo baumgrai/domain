@@ -30,7 +30,7 @@ The following topics are addressed by *Domain*:
 - house keeping - keep only relevant objects in heap (which are newer than a configurable time in the past) using `@UseDataHorizon` annotation and `dataHorizonPeriod` property  
 - selective object loading - load only a part of the persisted objects using `SqlDomainController#loadOnly()`[^1]
 - concurrent access - operate with multiple domain controller instances on the same persistence database, synchronize concurrent access using `SqlDomainController#allocateObjectsExclusively()`[^1]
-- version control - annotate version information to new, changed and removed classes and fields and let `Java2Sql` tool automatically generate incremental database update scripts 
+- version control - annotate version information to \*new, *changed* and ~~removed~~ classes and fields and let `Java2Sql` tool automatically generate incremental database update scripts 
 
 [^1]: SQL knowledge and knowledge of *domain* specific Java <-> SQL conversion is needed if objects shall be loaded seletively from database and if objects shall be allocated exclusively in multiple domain controller instance configurations. For such applications see Javadoc of the appropriate methods.
 
