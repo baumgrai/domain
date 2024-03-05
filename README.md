@@ -12,13 +12,13 @@ How to use it:
 5) In your code:
    - Initially create a 'domain controller' and call `SqlDomainController#synchronize()` to synchronize local object store with persistence database
    - Create objects to persist using `DomainController#create()` or create objects by constructors and register them for persitence with `DomainController#register()`
-   - Save objects with `#save()` - or create and immediately save objects using `SqlDomainController#createAndSave()`
+   - Persist objects with `#save()` - or create and immediately persist objects using `SqlDomainController#createAndSave()`
    - Access objects using methods like `DomainController#findAll()`, `DomainController#findAny()`
 
 Which data can be persisted?
 - Basic data types are supported natively - `String`, `Integer`, `Long`, `Double` (and appropriate primitive types) - also `Enum` types, `BigInteger`, `BigDecimal`, `LocalDate`, `LocalTime`, `LocalDateTime`, `Date`, `byte[]`, `File`
 - Lists, sets, arrays and maps of these types are also supported natively
-- You can use any other types by defining specific conversion providers
+- You can use persist also other types by defining specific conversion providers
 
 The following topics are addressed by *Domain*:
 - inheritance - there is no restriction for persistence regarding class inheritence (`Bike extends SqlDomainObject`, `RaceBike extends Bike`, `Bianchi extends RaceBike`)
