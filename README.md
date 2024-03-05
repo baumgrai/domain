@@ -21,7 +21,7 @@ Which data can be persisted?
 - You can persist any other types by defining specific string conversion providers
 
 The following topics are addressed by *Domain*:
-- inheritance - there is no restriction for persistence regarding class inheritence (`Bike extends SqlDomainObject`, `RaceBike extends Bike`, `Bianchi extends RaceBike`)
+- inheritance - there is no restriction regarding class inheritence (`Bike extends SqlDomainObject`, `RaceBike extends Bike`, `Bianchi extends RaceBike`)
 - parent child relations of domain objects (`class Manufacturer {...}`, `class Bike { Manufacturer manufacturer; ...}`)
 - direct access to children by managed 'accumulations' fields (`class Manufacturer {... @Accumulation Set<Bike> bikes; }`)
 - circular references on class and object level (`class X { X next; }`, `class A { B b; }`, `class B { C c; }`, `class C { A a; }`)
