@@ -10,7 +10,7 @@ How to use:
 2) Let `Java2Sql` tool generate the SQL scripts for the persistence database and generate this database
 4) Configure the database connection (`db.properties`)
 5) In your code:
-   - Initially create a 'domain controller' and call `SqlDomainController#synchronize()` to synchronize local object store with persistence database
+   - Initially create a 'domain controller' and call `SqlDomainController#synchronize()` to load objects from persistence database
    - Create objects to persist using `DomainController#create()` or create objects by constructors and register them for persitence with `DomainController#register()`
    - Persist objects with `#save()` - or create and immediately persist objects using `SqlDomainController#createAndSave()`
    - Access objects using methods like `DomainController#findAll()`, `DomainController#findAny()`
