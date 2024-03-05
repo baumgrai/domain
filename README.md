@@ -18,7 +18,7 @@ How to use:
 Which data can be persisted?
 - Basic data types are supported natively - `String`, `Integer`, `Long`, `Double` (and appropriate primitive types) - also `Enum` types, `BigInteger`, `BigDecimal`, `LocalDate`, `LocalTime`, `LocalDateTime`, `Date`, `byte[]`, `File`
 - Lists, sets, arrays and maps of these types are also supported natively
-- You can use persist also other types by defining specific conversion providers
+- You can persist any other types by defining specific string conversion providers
 
 The following topics are addressed by *Domain*:
 - inheritance - there is no restriction for persistence regarding class inheritence (`Bike extends SqlDomainObject`, `RaceBike extends Bike`, `Bianchi extends RaceBike`)
