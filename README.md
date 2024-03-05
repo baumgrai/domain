@@ -37,4 +37,4 @@ The following topics are addressed by *Domain*:
 Also good to know:
 - *domain* ensures referential integrity even if not all persisted objects are loaded into object store - parent is loaded if child is loaded
 - *domain* runs in Java >=8 environments
-- *domain* has a small footprint of 10k LoC and 200kB jar and needs only logging (*slf4j* and *log4j* V2) libraries and the specific database driver
+- *domain* has a small footprint of 10k LoC and 200kB jar and needs only logging (*slf4j* and *logback*) libraries and the specific database driver
