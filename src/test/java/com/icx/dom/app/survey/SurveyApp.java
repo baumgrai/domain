@@ -43,7 +43,7 @@ public class SurveyApp extends SqlDomainController {
 	public static void main(String[] args) throws Exception {
 
 		// Read JDBC and Domain properties. Note: you should not have multiple properties files with same name in your class path
-		Properties dbProps = Prop.readEnvironmentSpecificProperties(Prop.findPropertiesFile("db.properties"), "local/mysql/survey_test", null);
+		Properties dbProps = Prop.readEnvironmentSpecificProperties(Prop.findPropertiesFile("db.properties"), "local/mysql/survey", null);
 		Properties domainProps = Prop.readProperties(Prop.findPropertiesFile("domain.properties"));
 
 		// Register domain classes and domain classes and database tables
@@ -182,9 +182,9 @@ public class SurveyApp extends SqlDomainController {
 
 		log.info("Call threads ended");
 
-		// Wait until admin threads ended
+		// Stop admin threads and wait until threads ended
+		stopAdminThreads = true;
 		for (Thread thread : adminThreads) {
-			thread.interrupt();
 			thread.join();
 		}
 
@@ -198,6 +198,21 @@ public class SurveyApp extends SqlDomainController {
 		}
 	}
 
+	// Delay order processing threads a bit to allow more client traffic
+	static void sleep(long ms, String threadName) {
+
+		try {
+			Thread.sleep(ms);
+		}
+		catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			log.info(threadName, " thread interrupted!");
+			return;
+		}
+	}
+
+	private static boolean stopAdminThreads = false;
+
 	public static class AdminSurvey implements Runnable {
 
 		@Override
@@ -205,13 +220,13 @@ public class SurveyApp extends SqlDomainController {
 
 			log.info("Admin started");
 
-			for (int i = 0; i < 1000; i++) {
+			while (!stopAdminThreads) {
 
 				// Manipulate survey randomly
 				try (SqlConnection sqlcn = SqlConnection.open(sdc.sqlDb.pool, false)) {
 
 					try {
-						Set<Survey> surveys = sdc.allocateObjectsExclusively(Survey.class, Survey.InProgress.class, "SEMAPHORE=GREEN", 1, s -> s.semaphore = Semaphore.RED);
+						Set<Survey> surveys = sdc.allocateObjectsExclusively(Survey.class, Survey.InProgress.class, "SEMAPHORE='GREEN'", 1, s -> s.semaphore = Semaphore.RED);
 						if (!surveys.isEmpty()) {
 
 							Survey survey = surveys.iterator().next();
@@ -240,8 +255,7 @@ public class SurveyApp extends SqlDomainController {
 								survey.removeQuestionRandomly(sqlcn, questionCount);
 							}
 
-							survey.semaphore = Semaphore.GREEN;
-							sdc.save(survey);
+							sdc.releaseObject(survey, Survey.InProgress.class, s -> s.semaphore = Semaphore.GREEN);
 						}
 					}
 					catch (Exception e) {
@@ -253,13 +267,7 @@ public class SurveyApp extends SqlDomainController {
 					log.error("Exception occurred: ", e);
 				}
 
-				try {
-					Thread.sleep(1000);
-				}
-				catch (InterruptedException e) {
-					Thread.currentThread().interrupt();
-					break;
-				}
+				sleep(1000, "Admin thread");
 			}
 
 			log.info("Admin ended");

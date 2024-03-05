@@ -27,7 +27,7 @@ public class Survey extends SqlDomainObject {
 
 	// Members
 
-	@SqlColumn(unique = true)
+	@SqlColumn(unique = true, charsize = 256)
 	public String name;
 
 	public int number;
@@ -67,7 +67,7 @@ public class Survey extends SqlDomainObject {
 	private Question getAndCheckQuestionOnPos(int pos, String op) {
 
 		int questionCount = getQuestionCount();
-		if (pos < 0 || pos >= questionCount) {
+		if (pos < 0 || pos > questionCount) {
 			log.error("{} position {} not in allowed range [0, {}]", op, pos, questionCount);
 			return null;
 		}
@@ -167,7 +167,7 @@ public class Survey extends SqlDomainObject {
 			int pos = CRandom.randomInt(questionCount + 1);
 
 			log.info("Insert question of type {} on position {}", questionType, pos);
-			Survey.this.insertQuestion(sqlcn, Question.questionMap.get(questionType), pos);
+			insertQuestion(sqlcn, Question.questionMap.get(questionType), pos);
 			log.debug("Question on position {} inserted", pos);
 		}
 	}
@@ -181,7 +181,7 @@ public class Survey extends SqlDomainObject {
 		}
 
 		log.info("Move question from position {} to {}", oldPos, newPos);
-		Survey.this.moveQuestion(sqlcn, oldPos, newPos);
+		moveQuestion(sqlcn, oldPos, newPos);
 		log.debug("Question moved from position {} to {}", oldPos, newPos);
 	}
 
@@ -190,7 +190,7 @@ public class Survey extends SqlDomainObject {
 		int pos = (questionCount == 1 ? 0 : CRandom.randomInt(questionCount));
 
 		log.info("Remove question on position {}", pos);
-		Survey.this.removeQuestion(sqlcn, pos);
+		removeQuestion(sqlcn, pos);
 		log.debug("Question on position {} removed", pos);
 	}
 

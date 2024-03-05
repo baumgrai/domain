@@ -23,7 +23,7 @@ public class Scale extends SqlDomainObject {
 
 	// Members
 
-	@SqlColumn(unique = true)
+	@SqlColumn(unique = true, charsize = 256)
 	public String name;
 
 	public List<String> answers;
