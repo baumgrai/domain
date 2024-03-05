@@ -68,8 +68,8 @@ public class SqlConnection implements AutoCloseable {
 			// Commit open transaction on non-auto commit connections
 			if (!cn.getAutoCommit()) {
 				cn.commit();
-				if (log.isDebugEnabled()) {
-					log.debug("SCO: Transaction committed on returning connection to pool");
+				if (log.isTraceEnabled()) {
+					log.trace("SCO: Transaction committed on returning connection to pool");
 				}
 			}
 		}
@@ -78,5 +78,61 @@ public class SqlConnection implements AutoCloseable {
 		}
 
 		pool.returnConnection(cn);
+	}
+
+	/**
+	 * Commit transaction.
+	 * 
+	 * @return true if commit succeeded, false otherwise
+	 */
+	public static boolean commit(Connection cn) {
+
+		try {
+			if (cn.getAutoCommit()) {
+				if (log.isTraceEnabled()) {
+					log.trace("SCO: Auto commit connection does not support explicit commit!");
+				}
+				return false;
+			}
+			else {
+				cn.commit();
+				if (log.isTraceEnabled()) {
+					log.trace("SCO: Transaction committed");
+				}
+				return true;
+			}
+		}
+		catch (SQLException ex) {
+			log.warn("SCO: Commit of transaction failed!", ex);
+			return false;
+		}
+	}
+
+	/**
+	 * Roll back transaction.
+	 * 
+	 * @return true if roll back succeeded, false otherwise
+	 */
+	public static boolean rollback(Connection cn) {
+
+		try {
+			if (cn.getAutoCommit()) {
+				if (log.isTraceEnabled()) {
+					log.trace("SCO: Auto commit connection does not support roll back!");
+				}
+				return false;
+			}
+			else {
+				cn.rollback();
+				if (log.isTraceEnabled()) {
+					log.trace("SCO: Transaction rolled back");
+				}
+				return true;
+			}
+		}
+		catch (SQLException ex) {
+			log.warn("SCO: Roll back of transaction failed!", ex);
+			return false;
+		}
 	}
 }
