@@ -116,8 +116,8 @@ public class SqlRegistry extends Registry<SqlDomainObject> {
 			else if (field.isAnnotationPresent(Secret.class) && !(field.getGenericType() instanceof ParameterizedType)) { // Ignore @Secret annotation on List, Set, Map fields
 				columnName = SECRET_PREFIX + columnName;
 			}
-			else if (columnName.equals("START") || columnName.equals("END") || columnName.equals("COUNT") || columnName.equals("COMMENT") || columnName.equals("DATE") || columnName.equals("TYPE")
-					|| columnName.equals("GROUP") || columnName.equals("FILE") || columnName.equals("LONGTEXT")) {
+			else if (columnName.equals("START") || columnName.equals("END") || columnName.equals("COUNT") || columnName.equals("NUMBER") || columnName.equals("COMMENT") || columnName.equals("DATE")
+					|| columnName.equals("TYPE") || columnName.equals("GROUP") || columnName.equals("FILE") || columnName.equals("LONGTEXT")) {
 				columnName = TABLE_PREFIX + columnName;
 			}
 
