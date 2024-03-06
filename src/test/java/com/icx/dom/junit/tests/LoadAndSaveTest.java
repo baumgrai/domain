@@ -397,7 +397,7 @@ class LoadAndSaveTest extends TestHelpers {
 				File file = new File("bike1.jpg");
 				file.delete(); // Forces putting an error message in file content in entry
 				sdc.sqlDb.update(sqlcn.cn, "DOM_A",
-						CMap.newMap("I", 2, "BYTES", Common.getBytesUTF8("äöüßÄÖÜ"), "DOM_FILE", SaveHelpers.buildFileByteEntry(file, "DOM_FILE"), "DOM_TYPE", "B", "O_ID", null), "S='S'");
+						CMap.newMap("I", 2, "DOM_LONGTEXT", "äöüßÄÖÜ".toCharArray(), "DOM_FILE", SaveHelpers.buildFileByteEntry(file, "DOM_FILE"), "DOM_TYPE", "B", "O_ID", null), "S='S'");
 
 				sdc.sqlDb.update(sqlcn.cn, "DOM_A_STRINGS", CMap.newMap("ELEMENT_ORDER", 1), "ELEMENT='B'");
 				sdc.sqlDb.update(sqlcn.cn, "DOM_A_STRINGS", CMap.newMap("ELEMENT_ORDER", 0), "ELEMENT='C'");
@@ -441,6 +441,7 @@ class LoadAndSaveTest extends TestHelpers {
 
 			assertEquals(2, aa1.i);
 			assertEquals(Type.B, aa1.type);
+			assertArrayEquals("äöüßÄÖÜ".toCharArray(), aa1.longtext);
 			File file = new File("bike1.jpg");
 			String pathNameFromDatabase = (aa1.file != null ? aa1.file.getAbsolutePath() : null);
 			assertEquals(file.getAbsolutePath(), pathNameFromDatabase); // File (without path) does not exist - therefore content could not be assigned on preceding INSERT
