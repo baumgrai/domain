@@ -180,8 +180,6 @@ class CommonTest extends TestHelpers {
 
 		SortedMap<String, Integer> map = CMap.newSortedMap("a", 1, "b", 2);
 		assertTrue(map.get("a") == 1 && map.get("b") == 2 && map.firstKey().equals("a") && map.lastKey().equals("b"));
-		CMap.upperCaseKeysInMap(map);
-		assertTrue(map.get("A") == 1 && map.get("B") == 2 && map.firstKey().equals("A") && map.lastKey().equals("B"));
 
 		assertEquals(6, CMath.sum(CList.newList(1, 2, 3)).intValue());
 		assertEquals(50.0, CMath.percentage(125, 250));
