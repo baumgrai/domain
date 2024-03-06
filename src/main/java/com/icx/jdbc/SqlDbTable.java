@@ -409,8 +409,12 @@ public class SqlDbTable extends Common implements Comparable<SqlDbTable> {
 	 */
 	public SqlDbColumn findColumnByName(String columnName) {
 
+		if (isEmpty(columnName)) {
+			return null;
+		}
+
 		for (SqlDbColumn column : columns) {
-			if (objectsEqual(column.name, columnName)) {
+			if (objectsEqual(column.name, columnName.toUpperCase())) {
 				return column;
 			}
 		}
