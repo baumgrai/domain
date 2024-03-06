@@ -4,8 +4,10 @@ import java.io.File;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Type;
+import java.math.BigDecimal;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.sql.Types;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -102,6 +104,71 @@ public abstract class SqlDbHelpers extends Common {
 
 		String s = valueToTrimmedString(value).toUpperCase();
 		return s.substring(0, s.length() - SqlDb.ORACLE_SEQ_NEXTVAL.length());
+	}
+
+	// -------------------------------------------------------------------------
+	// Helpers for INSERT and UPDATE
+	// -------------------------------------------------------------------------
+
+	// Get JDBC type from Java type
+	static int typeIntegerFromJdbcType(Class<?> type) {
+
+		if (type == String.class) {
+			return Types.VARCHAR;
+		}
+		else if (type == BigDecimal.class) {
+			return Types.NUMERIC;
+		}
+		else if (type == Byte.class || type == Short.class) {
+			return Types.SMALLINT;
+		}
+		else if (type == Character.class) {
+			return Types.CHAR;
+		}
+		else if (type == Byte.class || type == Integer.class) {
+			return Types.INTEGER;
+		}
+		else if (type == Long.class) {
+			return Types.BIGINT;
+		}
+		else if (type == Float.class) {
+			return Types.FLOAT;
+		}
+		else if (type == Double.class) {
+			return Types.DOUBLE;
+		}
+		else if (type == java.sql.Timestamp.class) {
+			return Types.TIMESTAMP;
+		}
+		else if (type == byte[].class) {
+			return Types.BINARY;
+		}
+		else if (java.sql.Blob.class.isAssignableFrom(type)) {
+			return Types.BLOB;
+		}
+		else if (java.sql.Clob.class.isAssignableFrom(type)) {
+			return Types.CLOB;
+		}
+		else {
+			return Types.OTHER;
+		}
+	}
+
+	// Check value (for column) and return value expression to insert into prepared statement string
+	protected static String getValueExpressionForSqlStatement(Object value) {
+
+		if (value instanceof String && ((String) value).toUpperCase().startsWith("SELECT ")) {
+			return "(" + value + ")";
+		}
+		else if (SqlDbHelpers.isSqlFunctionCall(value)) {
+			return SqlDbHelpers.getSqlColumnExprOrFunctionCall(value);
+		}
+		else if (SqlDbHelpers.isOraSeqNextvalExpr(value)) {
+			return value.toString();
+		}
+		else {
+			return "?";
+		}
 	}
 
 	// -------------------------------------------------------------------------
