@@ -47,7 +47,7 @@ jar {
     }
 }
 
-task copyManifest { //	For Eclipse direct launching in wtpwebapps
+task copyManifest {
 	copy {
 		from 'build/tmp/jar/MANIFEST.MF'
 		into 'src/main/webapp/META-INF'
