@@ -99,26 +99,6 @@ public abstract class CMap {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Make keys in {@code Map<String, Object>} map uppercase
-	 * 
-	 * @param <V>
-	 *            value type
-	 * @param map
-	 *            map
-	 */
-	public static <V> void upperCaseKeysInMap(Map<String, V> map) {
-
-		if (map == null) {
-			return;
-		}
-
-		Map<String, V> tmp = new TreeMap<>(map);
-
-		map.clear();
-		tmp.forEach((k, v) -> map.put(k.toUpperCase(), v));
-	}
-
-	/**
 	 * Convert list of records (key/value maps) to csv string
 	 * 
 	 * @param records
