@@ -5,6 +5,8 @@ If you - for any reason - do not want to use Hibernate, Spring, etc. for your pe
 
 ***domain* supports *Oracle*, *MS/SQL-Server*, *MySQL* and *MariaDB***
 
+**Usage:**
+
 Let all your 'domain' classes to persist extend `SqlDomainObject` class directly or indirectly (inheritance is supported).
 
 Let `Java2Sql` tool generate the SQL scripts for the persistence database and generate this database.
