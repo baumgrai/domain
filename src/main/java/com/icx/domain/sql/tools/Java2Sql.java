@@ -19,34 +19,23 @@ import com.icx.common.CFile;
 import com.icx.common.Common;
 import com.icx.domain.DomainException;
 import com.icx.domain.Registry;
-import com.icx.domain.sql.Const;
 import com.icx.domain.sql.Annotations;
-import com.icx.domain.sql.SqlDomainObject;
-import com.icx.domain.sql.Annotations.Changed;
-import com.icx.domain.sql.Annotations.Created;
 import com.icx.domain.sql.Annotations.Crypt;
-import com.icx.domain.sql.Annotations.Removed;
 import com.icx.domain.sql.Annotations.Secret;
 import com.icx.domain.sql.Annotations.SqlColumn;
 import com.icx.domain.sql.Annotations.SqlTable;
-import com.icx.jdbc.SqlDbHelpers;
+import com.icx.domain.sql.Const;
+import com.icx.domain.sql.SqlDomainObject;
 import com.icx.jdbc.SqlDb.DbType;
+import com.icx.jdbc.SqlDbHelpers;
 
 /**
- * Java program to generate SQL scripts for generation of persistence database.
+ * Java program to generate SQL scripts for persistence database.
  * <p>
- * SQL script generation is based on Java classes identified as 'domain' classes (which means they extend {@code SqlDomainObject} directly or indirectly and lie under a specific package in your
- * application ('domain' package). Domain classes my reside in sub packages of 'domain' package. Package name of 'domain' package may differ from 'domain'.
+ * {@code Java2Sql} builds SQL scripts for generation of persistence database using 'domain' class definitions in Java source code. Currently database generation scripts for Oracle, MS SQL Server and
+ * MySQL are generated.
  * <p>
- * Copy {@code Java2Sql.java} into your 'domain' package and start it there without parameters (before starting you may have to change the package name in the first line of code of
- * {@code Java2Sql.java}).
- * <p>
- * {@code Java2Sql} generates three SQL table generation scripts: {@code xxx_ms_sql.sql}, {@code xxx_mysql.sql} and {@code xxx_oracle.sql} in directory {@code sql} parallel to {@code src}, where 'xxx'
- * is the name of the package containing 'domain' package.
- * <p>
- * {@code Java2Sql} supports version control: Product versions, in which domain classes or single fields were created, modified or removed, can be defined using annotations {@link Created},
- * {@link Changed}, {@link Removed}. {@code Java2Sql} produces incremental database update scripts for any product version defined in one of these annotations additionally to the scripts to create the
- * whole database.
+ * See {@link com.icx.domain.sql.tools} for details of Domain persistence mechanism.
  * 
  * @author baumgrai
  */

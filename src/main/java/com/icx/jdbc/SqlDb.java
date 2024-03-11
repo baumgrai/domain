@@ -41,6 +41,7 @@ import com.icx.common.CLog;
 import com.icx.common.CProp;
 import com.icx.common.CReflection;
 import com.icx.common.Common;
+import com.icx.domain.sql.Annotations.Secret;
 import com.icx.jdbc.SqlDbTable.SqlDbColumn;
 import com.icx.jdbc.SqlDbTable.SqlDbForeignKeyColumn;
 import com.icx.jdbc.SqlDbTable.SqlDbUniqueConstraint;
@@ -56,7 +57,8 @@ import com.icx.jdbc.SqlDbTable.SqlDbUniqueConstraint;
  * ] pairs and is sorted by column name (or label).
  * <p>
  * With DEBUG log level all SQL statements performed will be logged as they are - for INSERT and UPDATE statements including real column values and data types. In DEBUG logs also records retrieved by
- * SELECT will be logged including data types.
+ * SELECT will be logged including data types. Note: Values of fields or columns which are marked as 'secret' (*) will never be logged. (*) Marked as secret generally means: name contains ignore case
+ * 'passwor' or 'pwd' or 'sec_'. Fields annotated with {@link Secret} annotation are also secret.
  * <p>
  * Database tables can be 'registered' using {@link #registerTable(Connection, String)}. Resulting {@link SqlDbTable} objects provide meta data of these tables and their columns. {@code SqlDbTable}
  * provides also methods to analyze table reference structure of database. {@link SqlDbTable} objects for registered tables can be retrieved by table name using {@link #findRegisteredTable(String)}.

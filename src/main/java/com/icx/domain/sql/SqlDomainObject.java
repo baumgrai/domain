@@ -147,7 +147,9 @@ public abstract class SqlDomainObject extends DomainObject {
 	/**
 	 * Convenience method to delete object without throwing exception - see {@link SqlDomainController#delete(SqlDomainObject)}.
 	 * <p>
-	 * Also to have the possibility to override delete method for specific domain classes.
+	 * Potentially occurring SQL exception won't be thrown but will be logged with ERROR level.
+	 * <p>
+	 * May be overridden for specific domain classes.
 	 * 
 	 * @return true if deletion succeeded, false on exception or if any of the objects to delete is not deletable by {@link DomainObject#canBeDeleted()} check
 	 */
@@ -162,6 +164,8 @@ public abstract class SqlDomainObject extends DomainObject {
 
 	/**
 	 * Convenience method to save object to database without throwing exception - see {@link SqlDomainController#save(SqlDomainObject)}.
+	 * <p>
+	 * Potentially occurring SQL exception won't be thrown but will be logged with ERROR level.
 	 * 
 	 * @return true if object's changes were saved to database, false if object was up-to-date
 	 */
