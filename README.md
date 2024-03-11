@@ -25,7 +25,7 @@ In your application:
 - Lists, sets, arrays and maps (of these types) have corresponding 'entry' tables (also collections of <String> collections or <?, String> maps themselves ad maps with <String> collections or <?, String> maps as values)
 - fields of any other type, for which a string conversion provider is defined, have corresponding a text columns 
 
-Topics addressed by *Domain* persistence mechanism:
+**Topics addressed by *Domain* persistence mechanism:**
 - inheritance - there is no restriction regarding inheritance of domain classes (`Bike extends SqlDomainObject`, `RaceBike extends Bike`, `Bianchi extends RaceBike`)
 - parent child relations of domain objects (`class Manufacturer {...}`, `class Bike { Manufacturer manufacturer; ...}`)
 - direct access to children by managed 'accumulations' fields (`class Manufacturer {... @Accumulation Set<Bike> bikes; }`)
@@ -40,8 +40,9 @@ Topics addressed by *Domain* persistence mechanism:
 
 [^1]: SQL knowledge and knowledge of *domain* specific Java <-> SQL conversion is needed if objects shall be loaded seletively from database and if objects shall be allocated exclusively in multiple domain controller instance configurations. For such applications see Javadoc of the appropriate methods.
 
+**Additional information:**
 - *domain* runs in Java >=8 environments
 - *domain* has a small footprint of 10k LoC and 200kB jar
 - ***domain* has only logging (*slf4j* and *logback*) and database drivers as dependencies**
-- Demo application 'BikeStore' demonstrates usage of many of th e features  
+- Demo application 'BikeStore' demonstrates usage of many of the features  
 - Unit tests cover > 85% of code
