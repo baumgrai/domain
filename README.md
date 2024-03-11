@@ -5,9 +5,12 @@ If you - for any reason - do not want to use Hibernate, Spring, etc. for your pe
 
 ***domain* supports *Oracle*, *MS/SQL-Server*, *MySQL* and *MariaDB***
 
-Let all your 'domain' classes to persist extend `SqlDomainObject` class directly or indirectly (inheritance is supported)
-Let `Java2Sql` tool generate the SQL scripts for the persistence database and generate this database
-Configure the database connection (`db.properties`)
+Let all your 'domain' classes to persist extend `SqlDomainObject` class directly or indirectly (inheritance is supported).
+
+Let `Java2Sql` tool generate the SQL scripts for the persistence database and generate this database.
+
+Configure the database connection (`db.properties`).
+
 In your application:
    - Initially create a 'domain controller' and call `SqlDomainController#synchronize()` to load objects from persistence database
    - Create objects to persist using `DomainController#create()` or create them by constructors and register them for persitence with `DomainController#register()`
