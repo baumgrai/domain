@@ -1,4 +1,4 @@
-package com.icx.common.base;
+package com.icx.common;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -30,7 +30,7 @@ public abstract class CResource extends Common {
 	// -------------------------------------------------------------------------
 
 	// Location and name of resource file containing localized messages
-	public static String localizedMessageFileName = null;
+	private static String localizedMessageFileName = null;
 
 	/**
 	 * Set location and name of resource file containing localized messages

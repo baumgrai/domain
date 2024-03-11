@@ -29,15 +29,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.icx.common.AESCrypt;
-import com.icx.common.base.CCollection;
-import com.icx.common.base.CDateTime;
-import com.icx.common.base.CFile;
-import com.icx.common.base.CList;
-import com.icx.common.base.CLog;
-import com.icx.common.base.CMap;
-import com.icx.common.base.Common;
-import com.icx.domain.DomainAnnotations.Crypt;
+import com.icx.common.CCollection;
+import com.icx.common.CDateTime;
+import com.icx.common.CFile;
+import com.icx.common.CList;
+import com.icx.common.CLog;
+import com.icx.common.CMap;
+import com.icx.common.Common;
 import com.icx.domain.DomainObject;
+import com.icx.domain.sql.Annotations.Crypt;
 import com.icx.jdbc.SqlDbException;
 import com.icx.jdbc.SqlDbHelpers;
 import com.icx.jdbc.SqlDbTable;
@@ -136,7 +136,7 @@ public abstract class LoadHelpers extends Common {
 		Map<Long, SortedMap<String, Object>> loadedRecordMap = new HashMap<>();
 		try {
 			// Load (main) object records and build up loaded records by id map
-			SelectDescription sd = buildSelectDescriptionForMainObjectRecords(((SqlRegistry) sdc.registry), objectDomainClass);
+			SelectDescription sd = buildSelectDescriptionForMainObjectRecords(sdc.getSqlRegistry(), objectDomainClass);
 			List<SortedMap<String, Object>> loadedRecords = sdc.sqlDb.selectFrom(cn, sd.joinedTableExpression, sd.allColumnNames, whereClauseIncludingSyncCondition, null, limit, null);
 			if (CList.isEmpty(loadedRecords)) {
 				return loadedRecordMap;
@@ -146,14 +146,14 @@ public abstract class LoadHelpers extends Common {
 			}
 
 			// Load entry records for all complex (table related) fields and assign them to main object records using entry table name as key
-			String objectTableName = ((SqlRegistry) sdc.registry).getTableFor(objectDomainClass).name;
-			for (Class<?> domainClass : sdc.registry.getDomainClassesFor(objectDomainClass)) {
+			String objectTableName = sdc.getSqlRegistry().getTableFor(objectDomainClass).name;
+			for (Class<?> domainClass : sdc.getRegistry().getDomainClassesFor(objectDomainClass)) {
 
 				// For all table related fields...
-				for (Field complexField : sdc.registry.getComplexFields(sdc.registry.castDomainClass(domainClass))) {
+				for (Field complexField : sdc.getRegistry().getComplexFields(sdc.getRegistry().castDomainClass(domainClass))) {
 
 					// Build table expression, column names and order-by clause to SELECT entry records
-					SelectDescription sde = buildSelectDescriptionForEntryRecords(((SqlRegistry) sdc.registry), sd.joinedTableExpression, objectTableName, complexField);
+					SelectDescription sde = buildSelectDescriptionForEntryRecords(sdc.getSqlRegistry(), sd.joinedTableExpression, objectTableName, complexField);
 
 					// Load entry records (do not include sync condition in this secondary WHERE clause to ensure correct data loading even if another thread allocated object exclusively)
 					List<SortedMap<String, Object>> loadedEntryRecords = new ArrayList<>();
@@ -173,7 +173,7 @@ public abstract class LoadHelpers extends Common {
 
 					// Group entry records by objects where they belong to
 					Map<Long, List<SortedMap<String, Object>>> entryRecordsByObjectIdMap = new HashMap<>();
-					String refIdColumnName = ((SqlRegistry) sdc.registry).getMainTableRefIdColumnFor(complexField).name;
+					String refIdColumnName = sdc.getSqlRegistry().getMainTableRefIdColumnFor(complexField).name;
 					Set<String> missingObjectNames = new HashSet<>();
 					for (SortedMap<String, Object> entryRecord : loadedEntryRecords) {
 
@@ -194,7 +194,7 @@ public abstract class LoadHelpers extends Common {
 
 					// Build collection or map from entry records and add it to loaded object record with entry table name as key
 					// (perform table entries -> collection/map conversion here and not later during assignment of values to objects)
-					String entryTableName = ((SqlRegistry) sdc.registry).getEntryTableFor(complexField).name;
+					String entryTableName = sdc.getSqlRegistry().getEntryTableFor(complexField).name;
 					if (complexField.getType().isArray()) {
 						for (long objectId : entryRecordsByObjectIdMap.keySet()) {
 							Object array = Array.newInstance(complexField.getType().getComponentType(), entryRecordsByObjectIdMap.get(objectId).size());
@@ -244,13 +244,13 @@ public abstract class LoadHelpers extends Common {
 		String dataHorizon = String.format(sdc.sqlDb.getDbType().dateTemplate(), sdc.getCurrentDataHorizon().format(DateTimeFormatter.ofPattern(CDateTime.DATETIME_MS_FORMAT)));
 
 		// Load objects records for all registered object domain classes - consider data horizon if specified
-		for (Class<? extends SqlDomainObject> objectDomainClass : sdc.registry.getRegisteredObjectDomainClasses()) {
+		for (Class<? extends SqlDomainObject> objectDomainClass : sdc.getRegistry().getRegisteredObjectDomainClasses()) {
 			if (domainClassesToExclude != null && Stream.of(domainClassesToExclude).anyMatch(objectDomainClass::isAssignableFrom)) { // Ignore objects of excluded domain classes
 				continue;
 			}
 
 			// For data horizon controlled object domain classes build WHERE clause for data horizon control
-			String whereClause = (sdc.registry.isDataHorizonControlled(objectDomainClass) ? Const.LAST_MODIFIED_COL + ">=" + dataHorizon : null);
+			String whereClause = (sdc.getRegistry().isDataHorizonControlled(objectDomainClass) ? Const.LAST_MODIFIED_COL + ">=" + dataHorizon : null);
 
 			// Retrieve object records for one object domain class by SELECTing from database
 			Map<Long, SortedMap<String, Object>> loadedRecordsMap = retrieveRecordsFromDatabase(cn, sdc, 0, objectDomainClass, whereClause, null);
@@ -293,8 +293,19 @@ public abstract class LoadHelpers extends Common {
 		return obj;
 	}
 
+	/**
+	 * Informative: counter for successfully exclusively accessed objects since startup.
+	 */
 	public static long successfulExclusiveAccessCount = 0L;
+
+	/**
+	 * Informative: counter for exclusive access collisions caused by concurrent access tries of same domain controller instance since startup.
+	 */
 	public static long inUseBySameInstanceAccessCount = 0L;
+
+	/**
+	 * Informative: counter for exclusive access collisions caused by concurrent access tries of different domain controller instances since startup.
+	 */
 	public static long inUseByDifferentInstanceAccessCount = 0L;
 
 	// Select supplier used for synchronization if multiple instances access one database and have to process distinct objects (like orders)
@@ -302,8 +313,8 @@ public abstract class LoadHelpers extends Common {
 			Class<? extends SqlDomainObject> inProgressClass, String whereClause, int maxCount) {
 
 		// Build WHERE clause
-		String objectTableName = ((SqlRegistry) sdc.registry).getTableFor(objectDomainClass).name;
-		String inProgressTableName = ((SqlRegistry) sdc.registry).getTableFor(inProgressClass).name;
+		String objectTableName = sdc.getSqlRegistry().getTableFor(objectDomainClass).name;
+		String inProgressTableName = sdc.getSqlRegistry().getTableFor(inProgressClass).name;
 		String syncWhereClause = objectTableName + ".ID NOT IN (SELECT ID FROM " + inProgressTableName + ")";
 
 		// SELECT object records
@@ -351,7 +362,7 @@ public abstract class LoadHelpers extends Common {
 	// SELECT record(s) for specific object from database and build domain object record for this object - returns empty record map if object could not be loaded
 	static Map<Class<? extends SqlDomainObject>, Map<Long, SortedMap<String, Object>>> selectObjectRecord(Connection cn, SqlDomainController sdc, SqlDomainObject obj) {
 
-		String idWhereClause = ((SqlRegistry) sdc.registry).getTableFor(obj.getClass()).name + "." + Const.ID_COL + "=" + obj.getId();
+		String idWhereClause = sdc.getSqlRegistry().getTableFor(obj.getClass()).name + "." + Const.ID_COL + "=" + obj.getId();
 		Map<Class<? extends SqlDomainObject>, Map<Long, SortedMap<String, Object>>> loadedRecordsMapByDomainClassMap = new HashMap<>();
 
 		Map<Long, SortedMap<String, Object>> loadedRecordsMap = LoadHelpers.retrieveRecordsFromDatabase(cn, sdc, 0, obj.getClass(), idWhereClause, null);
@@ -504,11 +515,11 @@ public abstract class LoadHelpers extends Common {
 
 		// Assign loaded data to fields for all inherited domain classes of domain object
 		boolean isAnyReferenceChanged = false;
-		for (Class<? extends SqlDomainObject> domainClass : sdc.registry.getDomainClassesFor(obj.getClass())) {
+		for (Class<? extends SqlDomainObject> domainClass : sdc.getRegistry().getDomainClassesFor(obj.getClass())) {
 
 			// Reference fields: assign new references immediately if referenced object exists - otherwise collect unresolved references
-			for (Field refField : sdc.registry.getReferenceFields(domainClass)) {
-				String foreignKeyColumnName = ((SqlRegistry) sdc.registry).getColumnFor(refField).name;
+			for (Field refField : sdc.getRegistry().getReferenceFields(domainClass)) {
+				String foreignKeyColumnName = sdc.getSqlRegistry().getColumnFor(refField).name;
 
 				SqlDomainObject oldParentObject = (SqlDomainObject) obj.getFieldValue(refField);
 				Long oldParentId = (oldParentObject != null ? oldParentObject.getId() : null);
@@ -531,7 +542,7 @@ public abstract class LoadHelpers extends Common {
 					else { // Object reference
 
 						// Check if referenced object is registered (already loaded on change in database)
-						SqlDomainObject newParentObject = sdc.find(sdc.registry.getCastedReferencedDomainClass(refField), newParentId);
+						SqlDomainObject newParentObject = sdc.find(sdc.getRegistry().getCastedReferencedDomainClass(refField), newParentId);
 						if (newParentObject != null) { // Referenced object is registered (already loaded on change in database)
 							obj.setFieldValue(refField, newParentObject);
 						}
@@ -549,7 +560,7 @@ public abstract class LoadHelpers extends Common {
 					// Check if referenced object is still registered and re-register it if not to assure referential integrity again
 					// Note: this scenario normally cannot happen because objects, which are referenced by any registered object, will not be unregistered automatically on synchronization (due to
 					// data horizon condition) - unit test explicitly unregisters referenced objects to force this branch
-					SqlDomainObject newParentObject = sdc.find(sdc.registry.getCastedReferencedDomainClass(refField), oldParentId);
+					SqlDomainObject newParentObject = sdc.find(sdc.getRegistry().getCastedReferencedDomainClass(refField), oldParentId);
 					if (newParentObject == null) { // Referenced object is registered (already loaded on change in database)
 						sdc.reregister(oldParentObject);
 					}
@@ -557,10 +568,10 @@ public abstract class LoadHelpers extends Common {
 			}
 
 			// Data fields: assign - potentially converted - values
-			Predicate<Field> hasValueChangedPredicate = (f -> databaseChangesMap.containsKey(((SqlRegistry) sdc.registry).getColumnFor(f).name));
-			for (Field dataField : sdc.registry.getDataFields(domainClass).stream().filter(hasValueChangedPredicate).collect(Collectors.toList())) {
+			Predicate<Field> hasValueChangedPredicate = (f -> databaseChangesMap.containsKey(sdc.getSqlRegistry().getColumnFor(f).name));
+			for (Field dataField : sdc.getRegistry().getDataFields(domainClass).stream().filter(hasValueChangedPredicate).collect(Collectors.toList())) {
 
-				String columnName = ((SqlRegistry) sdc.registry).getColumnFor(dataField).name;
+				String columnName = sdc.getSqlRegistry().getColumnFor(dataField).name;
 				Object fieldValueFromDatabase = databaseChangesMap.get(columnName);
 
 				if (!isNew) {
@@ -588,7 +599,7 @@ public abstract class LoadHelpers extends Common {
 				}
 				else if (File.class.isAssignableFrom(dataField.getType())) {
 
-					String tableName = ((SqlRegistry) sdc.registry).getTableFor(domainClass).name;
+					String tableName = sdc.getSqlRegistry().getTableFor(domainClass).name;
 					if (log.isDebugEnabled()) {
 						log.debug("SDC: Try to rebuild file from file entry in column '{}.{}'", tableName, columnName);
 					}
@@ -630,10 +641,10 @@ public abstract class LoadHelpers extends Common {
 			}
 
 			// Complex (table related) fields: set field values of object to collection or map (conversion from entry table record was already done on loading entry records)
-			Predicate<Field> hasEntriesChangedPredicate = (f -> databaseChangesMap.containsKey(((SqlRegistry) sdc.registry).getEntryTableFor(f).name));
-			for (Field complexField : sdc.registry.getComplexFields(domainClass).stream().filter(hasEntriesChangedPredicate).collect(Collectors.toList())) {
+			Predicate<Field> hasEntriesChangedPredicate = (f -> databaseChangesMap.containsKey(sdc.getSqlRegistry().getEntryTableFor(f).name));
+			for (Field complexField : sdc.getRegistry().getComplexFields(domainClass).stream().filter(hasEntriesChangedPredicate).collect(Collectors.toList())) {
 
-				String entryTableName = ((SqlRegistry) sdc.registry).getEntryTableFor(complexField).name;
+				String entryTableName = sdc.getSqlRegistry().getEntryTableFor(complexField).name;
 				Object complexObjectFromField = obj.getFieldValue(complexField);
 
 				if (!isNew) {
@@ -694,15 +705,15 @@ public abstract class LoadHelpers extends Common {
 		Set<SqlDomainObject> changedObjects = new HashSet<>();
 
 		// Filter object domain classes where records were loaded for and handle loaded objects in order of parent/child relationship to avoid unnecessary unresolved references
-		List<Class<? extends SqlDomainObject>> relevantObjectDomainClasses = sdc.registry.getRegisteredObjectDomainClasses().stream().filter(loadedRecordsMap::containsKey)
+		List<Class<? extends SqlDomainObject>> relevantObjectDomainClasses = sdc.getRegistry().getRegisteredObjectDomainClasses().stream().filter(loadedRecordsMap::containsKey)
 				.collect(Collectors.toList());
 		for (Class<? extends SqlDomainObject> objectDomainClass : relevantObjectDomainClasses) {
 
 			// Determine table and column name association - only for secret logging
 			List<String> columnNames = new ArrayList<>();
 			Map<String, String> columnTableMap = new HashMap<>();
-			for (Class<? extends SqlDomainObject> domainClass : sdc.registry.getDomainClassesFor(objectDomainClass)) {
-				SqlDbTable table = ((SqlRegistry) sdc.registry).getTableFor(domainClass);
+			for (Class<? extends SqlDomainObject> domainClass : sdc.getRegistry().getDomainClassesFor(objectDomainClass)) {
+				SqlDbTable table = sdc.getSqlRegistry().getTableFor(domainClass);
 				for (SqlDbColumn column : table.columns) {
 					columnNames.add(column.name);
 					columnTableMap.put(column.name, table.name);
@@ -799,7 +810,7 @@ public abstract class LoadHelpers extends Common {
 		Class<? extends SqlDomainObject> parentDomainClass;
 		long parentObjectId;
 
-		public UnresolvedReference(
+		UnresolvedReference(
 				SqlDomainController sdc,
 				SqlDomainObject obj,
 				Field refField,
@@ -807,7 +818,7 @@ public abstract class LoadHelpers extends Common {
 
 			this.obj = obj;
 			this.refField = refField;
-			this.parentDomainClass = sdc.registry.getCastedReferencedDomainClass(refField);
+			this.parentDomainClass = sdc.getRegistry().getCastedReferencedDomainClass(refField);
 			this.parentObjectId = parentObjectId;
 		}
 	}
@@ -821,7 +832,7 @@ public abstract class LoadHelpers extends Common {
 		}
 
 		// Determine object domain class of missing referenced object by retrieving domain class name from loaded record for object record
-		String tableName = ((SqlRegistry) sdc.registry).getTableFor(domainClass).name;
+		String tableName = sdc.getSqlRegistry().getTableFor(domainClass).name;
 		List<SortedMap<String, Object>> records = sdc.sqlDb.selectFrom(cn, tableName, Const.DOMAIN_CLASS_COL, "ID=" + id, null, 0, null);
 		if (records.isEmpty()) {
 			log.error("SDC: No record found for object {}@{} which is referenced and therefore should exist", domainClass.getSimpleName(), id);
@@ -852,7 +863,7 @@ public abstract class LoadHelpers extends Common {
 			}
 			else {
 				Class<? extends SqlDomainObject> objectDomainClass = ur.parentDomainClass;
-				if (!sdc.registry.isObjectDomainClass(ur.parentDomainClass)) {
+				if (!sdc.getRegistry().isObjectDomainClass(ur.parentDomainClass)) {
 					objectDomainClass = determineObjectDomainClass(cn, sdc, ur.parentDomainClass, ur.parentObjectId);
 				}
 				missingObjectIdsMap.computeIfAbsent(objectDomainClass, l -> new HashSet<>()).add(ur.parentObjectId);
@@ -870,7 +881,7 @@ public abstract class LoadHelpers extends Common {
 			}
 
 			Map<Long, SortedMap<String, Object>> collectedRecordMap = new HashMap<>();
-			String tableName = ((SqlRegistry) sdc.registry).getTableFor(objectDomainClass).name;
+			String tableName = sdc.getSqlRegistry().getTableFor(objectDomainClass).name;
 
 			for (String idsList : Helpers.buildIdsListsWithMaxIdCount(missingObjectIds, 1000)) { // Oracle limitation max 1000 elements in lists
 				collectedRecordMap.putAll(retrieveRecordsFromDatabase(cn, sdc, 0, objectDomainClass, tableName + ".ID IN (" + idsList + ")", null));

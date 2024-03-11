@@ -10,16 +10,15 @@ public class SqlDbException extends Exception {
 
 	private static final long serialVersionUID = 1L;
 
+	/**
+	 * Constructor.
+	 * 
+	 * @param msg
+	 *            exception message
+	 */
 	public SqlDbException(
 			String msg) {
 
 		super(msg);
-	}
-
-	public SqlDbException(
-			String msg,
-			Throwable t) {
-
-		super(msg, t);
 	}
 }

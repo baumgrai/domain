@@ -27,15 +27,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.icx.common.AESCrypt;
-import com.icx.common.Reflection;
-import com.icx.common.base.CFile;
-import com.icx.common.base.CList;
-import com.icx.common.base.CLog;
-import com.icx.common.base.CMap;
-import com.icx.common.base.Common;
-import com.icx.domain.DomainAnnotations.Crypt;
+import com.icx.common.CFile;
+import com.icx.common.CList;
+import com.icx.common.CLog;
+import com.icx.common.CMap;
+import com.icx.common.CReflection;
+import com.icx.common.Common;
 import com.icx.domain.DomainObject;
 import com.icx.domain.Registry;
+import com.icx.domain.sql.Annotations.Crypt;
 import com.icx.jdbc.SqlDb;
 import com.icx.jdbc.SqlDbException;
 import com.icx.jdbc.SqlDbTable;
@@ -172,7 +172,7 @@ public abstract class SaveHelpers extends Common {
 			return columnValueMap;
 		}
 
-		SqlRegistry sqlRegistry = (SqlRegistry) sdc.registry;
+		SqlRegistry sqlRegistry = (SqlRegistry) sdc.getRegistry();
 
 		// Consider only column related fields (no complex, table related fields)
 		for (Field field : fieldChangesMap.keySet().stream().filter(f -> Registry.isDataField(f) || sqlRegistry.isReferenceField(f)).collect(Collectors.toList())) {
@@ -234,10 +234,10 @@ public abstract class SaveHelpers extends Common {
 			throws SqlDbException, SQLException {
 
 		// Consider complex, table related fields...
-		for (Field complexField : fieldChangesMap.keySet().stream().filter(f -> sdc.registry.isComplexField(f)).collect(Collectors.toList())) {
+		for (Field complexField : fieldChangesMap.keySet().stream().filter(f -> sdc.getRegistry().isComplexField(f)).collect(Collectors.toList())) {
 
-			String entryTableName = ((SqlRegistry) sdc.registry).getEntryTableFor(complexField).name;
-			String refIdColumnName = ((SqlRegistry) sdc.registry).getMainTableRefIdColumnFor(complexField).name;
+			String entryTableName = sdc.getSqlRegistry().getEntryTableFor(complexField).name;
+			String refIdColumnName = sdc.getSqlRegistry().getMainTableRefIdColumnFor(complexField).name;
 
 			boolean isMap = Map.class.isAssignableFrom(complexField.getType());
 			boolean isSortedMap = SortedMap.class.isAssignableFrom(complexField.getType());
@@ -413,7 +413,7 @@ public abstract class SaveHelpers extends Common {
 		// For all reference fields of (derived) domain class...
 		int stackSize = objectsToCheckForCircularReference.size();
 		Map<Field, SqlDomainObject> unstoredParentObjectMap = new HashMap<>();
-		for (Field refField : sdc.registry.getReferenceFields(domainClass)) {
+		for (Field refField : sdc.getRegistry().getReferenceFields(domainClass)) {
 
 			// Get parent object, do nothing if reference is null or parent object is already stored
 			SqlDomainObject parentObject = (SqlDomainObject) obj.getFieldValue(refField);
@@ -428,7 +428,7 @@ public abstract class SaveHelpers extends Common {
 			}
 
 			// Decide if parent object is to store after saving this object (NULLable reference) or if it can be saved now (NOT NULLable reference)
-			if (((SqlRegistry) sdc.registry).getColumnFor(refField).isNullable) {
+			if (sdc.getSqlRegistry().getColumnFor(refField).isNullable) {
 
 				// Collect parent object for subsequent storing and reset reference to allow saving this object
 				unstoredParentObjectMap.put(refField, parentObject);
@@ -497,9 +497,9 @@ public abstract class SaveHelpers extends Common {
 			// If storing was successful re-establish reference to parent object and UPDATE reference in database (reference was reset before to allow saving child object)
 			if (parentObject.isStored) {
 				obj.setFieldValue(refField, parentObject); // Use setter without throw clause because we know the values here
-				SortedMap<String, Object> columnValueMapForOneReference = CMap.newSortedMap(((SqlRegistry) sdc.registry).getColumnFor(refField).name, parentObject.getId());
+				SortedMap<String, Object> columnValueMapForOneReference = CMap.newSortedMap(sdc.getSqlRegistry().getColumnFor(refField).name, parentObject.getId());
 				try {
-					String referencingTableName = ((SqlRegistry) sdc.registry).getTableFor(sdc.registry.getCastedDeclaringDomainClass(refField)).name;
+					String referencingTableName = sdc.getSqlRegistry().getTableFor(sdc.getRegistry().getCastedDeclaringDomainClass(refField)).name;
 					// UPDATE <referencing table> SET <foreign key column>=<refrenced objectid> WHERE ID=<object id>
 					sdc.sqlDb.update(cn, referencingTableName, columnValueMapForOneReference, Const.ID_COL + "=" + obj.getId());
 					restoredReferencesCVMap.putAll(columnValueMapForOneReference); // Store change to subsequently update object record
@@ -508,7 +508,7 @@ public abstract class SaveHelpers extends Common {
 					}
 				}
 				catch (SQLException sqlex) {
-					log.error("SDC: {}UPDATE failed! Exception on restoring reference field '{}' for object {}", CLog.tabs(stackSize), Reflection.qualifiedName(refField), obj.name());
+					log.error("SDC: {}UPDATE failed! Exception on restoring reference field '{}' for object {}", CLog.tabs(stackSize), CReflection.qualifiedName(refField), obj.name());
 					obj.currentException = sqlex;
 					obj.setFieldError(refField, sqlex.getMessage());
 				}
@@ -542,7 +542,7 @@ public abstract class SaveHelpers extends Common {
 				log.error("SDC: UPDATE failed by exception! Column '{}' cannot be updated to {} for object {}", columnName, CLog.forSecretLogging(table.name, columnName, oneCVMap.get(columnName)),
 						obj.name());
 				obj.currentException = sqlex;
-				Field field = ((SqlRegistry) sdc.registry).getFieldFor(table.findColumnByName(columnName));
+				Field field = sdc.getSqlRegistry().getFieldFor(table.findColumnByName(columnName));
 				if (field != null) {
 					obj.setFieldError(field, "CANNOT_UPDATE_COLUMN - " + sqlex.getMessage());
 
@@ -589,7 +589,7 @@ public abstract class SaveHelpers extends Common {
 		obj.clearErrors();
 
 		// Get domain classes of object and create or retrieve object record
-		List<Class<? extends SqlDomainObject>> domainClasses = sdc.registry.getDomainClassesFor(obj.getClass()); // INSERT from bottom to top level domain class (foreign keys for inheritance)
+		List<Class<? extends SqlDomainObject>> domainClasses = sdc.getRegistry().getDomainClassesFor(obj.getClass()); // INSERT from bottom to top level domain class (foreign keys for inheritance)
 		SortedMap<String, Object> objectRecord = null;
 		if (!obj.isStored) { // New object
 			obj.lastModifiedInDb = LocalDateTime.now();
@@ -605,13 +605,13 @@ public abstract class SaveHelpers extends Common {
 		Map<Field, SqlDomainObject> collectedParentObjectMap = new HashMap<>();
 		boolean wasChanged = false;
 		for (Class<? extends SqlDomainObject> domainClass : domainClasses) {
-			SqlDbTable table = ((SqlRegistry) sdc.registry).getTableFor(domainClass);
+			SqlDbTable table = sdc.getSqlRegistry().getTableFor(domainClass);
 
 			// Save un-stored parent objects (on non nullable reference) or reset parent/child reference and collect parent objects here to save them after saving this object (on nullable reference)
 			collectedParentObjectMap.putAll(storeOrCollectUnstoredParentObjects(cn, sdc, obj, domainClass, objectsToCheckForCircularReference));
 
 			// Get field changes for domain class
-			Map<Field, Object> fieldChangesMap = getFieldChangesForDomainClass(((SqlRegistry) sdc.registry), obj, objectRecord, domainClass);
+			Map<Field, Object> fieldChangesMap = getFieldChangesForDomainClass(sdc.getSqlRegistry(), obj, objectRecord, domainClass);
 			if (!fieldChangesMap.isEmpty()) {
 				wasChanged = true;
 			}
@@ -624,7 +624,7 @@ public abstract class SaveHelpers extends Common {
 				// Add standard columns
 				columnValueMap.put(Const.ID_COL, obj.getId());
 				columnValueMap.put(Const.DOMAIN_CLASS_COL, obj.getClass().getSimpleName()); // to identify object domain class also from records of tables related to non-domain object classes
-				if (sdc.registry.isBaseDomainClass(domainClass)) {
+				if (sdc.getRegistry().isBaseDomainClass(domainClass)) {
 					columnValueMap.put(Const.LAST_MODIFIED_COL, obj.lastModifiedInDb);
 				}
 
@@ -666,7 +666,7 @@ public abstract class SaveHelpers extends Common {
 			else { // UPDATE
 
 				// Update 'last modified' field (of bottom domain class) if any changes where detected
-				if (sdc.registry.isBaseDomainClass(domainClass) && wasChanged) {
+				if (sdc.getRegistry().isBaseDomainClass(domainClass) && wasChanged) {
 					obj.lastModifiedInDb = LocalDateTime.now();
 					columnValueMap.put(Const.LAST_MODIFIED_COL, obj.lastModifiedInDb);
 				}
@@ -700,7 +700,7 @@ public abstract class SaveHelpers extends Common {
 			objectRecord.putAll(columnValueMap);
 
 			// Handle table related fields (collections and maps): Delete old entry records, update changed map entries and insert new entries
-			if (fieldChangesMap.keySet().stream().anyMatch(f -> sdc.registry.isComplexField(f))) {
+			if (fieldChangesMap.keySet().stream().anyMatch(f -> sdc.getRegistry().isComplexField(f))) {
 				updateEntryTables(cn, sdc, fieldChangesMap, objectRecord, obj);
 			}
 		}

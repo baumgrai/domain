@@ -27,9 +27,9 @@ import java.util.regex.Matcher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.common.Reflection;
-import com.icx.common.base.CLog;
-import com.icx.common.base.Common;
+import com.icx.common.CLog;
+import com.icx.common.CReflection;
+import com.icx.common.Common;
 import com.icx.jdbc.SqlDb.DbType;
 import com.icx.jdbc.SqlDbTable.SqlDbColumn;
 
@@ -55,17 +55,17 @@ public abstract class SqlDbHelpers extends Common {
 
 	public static boolean isBasicType(Class<?> cls) {
 		return (cls == String.class || cls == char.class || cls == Character.class || cls == Boolean.class || cls == boolean.class
-				|| Number.class.isAssignableFrom(Reflection.getBoxingWrapperType(cls)) || Enum.class.isAssignableFrom(cls) || cls == LocalDateTime.class || cls == LocalDate.class
+				|| Number.class.isAssignableFrom(CReflection.getBoxingWrapperType(cls)) || Enum.class.isAssignableFrom(cls) || cls == LocalDateTime.class || cls == LocalDate.class
 				|| cls == LocalTime.class || cls == Date.class || cls == File.class);
 	}
 
 	// Get Java type string (unqualified on 'java.lang' and domain object classes, qualified otherwise)
-	public static String getTypeString(Class<?> type) {
+	static String getTypeString(Class<?> type) {
 		return (type.getName().startsWith("java.lang.") || com.icx.domain.DomainObject.class.isAssignableFrom(type) ? type.getSimpleName() : type.getName());
 	}
 
 	// Get string value from object if object is of type string
-	protected static String valueToTrimmedString(Object value) {
+	static String valueToTrimmedString(Object value) {
 
 		if (value == null || !value.getClass().equals(String.class)) {
 			return "";
@@ -75,7 +75,7 @@ public abstract class SqlDbHelpers extends Common {
 	}
 
 	// Check if a value is a SQL function call
-	protected static boolean isSqlFunctionCall(Object value) {
+	static boolean isSqlFunctionCall(Object value) {
 
 		if (value == null) {
 			return false;
@@ -85,12 +85,12 @@ public abstract class SqlDbHelpers extends Common {
 	}
 
 	// Get SQL function call from value
-	protected static String getSqlColumnExprOrFunctionCall(Object value) {
+	static String getSqlColumnExprOrFunctionCall(Object value) {
 		return valueToTrimmedString(value).substring("SQL:".length());
 	}
 
 	// Check if a value is an Oracle sequence nextval expression
-	protected static boolean isOraSeqNextvalExpr(Object value) {
+	static boolean isOraSeqNextvalExpr(Object value) {
 
 		if (value == null) {
 			return false;
@@ -100,7 +100,7 @@ public abstract class SqlDbHelpers extends Common {
 	}
 
 	// Get sequence from Oracle sequence nextval expression
-	protected static String getOraSeqName(Object value) {
+	static String getOraSeqName(Object value) {
 
 		String s = valueToTrimmedString(value).toUpperCase();
 		return s.substring(0, s.length() - SqlDb.ORACLE_SEQ_NEXTVAL.length());
@@ -155,7 +155,7 @@ public abstract class SqlDbHelpers extends Common {
 	}
 
 	// Check value (for column) and return value expression to insert into prepared statement string
-	protected static String getValueExpressionForSqlStatement(Object value) {
+	static String getValueExpressionForSqlStatement(Object value) {
 
 		if (value instanceof String && ((String) value).toUpperCase().startsWith("SELECT ")) {
 			return "(" + value + ")";
@@ -185,7 +185,7 @@ public abstract class SqlDbHelpers extends Common {
 	// -------------------------------------------------------------------------
 
 	// Map containing to-string converters for storing values
-	static Map<Class<?>, Function<Object, String>> toStringConverterMap = new HashMap<>();
+	private static Map<Class<?>, Function<Object, String>> toStringConverterMap = new HashMap<>();
 
 	public static void addToStringConverter(Class<?> cls, Function<Object, String> toStringConverter) {
 		toStringConverterMap.put(cls, toStringConverter);
@@ -195,7 +195,7 @@ public abstract class SqlDbHelpers extends Common {
 	private static Map<Class<?>, Method> toStringMethodCacheMap = new HashMap<>();
 
 	// If column value is not of basic type, check for registered to-string converter and, if not found, for declared toString() method - cache things found
-	protected static String tryToBuildStringValueFromColumnValue(Object columnValue) {
+	static String tryToBuildStringValueFromColumnValue(Object columnValue) {
 
 		Class<?> objectClass = columnValue.getClass();
 
@@ -246,7 +246,7 @@ public abstract class SqlDbHelpers extends Common {
 	}
 
 	// Map containing registered from-string converters for classes
-	static Map<Class<?>, Function<String, Object>> fromStringConverterMap = new HashMap<>();
+	private static Map<Class<?>, Function<String, Object>> fromStringConverterMap = new HashMap<>();
 
 	public static void addFromStringConverter(Class<?> cls, Function<String, Object> fromStringConverter) {
 		fromStringConverterMap.put(cls, fromStringConverter);
@@ -257,7 +257,7 @@ public abstract class SqlDbHelpers extends Common {
 
 	// Check if valueOf(String) method is defined and invoke this method to build object from string value
 	@SuppressWarnings("unchecked")
-	protected static <T> T tryToBuildFieldValueFromStringValue(Class<? extends T> fieldType, String stringValue, String columnName) {
+	static <T> T tryToBuildFieldValueFromStringValue(Class<? extends T> fieldType, String stringValue, String columnName) {
 
 		// Check for registered from-string converter
 		if (fromStringConverterMap.containsKey(fieldType)) {
@@ -319,7 +319,7 @@ public abstract class SqlDbHelpers extends Common {
 	private static final String QUESTION_MARKS_EXPRESSION = "\\?\\?\\?\\?\\?";
 
 	// Extract table name from SQL statement and remove unnecessary spaces
-	protected static String normalizeAndExtractTableName(String sql, StringBuilder sqlForLoggingBuilder) {
+	static String normalizeAndExtractTableName(String sql, StringBuilder sqlForLoggingBuilder) {
 
 		String tableName = null;
 
@@ -344,7 +344,7 @@ public abstract class SqlDbHelpers extends Common {
 	}
 
 	// Build formatted SQL statement string from column names and column value map containing real values string representation instead of '?' place holders for logging - do not log secret information
-	protected static String forSecretLoggingInsertUpdate(String sql, Map<String, Object> columnValueMap, SortedSet<SqlDbColumn> columns) {
+	static String forSecretLoggingInsertUpdate(String sql, Map<String, Object> columnValueMap, SortedSet<SqlDbColumn> columns) {
 
 		// Extract table name from INSERT or UPDATE statement and remove unnecessary spaces
 		StringBuilder sqlForLoggingBuilder = new StringBuilder();
@@ -379,7 +379,7 @@ public abstract class SqlDbHelpers extends Common {
 	}
 
 	// Extract column names from SELECT statement
-	protected static List<String> extractColumnNamesForSelectStatement(String sql) {
+	static List<String> extractColumnNamesForSelectStatement(String sql) {
 
 		List<String> columnNames = new ArrayList<>();
 
@@ -393,7 +393,7 @@ public abstract class SqlDbHelpers extends Common {
 			else if (objectsEqual(words[i], "SELECT")) {
 				wordsAreColumnNames = true;
 			}
-			else if (wordsAreColumnNames && !objectsEqual(words[i], ",") && !objectsEqual(words[i], "TOP") && !Common.isInteger(words[i])) {
+			else if (wordsAreColumnNames && !objectsEqual(words[i], ",") && !objectsEqual(words[i], "TOP") && !(isEmpty(words[i]) || Character.isDigit(words[i].charAt(0)))) {
 				columnNames.add(extractQualifiedColumnName(words[i]));
 			}
 		}
@@ -402,7 +402,7 @@ public abstract class SqlDbHelpers extends Common {
 	}
 
 	// Build formatted SQL statement string from values containing real values string representation instead of '?' place holders for logging
-	protected static String forSecretLoggingSelect(String sql, List<Object> values, List<String> outColumnNames) {
+	static String forSecretLoggingSelect(String sql, List<Object> values, List<String> outColumnNames) {
 
 		// Extract table name from SELECT statement and remove unnecessary spaces
 		StringBuilder sqlForLoggingBuilder = new StringBuilder();
@@ -481,7 +481,7 @@ public abstract class SqlDbHelpers extends Common {
 	public static boolean listRecordsInLog = true;
 
 	// Log result
-	protected static void logResultRecordsOnDebugLevel(ResultSetMetaData rsmd, String stmt, List<SortedMap<String, Object>> resultRecords) throws SQLException {
+	static void logResultRecordsOnDebugLevel(ResultSetMetaData rsmd, String stmt, List<SortedMap<String, Object>> resultRecords) throws SQLException {
 
 		if (!log.isDebugEnabled()) {
 			return;

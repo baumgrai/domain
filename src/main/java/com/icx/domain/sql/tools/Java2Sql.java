@@ -15,33 +15,38 @@ import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.common.base.CFile;
-import com.icx.common.base.Common;
-import com.icx.domain.DomainAnnotations;
-import com.icx.domain.DomainAnnotations.Changed;
-import com.icx.domain.DomainAnnotations.Created;
-import com.icx.domain.DomainAnnotations.Crypt;
-import com.icx.domain.DomainAnnotations.Removed;
-import com.icx.domain.DomainAnnotations.Secret;
-import com.icx.domain.DomainAnnotations.SqlColumn;
-import com.icx.domain.DomainAnnotations.SqlTable;
+import com.icx.common.CFile;
+import com.icx.common.Common;
 import com.icx.domain.DomainException;
 import com.icx.domain.Registry;
 import com.icx.domain.sql.Const;
+import com.icx.domain.sql.Annotations;
 import com.icx.domain.sql.SqlDomainObject;
+import com.icx.domain.sql.Annotations.Changed;
+import com.icx.domain.sql.Annotations.Created;
+import com.icx.domain.sql.Annotations.Crypt;
+import com.icx.domain.sql.Annotations.Removed;
+import com.icx.domain.sql.Annotations.Secret;
+import com.icx.domain.sql.Annotations.SqlColumn;
+import com.icx.domain.sql.Annotations.SqlTable;
 import com.icx.jdbc.SqlDbHelpers;
 import com.icx.jdbc.SqlDb.DbType;
 
 /**
- * Java program to generate SQL scripts for generation of persistence database using defined domain classes - for Domain persistence mechanism.
+ * Java program to generate SQL scripts for generation of persistence database.
  * <p>
- * Copy {@code Java2Sql.java} into domain package of application (where all domain classes must reside) and start it there without parameters (before starting you may have to change the package name
- * in the first line of code).
+ * SQL script generation is based on Java classes identified as 'domain' classes (which means they extend {@code SqlDomainObject} directly or indirectly and lie under a specific package in your
+ * application ('domain' package). Domain classes my reside in sub packages of 'domain' package. Package name of 'domain' package may differ from 'domain'.
  * <p>
- * {@code Java2Sql} generates three SQL table generation scripts: {@code create_ms_sql.sql}, {@code create_mysql.sql} and {@code create_oracle.sql} in directory {@code sql} parallel to {@code src}.
+ * Copy {@code Java2Sql.java} into your 'domain' package and start it there without parameters (before starting you may have to change the package name in the first line of code of
+ * {@code Java2Sql.java}).
  * <p>
- * {@code Java2Sql} supports version control: Using annotations {@link Created}, {@link Changed}, {@link Removed} the <b>product version</b>s where domain classes and/or single fields were created,
- * changed or removed can be defined. {@code Java2Sql} then produces additional database update scripts for any product version defined in one of these annotations.
+ * {@code Java2Sql} generates three SQL table generation scripts: {@code xxx_ms_sql.sql}, {@code xxx_mysql.sql} and {@code xxx_oracle.sql} in directory {@code sql} parallel to {@code src}, where 'xxx'
+ * is the name of the package containing 'domain' package.
+ * <p>
+ * {@code Java2Sql} supports version control: Product versions, in which domain classes or single fields were created, modified or removed, can be defined using annotations {@link Created},
+ * {@link Changed}, {@link Removed}. {@code Java2Sql} produces incremental database update scripts for any product version defined in one of these annotations additionally to the scripts to create the
+ * whole database.
  * 
  * @author baumgrai
  */
@@ -53,10 +58,9 @@ public abstract class Java2Sql extends SqlDbHelpers {
 	// Finals & statics
 	// ----------------------------------------------------------------------
 
-	public static final int DEFAULT_CHARSIZE = 1024;
-	public static final int MAX_CHARSIZE = 2000;
-	public static final int MAX_ENUM_VALUE_LENGTH = 64;
-	public static final int MAX_CLASSNAME_LENGTH = 64;
+	static final int MAX_CHARSIZE = 2000;
+	static final int MAX_ENUM_VALUE_LENGTH = 64;
+	static final int MAX_CLASSNAME_LENGTH = 64;
 
 	private static Registry<SqlDomainObject> registry = new Registry<>();
 
@@ -249,7 +253,7 @@ public abstract class Java2Sql extends SqlDbHelpers {
 				if (registry.isComplexField(field)) {
 
 					// Build entry table associated to collection/map field - use collection type if specified in create info or field type
-					com.icx.domain.sql.tools.Table entryTable = com.icx.domain.sql.tools.Java2SqlHelpers.buildEntryTable(field, createInfoMap.get(DomainAnnotations.COLLECTION_TYPE), dbType);
+					com.icx.domain.sql.tools.Table entryTable = com.icx.domain.sql.tools.Java2SqlHelpers.buildEntryTable(field, createInfoMap.get(Annotations.COLLECTION_TYPE), dbType);
 					createdEntryTables.add(entryTable);
 
 					// Add create script for entry table
@@ -295,7 +299,7 @@ public abstract class Java2Sql extends SqlDbHelpers {
 
 					// Table related field: only change of collection type for Set or List fields are allowed
 
-					if (changeInfoMap.containsKey(DomainAnnotations.COLLECTION_TYPE)) {
+					if (changeInfoMap.containsKey(Annotations.COLLECTION_TYPE)) {
 
 						// Collection type changed: use additional 'order' column for Lists and UNIQUE constraint for elements for Sets
 
@@ -304,7 +308,7 @@ public abstract class Java2Sql extends SqlDbHelpers {
 						com.icx.domain.sql.tools.Column orderColumnForList = com.icx.domain.sql.tools.Java2SqlHelpers.getElementOrderColumn(entryTable);
 						com.icx.domain.sql.tools.UniqueConstraint uniqueConstraintForSet = com.icx.domain.sql.tools.Java2SqlHelpers.getUniqueConstraintForElements(entryTable);
 
-						String collectionType = changeInfoMap.get(DomainAnnotations.COLLECTION_TYPE);
+						String collectionType = changeInfoMap.get(Annotations.COLLECTION_TYPE);
 						if (collectionType.equalsIgnoreCase("list")) {
 
 							// Add 'order' column and drop unique constraint if collection type changed to List
@@ -330,10 +334,10 @@ public abstract class Java2Sql extends SqlDbHelpers {
 					// Modify column
 					script.append(column.alterTableModifyColumnStatement(dbType));
 
-					if (changeInfoMap.containsKey(DomainAnnotations.UNIQUE)) {
+					if (changeInfoMap.containsKey(Annotations.UNIQUE)) {
 
 						// Add or drop UNIQUE constraint if unique value specified in changed info differs from value specified in @SqlColumn annotation
-						boolean isUnique = Boolean.parseBoolean(changeInfoMap.get(DomainAnnotations.UNIQUE));
+						boolean isUnique = Boolean.parseBoolean(changeInfoMap.get(Annotations.UNIQUE));
 						if (isUnique && !column.isUnique) {
 							script.append(new com.icx.domain.sql.tools.UniqueConstraint(table, column).alterTableAddConstraintStatement());
 						}
@@ -396,18 +400,18 @@ public abstract class Java2Sql extends SqlDbHelpers {
 			SqlTable tableAnnotation = domainClass.getAnnotation(SqlTable.class);
 			Map<String, String> tableChangeInfo = com.icx.domain.sql.tools.Java2SqlHelpers.getChangeInfo(domainClass, version);
 
-			if (tableChangeInfo.containsKey(DomainAnnotations.UNIQUE_CONSTRAINTS_TO_DROP)) {
+			if (tableChangeInfo.containsKey(Annotations.UNIQUE_CONSTRAINTS_TO_DROP)) {
 
 				// Drop UNIQUE constraints defined in table change info
-				for (List<String> fieldNames : getNameLists(tableChangeInfo.get(DomainAnnotations.UNIQUE_CONSTRAINTS_TO_DROP))) {
+				for (List<String> fieldNames : getNameLists(tableChangeInfo.get(Annotations.UNIQUE_CONSTRAINTS_TO_DROP))) {
 					script.append(new com.icx.domain.sql.tools.UniqueConstraint(table, fieldNames).alterTableDropConstraintStatement());
 				}
 			}
 
-			if (tableChangeInfo.containsKey(DomainAnnotations.UNIQUE_CONSTRAINTS)) {
+			if (tableChangeInfo.containsKey(Annotations.UNIQUE_CONSTRAINTS)) {
 
 				// Create UNIQUE constraints defined in table change info
-				for (List<String> fieldNames : getNameLists(tableChangeInfo.get(DomainAnnotations.UNIQUE_CONSTRAINTS))) {
+				for (List<String> fieldNames : getNameLists(tableChangeInfo.get(Annotations.UNIQUE_CONSTRAINTS))) {
 					script.append(new com.icx.domain.sql.tools.UniqueConstraint(table, fieldNames).alterTableAddConstraintStatement());
 				}
 			}
@@ -419,18 +423,18 @@ public abstract class Java2Sql extends SqlDbHelpers {
 				}
 			}
 
-			if (tableChangeInfo.containsKey(DomainAnnotations.INDEXES_TO_DROP)) {
+			if (tableChangeInfo.containsKey(Annotations.INDEXES_TO_DROP)) {
 
 				// Create INDEXes defined in table change info
-				for (List<String> fieldNames : getNameLists(tableChangeInfo.get(DomainAnnotations.INDEXES_TO_DROP))) {
+				for (List<String> fieldNames : getNameLists(tableChangeInfo.get(Annotations.INDEXES_TO_DROP))) {
 					script.append(new com.icx.domain.sql.tools.Index(table, fieldNames).dropStatement());
 				}
 			}
 
-			if (tableChangeInfo.containsKey(DomainAnnotations.INDEXES)) {
+			if (tableChangeInfo.containsKey(Annotations.INDEXES)) {
 
 				// Drop INDEXes defined in table change info
-				for (List<String> fieldNames : getNameLists(tableChangeInfo.get(DomainAnnotations.INDEXES))) {
+				for (List<String> fieldNames : getNameLists(tableChangeInfo.get(Annotations.INDEXES))) {
 					script.append(new com.icx.domain.sql.tools.Index(table, fieldNames).createStatement());
 				}
 			}
@@ -449,7 +453,7 @@ public abstract class Java2Sql extends SqlDbHelpers {
 	// ----------------------------------------------------------------------
 
 	// Generate SQL scripts for DB of given type
-	public static void generateSqlScripts(String name, DbType dbType) throws IOException {
+	private static void generateSqlScripts(String name, DbType dbType) throws IOException {
 
 		log.info("J2S: Generate SQL scripts for {}...", dbType);
 
@@ -532,6 +536,19 @@ public abstract class Java2Sql extends SqlDbHelpers {
 
 	static Set<List<String>> circularReferences = null;
 
+	/**
+	 * Entry point for 'Java2Sql' tool.
+	 * <p>
+	 * Info and potential error logs will be written.
+	 * <p>
+	 * See {@link Java2Sql}.
+	 * 
+	 * @param args
+	 *            not needed
+	 * 
+	 * @throws Exception
+	 *             on any error occurred during SQL script generation
+	 */
 	public static void main(String[] args) throws Exception {
 
 		// Determine domain class package and supposed app name (second last part of package name)

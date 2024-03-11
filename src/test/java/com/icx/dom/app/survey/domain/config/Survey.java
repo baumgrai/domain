@@ -6,13 +6,13 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import com.icx.common.base.CRandom;
+import com.icx.common.CRandom;
 import com.icx.dom.app.survey.SurveyApp;
 import com.icx.dom.app.survey.domain.call.Call;
 import com.icx.dom.app.survey.domain.config.Question.QuestionType;
-import com.icx.domain.DomainAnnotations.Accumulation;
-import com.icx.domain.DomainAnnotations.SqlColumn;
 import com.icx.domain.sql.SqlDomainObject;
+import com.icx.domain.sql.Annotations.Accumulation;
+import com.icx.domain.sql.Annotations.SqlColumn;
 import com.icx.jdbc.SqlConnection;
 
 public class Survey extends SqlDomainObject {

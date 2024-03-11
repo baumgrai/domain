@@ -5,15 +5,15 @@ import java.util.List;
 import java.util.Set;
 import java.util.SortedMap;
 
-import com.icx.common.base.CList;
-import com.icx.common.base.Common;
+import com.icx.common.CList;
+import com.icx.common.Common;
 import com.icx.dom.app.bikestore.domain.Manufacturer;
 import com.icx.dom.app.bikestore.domain.client.Order;
-import com.icx.domain.DomainAnnotations.Accumulation;
-import com.icx.domain.DomainAnnotations.SqlColumn;
-import com.icx.domain.DomainAnnotations.SqlTable;
 import com.icx.domain.DomainObject;
 import com.icx.domain.sql.SqlDomainObject;
+import com.icx.domain.sql.Annotations.Accumulation;
+import com.icx.domain.sql.Annotations.SqlColumn;
+import com.icx.domain.sql.Annotations.SqlTable;
 
 /**
  * Bike model with properties and availability by size.

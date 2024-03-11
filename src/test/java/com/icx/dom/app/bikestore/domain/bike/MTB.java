@@ -1,8 +1,8 @@
 package com.icx.dom.app.bikestore.domain.bike;
 
 import com.icx.dom.app.bikestore.domain.Manufacturer;
-import com.icx.domain.DomainAnnotations.SqlColumn;
-import com.icx.domain.DomainAnnotations.SqlTable;
+import com.icx.domain.sql.Annotations.SqlColumn;
+import com.icx.domain.sql.Annotations.SqlTable;
 
 @SqlTable(name = "DOM_MTB") // Auto generated table names are prefixed with 'DOM_' - so we use same prefix here for table name (automatically DOM_M_T_B would be generated)
 public class MTB extends Bike {

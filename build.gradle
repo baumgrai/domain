@@ -75,13 +75,23 @@ publishing {
     }
 }
 
-if (JavaVersion.current().isJava8Compatible()) {
-   	allprojects {
-   		tasks.withType(Javadoc) {
-       		// options.addStringOption('Xmaxwarns', '500')
-       		// options.addStringOption('Xmaxerrs', '50')
-       		options.addStringOption('Xdoclint:none', '-quiet')
-       		options.addStringOption('locale', 'en_GB')
-     	}
-   	}
+javadoc {
+	exclude 'com/icx/jdbc/SqlDbHelpers.java'
+	exclude 'com/icx/domain/GuavaReplacements.java'
+	exclude 'com/icx/domain/Registry.java'
+	exclude 'com/icx/domain/sql/SqlRegistry.java'
+	exclude 'com/icx/domain/sql/LoadHelpers.java'
+	exclude 'com/icx/domain/sql/SaveHelpers.java'
+	exclude 'com/icx/domain/sql/DeleteHelpers.java'
+	exclude 'com/icx/domain/sql/Helpers.java'
+	exclude 'com/icx/domain/sql/ComplexFieldHelpers.java'
+	exclude 'com/icx/domain/sql/tools/Table.java'
+	exclude 'com/icx/domain/sql/tools/Column.java'
+	exclude 'com/icx/domain/sql/tools/FkConstraint.java'
+	exclude 'com/icx/domain/sql/tools/UniqueConstraint.java'
+	exclude 'com/icx/domain/sql/tools/Index.java'
+	exclude 'com/icx/domain/sql/tools/Java2SqlHelpers.java'
+
+    options.addStringOption('Xmaxwarns', '500')
+    options.addStringOption('Xmaxerrs', '50')
 }

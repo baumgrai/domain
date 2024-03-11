@@ -37,34 +37,32 @@ import java.util.TreeMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.common.Prop;
-import com.icx.common.Reflection;
-import com.icx.common.base.CLog;
-import com.icx.common.base.Common;
+import com.icx.common.CLog;
+import com.icx.common.CProp;
+import com.icx.common.CReflection;
+import com.icx.common.Common;
 import com.icx.jdbc.SqlDbTable.SqlDbColumn;
 import com.icx.jdbc.SqlDbTable.SqlDbForeignKeyColumn;
 import com.icx.jdbc.SqlDbTable.SqlDbUniqueConstraint;
 
 /**
- * Based on {@link ConnectionPool} provides high level methods to perform SQL SELECT, INSERT, UPDATE, DELETE statements.
+ * SQL database connection object based on {@link ConnectionPool} provides high level methods to perform SQL SELECT, INSERT, UPDATE, DELETE statements.
  * <p>
  * {@code SqlDb} object can be created using {@link #SqlDb(Properties)} from {@link Properties} object containing <b>{@code dbConnectionString}</b>, <b>{@code dbUser}</b>, <b>{@code dbPassword}</b>
  * properties.
  * <p>
  * Using these high level methods programmer avoids to have to deal with details of JDBC programming like handling {@code ResultSet} and {@code ResultSetMetaData}. Outputs (of SELECT methods) and
  * inputs (of INSERT and UPDATE methods) are sorted maps or list of sorted maps, where such a map is the representation of one table or view record. A record map contains [ column name (label) : value
- * ] pairs and is sorted by column name (or label). The types of the column values are the JDBC types associated to the columns and therefore database type specific. Use {@link #getDbType()} to check
- * database type programmatically.
+ * ] pairs and is sorted by column name (or label).
  * <p>
- * Most methods come in two types here: one with a parameter for database connection (which can, but not have to be retrieved from connection pool of this {@code SqlDb} object), the other where
- * database connection is retrieved internally from connection pool of {@code SqlDb} object. Methods of first type support database transactions spanning more than one SQL statement (using
- * non-auto-commit connections in this case).
+ * With DEBUG log level all SQL statements performed will be logged as they are - for INSERT and UPDATE statements including real column values and data types. In DEBUG logs also records retrieved by
+ * SELECT will be logged including data types.
  * <p>
- * Database tables can be <b>registered</b> using {@link #registerTable(Connection, String)} in form of {@link SqlDbTable} objects, which provide meta data of these tables and their columns.
- * {@code SqlDbTable} provides also methods to analyze table reference structure of database. {@link SqlDbTable} objects for registered tables can be retrieved by table name using
- * {@link #findRegisteredTable(String)}. Database tables involved in INSERT and UPDATE methods will be registered internally on first call for performance reasons.
+ * Database tables can be 'registered' using {@link #registerTable(Connection, String)}. Resulting {@link SqlDbTable} objects provide meta data of these tables and their columns. {@code SqlDbTable}
+ * provides also methods to analyze table reference structure of database. {@link SqlDbTable} objects for registered tables can be retrieved by table name using {@link #findRegisteredTable(String)}.
+ * Database tables involved in INSERT and UPDATE methods will be registered internally on first call for performance reasons.
  * <p>
- * Currently database types MS-SQL, Oracle and MySQL (and MariaDB) are supported.
+ * Currently database types MS-SQL, Oracle and MySQL (and MariaDB) are supported. Use {@link #getDbType()} to check database type programmatically.
  * 
  * @author baumgrai
  */
@@ -76,26 +74,41 @@ public class SqlDb extends Common {
 	// Finals
 	// -------------------------------------------------------------------------
 
+	/**
+	 * Property name for database query timeout property (seconds)
+	 */
+	public static final String DB_QUERYTIMEOUT_PROP = "dbQueryTimeout";
+
 	private static final String ORACLE_DATE_TMPL = "TO_TIMESTAMP('%s', 'YYYY-MM-DD HH24:MI:SS.FF3')";
 	private static final String MS_SQL_DATE_TMPL = "CONVERT(datetime, '%s', 121)";
 	private static final String MYSQL_DATE_TMPL = "STR_TO_DATE('%s', '%%Y-%%m-%%d %%T.%%f')";
 
 	/**
-	 * Supported database types: <code>ORACLE, MS_SQL, MYSQL</code>
+	 * Supported database types: <code>ORACLE, MS_SQL, MYSQL, MARIA</code>
 	 */
 	public enum DbType {
 		ORACLE, MS_SQL, MYSQL, MARIA;
 
+		/**
+		 * Check if database type is MySQL based.
+		 * 
+		 * @return database type is MySQL based (MySQL or MariaDB)
+		 */
 		public boolean isMySql() {
 			return (this == MYSQL || this == MARIA);
 		}
 
+		/**
+		 * Get database specific date template.
+		 * 
+		 * @return database specific date template
+		 */
 		public String dateTemplate() {
 			return (this == ORACLE ? ORACLE_DATE_TMPL : this == MS_SQL ? MS_SQL_DATE_TMPL : this.isMySql() ? MYSQL_DATE_TMPL : null);
 		}
 	}
 
-	protected static final Map<DbType, String> DB_DATE_FUNCT = new EnumMap<DbType, String>(DbType.class) {
+	static final Map<DbType, String> DB_DATE_FUNCT = new EnumMap<DbType, String>(DbType.class) {
 		static final long serialVersionUID = 1L;
 		{
 			put(DbType.ORACLE, "SYSDATE");
@@ -106,27 +119,36 @@ public class SqlDb extends Common {
 	};
 
 	// Query to retrieve result set metadata
-	static final String DUMMY_QUERY_MASK = "SELECT * FROM %s WHERE 1=0";
+	private static final String DUMMY_QUERY_MASK = "SELECT * FROM %s WHERE 1=0";
 
 	// Oracle sequences
-	public static final String ORACLE_SEQ_NEXTVAL = ".NEXTVAL";
-	protected static final String ORACLE_SEQ_CURRVAL = ".CURRVAL";
+	static final String ORACLE_SEQ_NEXTVAL = ".NEXTVAL";
+	static final String ORACLE_SEQ_CURRVAL = ".CURRVAL";
 
 	// -------------------------------------------------------------------------
 	// Members
 	// -------------------------------------------------------------------------
 
 	// DB type
-	protected DbType type = null;
+	DbType type = null;
 
 	// Database connection pool
-	public ConnectionPool pool = null;
+	ConnectionPool pool = null;
+
+	/**
+	 * Get connection pool associated to this high level SQL database connection.
+	 * 
+	 * @return database connection pool associated with SqlDb object
+	 */
+	public ConnectionPool getPool() {
+		return pool;
+	}
 
 	// Query timeout for SELECT statements
-	public int queryTimeout = 60;
+	int queryTimeout = 60;
 
 	// Registry: Registered tables
-	protected List<SqlDbTable> halfOrderedTables = new ArrayList<>();
+	List<SqlDbTable> halfOrderedTables = new ArrayList<>();
 	private Set<SqlDbTable> registeredTables = new HashSet<>();
 
 	// -------------------------------------------------------------------------
@@ -134,7 +156,7 @@ public class SqlDb extends Common {
 	// -------------------------------------------------------------------------
 
 	// Initialize SqlDb object, request and log database meta data
-	void init() throws SQLException, ConfigException {
+	private void init() throws SQLException, ConfigException {
 
 		// Get database meta data
 		String dbProdName = null;
@@ -179,7 +201,7 @@ public class SqlDb extends Common {
 	 * @param connectionPoolSize
 	 *            maximum # of open connections kept in connection pool
 	 * @param queryTimeout
-	 *            query timeout in milliseconds
+	 *            query timeout in seconds
 	 * 
 	 * @throws ConfigException
 	 *             if database connection string is null or empty and on unsupported database type (currently supported MS-SQL, Oracle, MySql)
@@ -194,9 +216,7 @@ public class SqlDb extends Common {
 			int queryTimeout) throws SQLException, ConfigException {
 
 		pool = new ConnectionPool(dbConnectionString, dbUser, dbPassword, connectionPoolSize);
-
 		this.queryTimeout = queryTimeout;
-
 		init();
 	}
 
@@ -218,14 +238,12 @@ public class SqlDb extends Common {
 			Properties databaseProperties) throws SQLException, ConfigException {
 
 		pool = new ConnectionPool(databaseProperties);
-
-		queryTimeout = Prop.getIntProperty(databaseProperties, ConnectionPool.DB_QUERYTIMEOUT_PROP, 60);
-
+		queryTimeout = CProp.getIntProperty(databaseProperties, DB_QUERYTIMEOUT_PROP, 60);
 		init();
 	}
 
 	/**
-	 * Close database connection pool and all open database connections
+	 * Close database connection pool and all open database connections.
 	 * 
 	 * @throws SQLException
 	 *             exception on {@link Connection#close()}
@@ -242,7 +260,7 @@ public class SqlDb extends Common {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Get database type of this connection (Oracle, MS/SQL)
+	 * Get database type of this connection (Oracle, MS/SQL).
 	 * 
 	 * @return database type
 	 */
@@ -427,7 +445,7 @@ public class SqlDb extends Common {
 							columnValue = Enum.valueOf((Class<? extends Enum>) fieldType, string);
 						}
 					}
-					else if (Number.class.isAssignableFrom(Reflection.getBoxingWrapperType(fieldType))) {
+					else if (Number.class.isAssignableFrom(CReflection.getBoxingWrapperType(fieldType))) {
 
 						// Do not use rs.getObject(c, <fieldtype>) on numerical types because 0 may be retrieved for null values!
 						columnValue = rs.getObject(c);
@@ -1118,8 +1136,6 @@ public class SqlDb extends Common {
 
 	/**
 	 * Retrieve and register column meta data for given database table and all referenced tables.
-	 * <p>
-	 * Grabs connection from connection pool.
 	 * 
 	 * @param cn
 	 *            database connection
@@ -1148,7 +1164,7 @@ public class SqlDb extends Common {
 	}
 
 	/**
-	 * Try to find already registered table by name
+	 * Try to find already registered table by name.
 	 * 
 	 * @param tableName
 	 *            name of database table

@@ -1,38 +1,33 @@
-package com.icx.domain;
+package com.icx.domain.sql;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
-import com.icx.common.base.Common;
-import com.icx.domain.sql.SqlDomainController;
 import com.icx.domain.sql.tools.Java2Sql;
 
 /**
- * Annotations for domain classes and fields for Domain object persistence mechanism.
+ * Annotations for SQL domain classes and fields for Domain object persistence mechanism.
  * 
  * @author baumgrai
  */
-public abstract class DomainAnnotations {
+public abstract class Annotations {
 
 	// ----------------------------------------------------------------------
 	// Data horizon
 	// ----------------------------------------------------------------------
 
 	/**
-	 * For object domain classes: Defines loading strategy for domain class objects by domain controller. If a domain class misses this annotation all persisted objects will be loaded and registered
-	 * ({@link SqlDomainController#synchronize(Class...)} on startup of domain controller. If - otherwise - this annotation is defined for a domain class, 'older' objects (which were not changed
-	 * within a 'data horizon period' - specified as {@code dataHorizonPeriod} in {@code domain.properties}) will not be loaded and registered on startup, and objects will be unregistered
-	 * automatically during runtime if they fall out of the data horizon period on subsequent call of {@code SqlDomainController#synchronize(Class...)}. Reference integrity is guaranteed, what means
-	 * that objects referenced by objects within data horizon period are loaded even if they are out of this period themselves. This feature is to avoid data overload on over time growing object
-	 * numbers.
+	 * For object domain classes: Defines strategy for keeping domain class objects in local object store (heap) by SQL domain controller.
+	 * <p>
+	 * If a domain class misses this annotation all persisted objects will be loaded and registered on {@link SqlDomainController#synchronize(Class...)}. If, otherwise, this annotation is defined for
+	 * a domain class, 'older' objects (which were not changed within a 'data horizon period' - specified as {@code dataHorizonPeriod} in {@code domain.properties}) will not be loaded and registered
+	 * on startup, and objects will be unregistered automatically during runtime if they fall out of the data horizon period on subsequent call of {@code SqlDomainController#synchronize(Class...)}.
+	 * <p>
+	 * Reference integrity is guaranteed, which means that objects referenced by loaded objects are loaded even if they are out of data horizon period.
+	 * <p>
+	 * This feature is to avoid local data overload on over time growing object numbers.
 	 */
 	@Retention(RetentionPolicy.RUNTIME)
 	@Target(ElementType.TYPE)
@@ -58,256 +53,185 @@ public abstract class DomainAnnotations {
 	public static final String COLLECTION_TYPE = "collectionType"; // 'list' or 'map'
 
 	/**
-	 * Definitions for version control - creation
+	 * Definitions for version control: Creation
 	 */
 	@Retention(RetentionPolicy.RUNTIME)
 	@Target({ ElementType.TYPE, ElementType.FIELD })
 	public @interface Created {
 
 		/**
+		 * For domain classes and fields: Annotate version in which domain class or field was created.
+		 * 
 		 * @return version in which field/class was created, e.g. "1.1:notNull=false;unique=false" - (specification of attributes on creation is necessary for incremental update script if these
 		 *         attributes are later were changed
 		 */
 		public String version() default "1.0";
 	}
 
-	public static boolean wasCreatedInVersion(Created created, String version) {
-
-		if (created == null) {
-			return false;
-		}
-		else {
-			return Common.untilFirst(created.version(), ":").equals(version);
-		}
-	}
-
-	public static String getCreatedVersion(Created created) {
-
-		if (created == null) {
-			return "1.0";
-		}
-		else {
-			return Common.untilFirst(created.version(), ":");
-		}
-	}
-
-	public static Map<String, String> getCreateInfo(Created created) {
-
-		if (created == null) {
-			return new HashMap<>();
-		}
-		else {
-			Map<String, String> changeInfoMap = new HashMap<>();
-
-			String changeInfoString = Common.behindFirst(created.version(), ":");
-			String[] changeEntryStrings = changeInfoString.split("\\;");
-			for (String changeEntryString : changeEntryStrings) {
-
-				String[] changeEntry = changeEntryString.split("\\=");
-				String changedAttribute = changeEntry[0];
-				String value = "";
-				if (changeEntry.length > 1) {
-					value = changeEntry[1];
-				}
-
-				changeInfoMap.put(changedAttribute, value);
-			}
-
-			return changeInfoMap;
-		}
-	}
-
 	/**
-	 * Definitions for version control - changes
+	 * Definitions for version control: Changes
 	 */
 	@Retention(RetentionPolicy.RUNTIME)
 	@Target({ ElementType.TYPE, ElementType.FIELD })
 	public @interface Changed {
 
 		/**
+		 * For domain classes and fields: Annotate versions in which domain class or field were modified.
+		 * 
 		 * @return versions in which field/class was changed including modification, e.g. for field: <code> { "1.2:notNull=true;unique=true", "2.0.1:numericalType=BigInteger" }, for domain class: {
-		 *         "1.5:unique=firstName&lastName;indexes=id,age" } </code>
+		 *         "1.5:unique=firstName&amp;lastName;indexes=id,age" } </code>
 		 */
 		public String[] versions();
 	}
 
-	public static boolean wasChangedInVersion(Changed changed, String version) {
-
-		if (changed == null) {
-			return false;
-		}
-		else {
-			return Stream.of(changed.versions()).map(vi -> Common.untilFirst(vi, ":")).anyMatch(v -> v.equals(version));
-		}
-	}
-
-	public static List<String> getVersionsWithChanges(Changed changed) {
-
-		if (changed == null) {
-			return new ArrayList<>();
-		}
-		else {
-			return Stream.of(changed.versions()).map(vi -> Common.untilFirst(vi, ":")).collect(Collectors.toList());
-		}
-	}
-
-	public static Map<String, String> getChangeInfo(Changed changed, String version) {
-
-		if (changed == null) {
-			return new HashMap<>();
-		}
-		else {
-			Map<String, String> changeInfoMap = new HashMap<>();
-
-			String changeInfoString = Common.behindFirst(Stream.of(changed.versions()).filter(vi -> Common.untilFirst(vi, ":").equals(version)).findAny().orElse(""), ":");
-			String[] changeEntryStrings = changeInfoString.split("\\;");
-			for (String changeEntryString : changeEntryStrings) {
-
-				String[] changeEntry = changeEntryString.split("\\=");
-				String changedAttribute = changeEntry[0];
-				String value = "";
-				if (changeEntry.length > 1) {
-					value = changeEntry[1];
-				}
-
-				changeInfoMap.put(changedAttribute, value);
-			}
-
-			return changeInfoMap;
-		}
-	}
-
 	/**
-	 * Definitions for version control - removal
+	 * Definitions for version control: Removal
 	 */
 	@Retention(RetentionPolicy.RUNTIME)
 	@Target({ ElementType.TYPE, ElementType.FIELD })
 	public @interface Removed {
 
 		/**
+		 * For domain classes and fields: Annotate version in which domain class or field was removed.
+		 * 
 		 * @return version in which field/class was created
 		 */
 		public String version();
 	}
 
-	public static boolean wasRemovedInVersion(Removed removed, String version) {
-
-		if (removed == null) {
-			return false;
-		}
-		else {
-			return removed.version().equals(version);
-		}
-	}
-
-	public static String getRemovedVersion(Removed removed) {
-
-		if (removed == null) {
-			return "";
-		}
-		else {
-			return removed.version();
-		}
-	}
-
 	// ----------------------------------------------------------------------
-	// Tables
+	// For tables
 	// ----------------------------------------------------------------------
 
 	/**
-	 * For main tables of domain classes: (Non default) table name, UNIQUE constraints and INDEXes of SQL table associated with domain class
+	 * For domain classes: (Non default) table name, UNIQUE constraints and INDEXes of SQL table associated with domain class.
 	 */
 	@Retention(RetentionPolicy.RUNTIME)
 	@Target(ElementType.TYPE)
 	public @interface SqlTable {
 
 		/**
-		 * @return non default name of persistence table associated with this domain class - to define non default table name and allowing changing field name afterwards
+		 * Define name of associated persistence table to generate for domain class.
+		 * 
+		 * @return non default name of persistence table associated with this domain class
 		 */
 		public String name() default "";
 
 		/**
-		 * @return UNIQUE constraints of persistence table containing comma separated lists of field names which are unique together - to define multi-column unique constraints. Names of constraints
-		 *         are automatically build from field names contained.
+		 * Define multi-column UNIQUE constraints for associated persistence table.
+		 * <p>
+		 * Multi-column UNIQUE constraint descriptions consists of comma separated lists of field names which are unique together (e.g.: { "a,b", "c,d" }).
+		 * <p>
+		 * SQL name of multi-column UNIQUE constraint is automatically built from field names contained.
+		 * 
+		 * @return UNIQUE constraints of persistence table
 		 */
 		public String[] uniqueConstraints() default {};
 
 		/**
-		 * @return column INDEXes of persistence table containing comma separated lists of field names where indexes are to build on - to define these indexes. Names of indexes are automatically build
-		 *         from field names contained.
+		 * Define INDEXs for associated persistence table.
+		 * <p>
+		 * INDEX descriptions consists of comma separated lists of field names which are unique together (e.g.: { "a", "c,d" }).
+		 * <p>
+		 * SQL name of INDEX is automatically built from field names contained.
+		 * 
+		 * @return UNIQUE constraints of persistence table
 		 */
 		public String[] indexes() default {};
 	}
 
 	/**
-	 * For entry tables which are associated to collection or map fields
+	 * For array, collection or map fields: name of (non-default) entry table which are associated to complex field
 	 */
 	@Retention(RetentionPolicy.RUNTIME)
 	@Target(ElementType.FIELD)
 	public @interface SqlEntryTable {
 
 		/**
-		 * @return non default name of persistence table associated with this domain class - to define non default table name
+		 * Define name of associated entry persistence table to generate for array, collection or map field.
+		 * 
+		 * @return non default name of entry persistence table associated with this field
 		 */
 		public String name() default "";
 	}
 
 	// ----------------------------------------------------------------------
-	// Fields and accumulations
+	// For fields
 	// ----------------------------------------------------------------------
 
+	public static final int DEFAULT_CHARSIZE = 1024;
+
 	/**
-	 * For fields of domain classes which are associated to columns: (Non default) column name, NOT NULL and UNIQUE constraint, text length of column associated with field of a domain class
+	 * For fields which are associated to columns (not array, Collection or Map fields): (Non default) column name, NOT NULL and UNIQUE constraint, text length, etc. of column associated with field
 	 */
 	@Retention(RetentionPolicy.RUNTIME)
 	@Target(ElementType.FIELD)
 	public @interface SqlColumn {
 
 		/**
+		 * Define name of associated column in persistence table to generate field.
+		 * 
 		 * @return non default name of column in SQL table associated with this field of Java domain class
 		 */
 		public String name() default "";
 
 		/**
-		 * @return true if database table column values must be unique - to define UNIQUE constraint for column
+		 * Define UNIQUE constraint for column associated to field.
+		 * 
+		 * @return true if database table column values must be unique, false otherwise
 		 */
 		public boolean unique() default false;
 
 		/**
-		 * @return size of character column associated with this (String, enum, List, Map) field (default 256) - to define column size
+		 * Define char size of text column associated to field (default 1024).
+		 * 
+		 * @return size of character column associated with this field
 		 */
-		public int charsize() default Java2Sql.DEFAULT_CHARSIZE;
+		public int charsize() default DEFAULT_CHARSIZE;
 
 		/**
+		 * Define if field is to persist as 'text' field in database, which means a CLOB type is to use instead a simple TEXT type.
+		 * 
 		 * @return true if content of (character) column can be treated as SQL text (cannot be used in where clause) - to set TEXT/CLOB data type for column
 		 */
 		public boolean isText() default false;
 
 		/**
+		 * Define NOT NULL constraint for column associated to field.
+		 * 
 		 * @return true if database table column may contain null values - to define NULL constraint for column
 		 */
 		public boolean notNull() default false;
 
 		/**
+		 * Currently not supported!
+		 * 
 		 * @return default value to set for existing records if non-null column is added after creating table or is modified to NOT NULL in a specific version (version control)
 		 */
 		public String defaultValue() default "";
 
 		/**
-		 * @return true if foreign key constraint has 'ON DELETE CASCADE' feature - to force ON DELETE CASCADE on this foreign key
+		 * Defines, that foreign key constraint associated to an object reference field has 'ON DELETE CASCADE' function.
+		 * <p>
+		 * Defining {@link #onDeleteCascade()} forces immediate deletion of child objects in database if parent object will be deleted.
+		 * 
+		 * @return true if foreign key constraint has 'ON DELETE CASCADE' feature
 		 */
 		public boolean onDeleteCascade() default false;
 	}
 
 	/**
-	 * Forces that values of annotated field shall be converted to string before storing in database and therefore forces {@link Java2Sql} tool to generate a string ((N)VARCHAR(size)) column
-	 * associated to this field.
+	 * For fields: Forces that values of annotated field will be converted to String before they are persisted in database (works only for field types which are not natively supported by Domain object
+	 * persistence mechanism).
 	 * <p>
-	 * Charsize of column for annotated field can be defined with {@link SqlColumn} annotation if it shall differ from default charsize 1024.
+	 * Natively supported data types are Java basic data types, Date and LocalDate/Time types, Enum, File, collections and maps of these types and char[], byte[].
 	 * <p>
-	 * Note: For any type of fields to store as string a to-string and a from-string converter has to be registered using
-	 * {@link SqlDomainController#registerStringConvertersForType(Class, java.util.function.Function, java.util.function.Function)} (the to-string converter may also be {@link Object#toString()}
-	 * itself).
+	 * If a field has {@link StoreAsString} annotation so called 'from-string'- and 'to-string'-converters have to be defined for field type using
+	 * {@link SqlDomainController#registerStringConvertersForType(Class, java.util.function.Function, java.util.function.Function)}, or alternatively field type must contain public methods
+	 * {@code toString()} and {@code valueOf(String)} which do the job of to- and from-string-conversion.
+	 * <p>
+	 * {@link StoreAsString} annotation forces {@link Java2Sql} tool to generate a string ((N)VARCHAR(size)) column associated with this field. Charsize of column can be defined using
+	 * {@link SqlColumn#charsize()} if it shall differ from default charsize 1024.
 	 */
 	@Retention(RetentionPolicy.RUNTIME)
 	@Target(ElementType.FIELD)
@@ -315,27 +239,35 @@ public abstract class DomainAnnotations {
 	}
 
 	/**
-	 * Defines <b>accumulation</b> field.
+	 * For fields of type Set&lt;? extends SqlDomainObject&gt;: Defines field as managed 'accumulation' field.
 	 * <p>
-	 * An accumulation contains all children and therefore refers to a reference field of the child domain class referencing the domain class where the accumulation field is defined. Accumulation
-	 * fields are managed automatically and should only be read by applications.
+	 * An accumulation field in a parent domain class contains all child domain objects defined by a reference field of the child domain class.
+	 * <p>
+	 * Accumulation fields are managed automatically and may not be written by application.
 	 */
 	@Retention(RetentionPolicy.RUNTIME)
 	@Target(ElementType.FIELD)
 	public @interface Accumulation {
 
 		/**
-		 * @return name of reference field of child objects to accumulate used for this accumulation. Must only be defined if multiple fields reference same type of objects.
+		 * Assign reference field of child domain class for parent/child relation.
+		 * <p>
+		 * Note: explicit defining of reference field {@link #refField()} is only necessary if child domain class has multiple reference fields to parent domain class. Otherwise reference field for
+		 * accumulation will be determined automatically from generic type of Set.
+		 * 
+		 * @return name of reference field of child domain class used for this accumulation
 		 */
 		public String refField() default "";
 	}
 
 	/**
-	 * Defines a field as secret.
+	 * For (simple) fields and also domain classes: Defines a field (or class) as secret, which means content will never be written to logs (independent of log level).
 	 * <p>
 	 * Suppresses logging of value of annotated field or of values of all registered fields of annotated domain class for all log levels.
 	 * <p>
-	 * Attention! This annotation cannot suppress logging of complex field values like lists, sets and maps
+	 * Note: On INFO log level generally no data (content of any field) will be logged.
+	 * <p>
+	 * Attention! This annotation cannot suppress logging of complex field values: arrays, collections and maps.
 	 */
 	@Retention(RetentionPolicy.RUNTIME)
 	@Target({ ElementType.TYPE, ElementType.FIELD })
@@ -343,9 +275,9 @@ public abstract class DomainAnnotations {
 	}
 
 	/**
-	 * Defines that value of this string field will be stored encrypted in database.
+	 * For fields: Defines that value of this string field will be stored encrypted in database.
 	 * <p>
-	 * Uses properties {@code encryption_password} and {@code encryption_salt} for AES encryption
+	 * Uses properties {@code encryption_password} (and {@code encryption_salt} too if wished) in configured in {@code domain.properties} for AES encryption.
 	 */
 	@Retention(RetentionPolicy.RUNTIME)
 	@Target({ ElementType.FIELD })

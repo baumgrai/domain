@@ -9,7 +9,7 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
-import com.icx.common.base.Common;
+import com.icx.common.Common;
 
 /**
  * Objects of this class are associated to SQL database tables and contain table and column meta data.
@@ -87,11 +87,11 @@ public class SqlDbTable extends Common implements Comparable<SqlDbTable> {
 		public Class<?> fieldType = null;
 
 		// Constructor
-		protected SqlDbColumn() {
+		SqlDbColumn() {
 		}
 
 		// Constructor from table
-		protected SqlDbColumn(
+		SqlDbColumn(
 				SqlDbTable table) {
 
 			this.table = table;
@@ -112,16 +112,26 @@ public class SqlDbTable extends Common implements Comparable<SqlDbTable> {
 			return super.hashCode();
 		}
 
-		protected String toBaseString() {
+		String toBaseString() {
 			return name + " " + datatype + ((datatype.contains("char") || datatype.contains("CHAR")) && maxlen != null ? "(" + maxlen + ")" : "")
 					+ (isPrimaryKey ? " PRIMARY KEY" : (isUnique ? " UNIQUE" : "") + (!isNullable ? " NOT NULL" : ""));
 		}
 
 		// For registry logging
-		public String toStringWithoutTable() {
+		String toStringWithoutTable() {
 			return toBaseString() + " (" + SqlDbHelpers.getTypeString(jdbcType) + ")";
 		}
 
+		/**
+		 * Get specific internal string representation.
+		 * <p>
+		 * Not for public use!
+		 * 
+		 * @param requiredType
+		 *            type of associated field
+		 * 
+		 * @return internal string representation
+		 */
 		public String toStringWithoutTable(Class<?> requiredType) {
 
 			if (objectsEqual(SqlDbHelpers.getTypeString(jdbcType), requiredType.getName())) {
@@ -139,7 +149,7 @@ public class SqlDbTable extends Common implements Comparable<SqlDbTable> {
 		}
 
 		/**
-		 * Check if column is a FOREIGN KEY column
+		 * Check if column is a FOREIGN KEY column.
 		 * 
 		 * @return true if column is a FOREIGN KEY column, false otherwise
 		 */
@@ -148,7 +158,7 @@ public class SqlDbTable extends Common implements Comparable<SqlDbTable> {
 		}
 
 		/**
-		 * Check if column is IDENTITY column (means values are auto-generated on INSERT)
+		 * Check if column is IDENTITY column (means values are auto-generated on INSERT).
 		 * 
 		 * @return true if FOREIGN KEY column is IDENTITY, false otherwise
 		 */
@@ -168,14 +178,14 @@ public class SqlDbTable extends Common implements Comparable<SqlDbTable> {
 		public SqlDbColumn referencedUniqueColumn = null;
 
 		// Constructor from table
-		protected SqlDbForeignKeyColumn(
+		SqlDbForeignKeyColumn(
 				SqlDbTable table) {
 
 			super(table);
 		}
 
 		// Constructor from column
-		protected SqlDbForeignKeyColumn(
+		SqlDbForeignKeyColumn(
 				SqlDbColumn column) {
 
 			table = column.table;
@@ -189,7 +199,7 @@ public class SqlDbTable extends Common implements Comparable<SqlDbTable> {
 
 		// For registry logging
 		@Override
-		public String toStringWithoutTable() {
+		String toStringWithoutTable() {
 			return toBaseString() + " FOREIGN KEY REFERENCES " + referencedUniqueColumn.table.name + "(" + referencedUniqueColumn.name + ") (" + SqlDbHelpers.getTypeString(jdbcType) + ")";
 		}
 
@@ -213,7 +223,7 @@ public class SqlDbTable extends Common implements Comparable<SqlDbTable> {
 		}
 
 		/**
-		 * Check if this FOREIGN KEY column references directly or indirectly given table
+		 * Check if this FOREIGN KEY column references directly or indirectly given table.
 		 * 
 		 * @param otherTable
 		 *            table to check
@@ -247,7 +257,7 @@ public class SqlDbTable extends Common implements Comparable<SqlDbTable> {
 		@SuppressWarnings("hiding")
 		public Set<SqlDbColumn> columns = new HashSet<>();
 
-		public String toStringWithoutTable() {
+		String toStringWithoutTable() {
 
 			StringBuilder s = new StringBuilder();
 			s.append("CONSTRANT " + name + " UNIQUE (");
@@ -304,7 +314,7 @@ public class SqlDbTable extends Common implements Comparable<SqlDbTable> {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Constructor
+	 * Constructor.
 	 * 
 	 * @param name
 	 *            table name
@@ -363,7 +373,7 @@ public class SqlDbTable extends Common implements Comparable<SqlDbTable> {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Get FOREIGN KEY columns of this table
+	 * Get FOREIGN KEY columns of this table.
 	 * 
 	 * @return FOREIGN KEY columns
 	 */
@@ -380,7 +390,7 @@ public class SqlDbTable extends Common implements Comparable<SqlDbTable> {
 	}
 
 	/**
-	 * Get FOREIGN KEY columns (of this table) which are referencing given table
+	 * Get FOREIGN KEY columns (of this table) which are referencing given table.
 	 * 
 	 * @param table
 	 *            table which is referenced
@@ -400,7 +410,7 @@ public class SqlDbTable extends Common implements Comparable<SqlDbTable> {
 	}
 
 	/**
-	 * Find column of this table by name
+	 * Find column of this table by name.
 	 * 
 	 * @param columnName
 	 *            column name
@@ -423,7 +433,7 @@ public class SqlDbTable extends Common implements Comparable<SqlDbTable> {
 	}
 
 	/**
-	 * Get column names in definition order
+	 * Get column names in definition order.
 	 * 
 	 * @return column names
 	 */

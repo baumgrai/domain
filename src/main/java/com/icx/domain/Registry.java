@@ -20,14 +20,14 @@ import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.common.Reflection;
-import com.icx.domain.DomainAnnotations.Accumulation;
-import com.icx.domain.DomainAnnotations.Removed;
-import com.icx.domain.DomainAnnotations.StoreAsString;
-import com.icx.domain.DomainAnnotations.UseDataHorizon;
+import com.icx.common.CReflection;
 import com.icx.domain.GuavaReplacements.ClassInfo;
 import com.icx.domain.GuavaReplacements.ClassPath;
 import com.icx.domain.sql.SqlDomainObject;
+import com.icx.domain.sql.Annotations.Accumulation;
+import com.icx.domain.sql.Annotations.Removed;
+import com.icx.domain.sql.Annotations.StoreAsString;
+import com.icx.domain.sql.Annotations.UseDataHorizon;
 import com.icx.domain.sql.tools.Java2Sql;
 import com.icx.jdbc.SqlDbHelpers;
 
@@ -37,11 +37,11 @@ import com.icx.jdbc.SqlDbHelpers;
  * Used by {@link Java2Sql} tool to generate SQL scripts for generating persistence database and also used during initialization of domain controller.
  * 
  * @param <T>
- *            type of domain object which will be registered ({@link SqlDomainObject}
+ *            type of domain object which will be registered ({@link SqlDomainObject})
  * 
  * @author baumgrai
  */
-public class Registry<T extends DomainObject> extends Reflection {
+public class Registry<T extends DomainObject> extends CReflection {
 
 	static final Logger log = LoggerFactory.getLogger(Registry.class);
 
@@ -64,7 +64,7 @@ public class Registry<T extends DomainObject> extends Reflection {
 	// -------------------------------------------------------------------------
 
 	// Properties
-	public Class<T> baseClass = null; // Domain controller specific base class from which all domain objects must be derived
+	Class<T> baseClass = null; // Domain controller specific base class from which all domain objects must be derived
 
 	// Domain classes
 	private List<Class<? extends T>> orderedDomainClasses = new ArrayList<>(); // List of registered domain classes in (half) order of dependencies (if no circular references exists)

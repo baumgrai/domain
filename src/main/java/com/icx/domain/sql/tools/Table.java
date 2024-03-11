@@ -7,13 +7,17 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.domain.DomainAnnotations.SqlColumn;
+import com.icx.domain.sql.Annotations;
 import com.icx.domain.sql.SqlDomainObject;
 import com.icx.domain.sql.SqlRegistry;
+import com.icx.domain.sql.Annotations.SqlColumn;
 import com.icx.jdbc.SqlDb.DbType;
 
 /**
- * Modeling a database table in context of {@link Java2Sql} tool
+ * Modeling a database table in context of {@link Java2Sql} tool.
+ * <p>
+ * Class, methods and fields are 'public' only for formal reasons. Java2Sql class can be copied and must be runnable in any application 'domain' package to generate SQL scripts for application's domain
+ * classes.
  * 
  * @author baumgrai
  */
@@ -81,7 +85,7 @@ public class Table {
 			if (ca.isText()) {
 				column.isText = true; // Forces CLOB/NVARCHAR(MAX)/LONGTEXT data type
 			}
-			else if (ca.charsize() != Java2Sql.DEFAULT_CHARSIZE) {
+			else if (ca.charsize() != Annotations.DEFAULT_CHARSIZE) {
 				column.charsize = ca.charsize();
 			}
 
@@ -92,7 +96,7 @@ public class Table {
 			}
 
 			log.info("J2S: \t\t\tColumn '{}': attributes got from @SqlColumn: {}{}{}{}{}", column.name, (nameAttributeDefined ? "name: '" + column.name + "' " : ""),
-					(column.notNull ? "NOT NULL " : ""), (column.isUnique ? "UNIQUE " : ""), (column.charsize != Java2Sql.DEFAULT_CHARSIZE ? "charsize: " + column.charsize + " " : ""),
+					(column.notNull ? "NOT NULL " : ""), (column.isUnique ? "UNIQUE " : ""), (column.charsize != Annotations.DEFAULT_CHARSIZE ? "charsize: " + column.charsize + " " : ""),
 					(column.isText ? "isText" : ""));
 		}
 

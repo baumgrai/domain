@@ -1,4 +1,4 @@
-package com.icx.common.base;
+package com.icx.common;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -7,8 +7,7 @@ import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
+import java.text.NumberFormat;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
@@ -229,87 +228,6 @@ public abstract class Common {
 		return (str.equalsIgnoreCase("true") || str.equalsIgnoreCase("false"));
 	}
 
-	/**
-	 * Check if string is an integer value
-	 * 
-	 * @param str
-	 *            string
-	 * 
-	 * @return true if string can be converted to an integer, false otherwise
-	 */
-	public static boolean isInteger(String str) {
-		try {
-			Integer.parseInt(str);
-		}
-		catch (NumberFormatException nfe) {
-			return false;
-		}
-
-		return true;
-	}
-
-	/**
-	 * Check if string is a long value
-	 * 
-	 * @param str
-	 *            string
-	 * 
-	 * @return true if string can be converted to an long, false otherwise
-	 */
-	public static boolean isLong(String str) {
-		try {
-			Long.parseLong(str);
-		}
-		catch (NumberFormatException nfe) {
-			return false;
-		}
-
-		return true;
-	}
-
-	/**
-	 * Check if string is a numeric (double) value
-	 * 
-	 * @param str
-	 *            string
-	 * 
-	 * @return true if string can be converted to a double, false otherwise
-	 */
-	public static boolean isDouble(String str) {
-		try {
-			Double.parseDouble(str);
-		}
-		catch (NumberFormatException nfe) {
-			return false;
-		}
-
-		return true;
-	}
-
-	/**
-	 * Check if string is a date string
-	 * 
-	 * @param string
-	 *            string
-	 * @param dateFormat
-	 *            date format, if null default date format will be used for parsing
-	 * 
-	 * @return true if string can be parsed to a date using given date format or default date format, false otherwise
-	 */
-	public static boolean isDate(String string, String dateFormat) {
-		try {
-			if (dateFormat != null)
-				new SimpleDateFormat(dateFormat).parse(string);
-			else
-				new SimpleDateFormat().parse(string);
-		}
-		catch (ParseException cpex) {
-			return false;
-		}
-
-		return true;
-	}
-
 	// -------------------------------------------------------------------------
 	// Parse & format
 	// -------------------------------------------------------------------------
@@ -354,7 +272,7 @@ public abstract class Common {
 		return Boolean.toString(value);
 	}
 
-	private static final DecimalFormatSymbols symbols = ((DecimalFormat) DecimalFormat.getInstance()).getDecimalFormatSymbols();
+	private static final DecimalFormatSymbols symbols = ((DecimalFormat) NumberFormat.getInstance()).getDecimalFormatSymbols();
 
 	/**
 	 * Parse string to Integer

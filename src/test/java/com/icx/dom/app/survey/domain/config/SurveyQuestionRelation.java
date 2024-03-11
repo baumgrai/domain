@@ -3,9 +3,9 @@ package com.icx.dom.app.survey.domain.config;
 import java.sql.SQLException;
 
 import com.icx.dom.app.survey.SurveyApp;
-import com.icx.domain.DomainAnnotations.SqlColumn;
 import com.icx.domain.DomainObject;
 import com.icx.domain.sql.SqlDomainObject;
+import com.icx.domain.sql.Annotations.SqlColumn;
 import com.icx.jdbc.SqlConnection;
 import com.icx.jdbc.SqlDbException;
 

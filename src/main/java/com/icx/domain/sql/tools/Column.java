@@ -13,14 +13,18 @@ import java.util.Date;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.domain.DomainAnnotations.StoreAsString;
+import com.icx.domain.sql.Annotations;
 import com.icx.domain.sql.SqlDomainObject;
 import com.icx.domain.sql.SqlRegistry;
+import com.icx.domain.sql.Annotations.StoreAsString;
 import com.icx.domain.sql.tools.FkConstraint.ConstraintType;
 import com.icx.jdbc.SqlDb.DbType;
 
 /**
- * Modeling a table column in context of {@link Java2Sql} tool
+ * Modeling a table column in context of {@link Java2Sql} tool.
+ * <p>
+ * Class, methods and fields are 'public' only for formal reasons. Java2Sql class can be copied and must be runnable in any application 'domain' package to generate SQL scripts for application's domain
+ * classes.
  * 
  * @author baumgrai
  */
@@ -37,7 +41,7 @@ public class Column {
 	public boolean notNull = false;
 	public boolean isUnique = false;
 	public boolean isText = false;
-	public int charsize = Java2Sql.DEFAULT_CHARSIZE;
+	public int charsize = Annotations.DEFAULT_CHARSIZE;
 
 	public Class<?> fieldRelatedType = null;
 	public Field field = null;

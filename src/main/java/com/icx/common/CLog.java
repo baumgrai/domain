@@ -1,4 +1,4 @@
-package com.icx.common.base;
+package com.icx.common;
 
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
@@ -10,7 +10,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.Calendar;
 
-import com.icx.domain.DomainAnnotations.Secret;
+import com.icx.domain.sql.Annotations.Secret;
 
 /**
  * Logging helpers
@@ -20,7 +20,7 @@ import com.icx.domain.DomainAnnotations.Secret;
 public abstract class CLog {
 
 	// Secret field name prefix to avoid logging value of this field
-	public static final String SECRET = "sec_";
+	private static final String SECRET = "sec_";
 
 	/**
 	 * Convert object value to string containing also type of value for analytic logging.

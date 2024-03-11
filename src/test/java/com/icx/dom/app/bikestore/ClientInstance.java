@@ -7,7 +7,7 @@ import java.util.Properties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.common.base.Common;
+import com.icx.common.Common;
 import com.icx.dom.app.bikestore.domain.Manufacturer;
 import com.icx.dom.app.bikestore.domain.bike.Bike.Size;
 import com.icx.dom.app.bikestore.domain.client.Client;
@@ -110,7 +110,7 @@ public class ClientInstance extends Common implements Runnable {
 				sdc.delete(regionInProgress);
 
 				// Close open database connections
-				sdc.sqlDb.close();
+				sdc.close();
 			}
 		}
 		catch (Exception ex) {

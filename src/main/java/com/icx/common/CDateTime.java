@@ -1,4 +1,4 @@
-package com.icx.common.base;
+package com.icx.common;
 
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;

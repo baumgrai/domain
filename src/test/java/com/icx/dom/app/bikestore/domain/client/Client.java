@@ -16,19 +16,19 @@ import java.util.stream.Collectors;
 
 import org.slf4j.MDC;
 
-import com.icx.common.base.CList;
-import com.icx.common.base.CMap;
-import com.icx.common.base.CResource;
-import com.icx.common.base.Common;
+import com.icx.common.CList;
+import com.icx.common.CMap;
+import com.icx.common.CResource;
+import com.icx.common.Common;
 import com.icx.dom.app.bikestore.BikeStoreApp;
 import com.icx.dom.app.bikestore.domain.bike.Bike;
 import com.icx.dom.app.bikestore.domain.bike.CityBike;
 import com.icx.dom.app.bikestore.domain.bike.MTB;
 import com.icx.dom.app.bikestore.domain.bike.RaceBike;
-import com.icx.domain.DomainAnnotations.Accumulation;
-import com.icx.domain.DomainAnnotations.SqlColumn;
-import com.icx.domain.DomainAnnotations.SqlTable;
 import com.icx.domain.sql.SqlDomainObject;
+import com.icx.domain.sql.Annotations.Accumulation;
+import com.icx.domain.sql.Annotations.SqlColumn;
+import com.icx.domain.sql.Annotations.SqlTable;
 import com.icx.jdbc.SqlDbException;
 
 /**

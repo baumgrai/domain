@@ -14,8 +14,8 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.common.Prop;
-import com.icx.common.base.CList;
+import com.icx.common.CList;
+import com.icx.common.CProp;
 import com.icx.dom.app.bikestore.domain.Manufacturer;
 import com.icx.dom.app.bikestore.domain.bike.Bike;
 import com.icx.dom.app.bikestore.domain.bike.Bike.Size;
@@ -24,6 +24,7 @@ import com.icx.dom.app.bikestore.domain.client.Client.Region;
 import com.icx.dom.app.bikestore.domain.client.Order;
 import com.icx.domain.sql.LoadHelpers;
 import com.icx.domain.sql.SqlDomainController;
+import com.icx.jdbc.ConnectionPool;
 import com.icx.jdbc.SqlDb;
 import com.icx.jdbc.SqlDb.DbType;
 
@@ -95,11 +96,11 @@ public class BikeStoreApp {
 		// -------------------------------------------------
 
 		// Read JDBC and Domain properties. Note: you should not have multiple properties files with same name in your class path
-		File dbPropsFile = Prop.findPropertiesFile("db.properties");
+		File dbPropsFile = CProp.findPropertiesFile("db.properties");
 		String localConf = "local/" + dbType.toString().toLowerCase() + "/bikes";
-		Properties dbProps = Prop.readEnvironmentSpecificProperties(dbPropsFile, localConf, CList.newList("dbConnectionString", "dbUser"));
+		Properties dbProps = CProp.readEnvironmentSpecificProperties(dbPropsFile, localConf, CList.newList(ConnectionPool.DB_CONNECTION_STRING_PROP, ConnectionPool.DB_USER_PROP));
 
-		Properties domainProps = Prop.readProperties(Prop.findPropertiesFile("domain.properties"));
+		Properties domainProps = CProp.readProperties(CProp.findPropertiesFile(SqlDomainController.DOMAIN_PROPERIES_FILE));
 
 		// Associate domain classes and database tables
 		sdc.initialize(dbProps, domainProps, Manufacturer.class.getPackage().getName() /* use any class directly in 'domain' package to find all domain classes */);
@@ -203,7 +204,7 @@ public class BikeStoreApp {
 		}
 		finally {
 			// Close potential open database connections
-			sdc.sqlDb.close();
+			sdc.close();
 		}
 	}
 }

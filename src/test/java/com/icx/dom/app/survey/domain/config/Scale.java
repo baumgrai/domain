@@ -4,8 +4,8 @@ import java.util.List;
 import java.util.Map;
 
 import com.icx.dom.app.survey.SurveyApp;
-import com.icx.domain.DomainAnnotations.SqlColumn;
 import com.icx.domain.sql.SqlDomainObject;
+import com.icx.domain.sql.Annotations.SqlColumn;
 
 public class Scale extends SqlDomainObject {
 

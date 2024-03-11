@@ -12,10 +12,10 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.common.base.Common;
+import com.icx.common.Common;
 
 /**
- * Helper class for methods originally contained in Google's Guava library and cloned here to avoid dependence on Guava.
+ * Helper class for methods originally contained in Google's Guava library and cloned here to avoid dependency on Guava.
  * 
  * @author baumgrai
  */

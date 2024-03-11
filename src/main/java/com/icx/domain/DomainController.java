@@ -26,11 +26,11 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.common.Reflection;
-import com.icx.common.base.CRandom;
-import com.icx.common.base.Common;
-import com.icx.domain.DomainAnnotations.Accumulation;
+import com.icx.common.CRandom;
+import com.icx.common.CReflection;
+import com.icx.common.Common;
 import com.icx.domain.sql.SqlDomainController;
+import com.icx.domain.sql.Annotations.Accumulation;
 
 /**
  * Manages domain object store.
@@ -53,7 +53,28 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 	// -------------------------------------------------------------------------
 
 	// Registry
-	public Registry<T> registry = new Registry<>();
+	private Registry<T> registry = new Registry<>();
+
+	/**
+	 * Only for internal use!
+	 * 
+	 * @return registry
+	 */
+	// Get registry
+	public Registry<T> getRegistry() {
+		return registry;
+	}
+
+	/**
+	 * Only for internal use!
+	 * 
+	 * @param registry
+	 *            registry
+	 */
+	// Set registry
+	public void setRegistry(Registry<T> registry) {
+		this.registry = registry;
+	}
 
 	// Object store - map of maps of objects by object id by domain class
 	// Note: Objects of domain classes which are derived from other domain classes have multiple entries - one entry per (derived) domain class - here
@@ -106,6 +127,14 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 		registry.getRegisteredDomainClasses().forEach(c -> objectMap.put(c, new ConcurrentSkipListMap<>()));
 	}
 
+	/**
+	 * Only for internal use!
+	 * 
+	 * @param className
+	 *            name of domain class
+	 * 
+	 * @return domain class object
+	 */
 	// Get registered domain class by it's name
 	public final Class<? extends T> getDomainClassByName(String className) {
 
@@ -138,13 +167,29 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 		return now * 1000000 + (counterWithinMilliseconds.getAndIncrement() % 1000) * 1000 + CRandom.randomInt(1000);
 	}
 
-	// Provide non-static unique id generation method to allow overriding
+	/**
+	 * Only for internal use but may be overridden: Generate unique object id.
+	 * <p>
+	 * Id scheme: {@code Date().getTime()} * 1.000.000 + (atomic counter % 1000 starting randomly with 100, 200, ..., 900) * 1000 + random integer % 1000
+	 * 
+	 * @return unique id
+	 */
 	@SuppressWarnings("static-method")
 	protected synchronized long generateUniqueId() {
 		return generateUniqueIdStatic();
 	}
 
-	// Instantiate domain object - called on loading new object from database and if objects are created using create() methods of domain controller
+	/**
+	 * Only for internal use!
+	 * 
+	 * @param <S>
+	 *            specific object domain class type
+	 * @param objectDomainClass
+	 *            object domain class
+	 * 
+	 * @return new domain object
+	 */
+	// Instantiate domain object
 	@SuppressWarnings("unchecked")
 	public final <S extends T> S instantiate(Class<S> objectDomainClass) {
 
@@ -187,7 +232,7 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 		if (init != null) {
 			init.accept(obj);
 		}
-		obj.dc = this;
+		obj.setDc(this);
 		register(obj);
 		if (log.isDebugEnabled()) {
 			log.debug("DC: Created {}.", obj.name());
@@ -199,7 +244,13 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 	// Accumulations
 	// -------------------------------------------------------------------------
 
-	// Update accumulations (if exist) of parent objects reflecting any reference change of this object.
+	/**
+	 * Only for internal use!
+	 * 
+	 * @param obj
+	 *            child object
+	 */
+	// Update accumulations (if exist) of parent objects reflecting any reference change of this object
 	public void updateAccumulationsOfParentObjects(T obj) {
 
 		if (obj.refForAccuShadowMap == null) {
@@ -216,19 +267,25 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 				Field accuField = registry.getAccumulationFieldForReferenceField(refField);
 
 				if (oldReferencedObj != null && !oldReferencedObj.getAccumulationSet(accuField).remove(obj)) {
-					log.warn("DOB: Could not remove {} from accumulation {} of {} (was not contained in accumulation)", obj.name(), Reflection.qualifiedName(accuField),
+					log.warn("DOB: Could not remove {} from accumulation {} of {} (was not contained in accumulation)", obj.name(), CReflection.qualifiedName(accuField),
 							DomainObject.name(oldReferencedObj));
 				}
 
 				if (newReferencedObj != null && !newReferencedObj.getAccumulationSet(accuField).add(obj)) {
-					log.warn("DOB: Could not add {} to accumulation {} of {} (was already contained in accumulation)", obj.name(), Reflection.qualifiedName(accuField),
+					log.warn("DOB: Could not add {} to accumulation {} of {} (was already contained in accumulation)", obj.name(), CReflection.qualifiedName(accuField),
 							DomainObject.name(newReferencedObj));
 				}
 			}
 		}
 	}
 
-	// Remove object from accumulations (if exist) of parent objects
+	/**
+	 * Only for internal use!
+	 * 
+	 * @param obj
+	 *            child object
+	 */
+	// Remove object from accumulations (if exist) of parent object
 	protected void removeFromAccumulationsOfParentObjects(T obj) {
 
 		if (obj.refForAccuShadowMap == null) {
@@ -243,7 +300,7 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 			if (referencedObj != null) {
 				Field accuField = registry.getAccumulationFieldForReferenceField(refField);
 				if (!referencedObj.getAccumulationSet(accuField).remove(obj)) {
-					log.warn("DOB: Could not remove {} from accumulation {} of {} (was not contained in accumulation)", obj.name(), Reflection.qualifiedName(accuField),
+					log.warn("DOB: Could not remove {} from accumulation {} of {} (was not contained in accumulation)", obj.name(), CReflection.qualifiedName(accuField),
 							DomainObject.name(referencedObj));
 				}
 			}
@@ -255,7 +312,7 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 	// -------------------------------------------------------------------------
 
 	// Initialize reference shadow map with null values for any reference field and initialize accumulation and complex fields with empty collections or maps if they are not already initialized
-	void initializeFields(T obj) {
+	private void initializeFields(T obj) {
 
 		// Initialize domain object for all domain classes
 		for (Class<? extends T> domainClass : registry.getDomainClassesFor(registry.getCastedDomainClass(obj))) {
@@ -265,13 +322,23 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 			registry.getReferenceFields(domainClass).stream().filter(f -> registry.getAccumulationFieldForReferenceField(f) != null).forEach(f -> obj.refForAccuShadowMap.put(f, null));
 
 			// Initialize registered collection/map fields if not already done
-			registry.getComplexFields(domainClass).stream().filter(f -> obj.getFieldValue(f) == null).forEach(f -> obj.setFieldValue(f, Reflection.newComplexObject(f.getType())));
+			registry.getComplexFields(domainClass).stream().filter(f -> obj.getFieldValue(f) == null).forEach(f -> obj.setFieldValue(f, CReflection.newComplexObject(f.getType())));
 
 			// Initialize own accumulation fields
 			registry.getAccumulationFields(domainClass).stream().filter(f -> obj.getFieldValue(f) == null).forEach(f -> obj.setFieldValue(f, ConcurrentHashMap.newKeySet()));
 		}
 	}
 
+	/**
+	 * Only for internal use!
+	 * 
+	 * @param obj
+	 *            object
+	 * @param id
+	 *            id
+	 * 
+	 * @return true if object could be registered, false otherwise
+	 */
 	// Register domain object by given id for object domain class and all inherited domain classes
 	public final synchronized boolean registerById(T obj, long id) {
 
@@ -283,8 +350,8 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 			return false;
 		}
 
-		obj.dc = this;
-		obj.id = id;
+		obj.setDc(this);
+		obj.setId(id);
 		registry.getDomainClassesFor(objectDomainClass).forEach(c -> objectMap.get(c).put(id, obj));
 		updateAccumulationsOfParentObjects(obj);
 		if (log.isTraceEnabled()) {
@@ -294,6 +361,12 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 		return true;
 	}
 
+	/**
+	 * Only for internal use!
+	 * 
+	 * @param obj
+	 *            object to unregister
+	 */
 	// Unregister domain object and remove it from all accumulations
 	protected void unregister(T obj) {
 
@@ -339,6 +412,14 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 	// Children
 	// -------------------------------------------------------------------------
 
+	/**
+	 * Only for internal use!
+	 * 
+	 * @param obj
+	 *            parent object
+	 * 
+	 * @return children
+	 */
 	// Get objects which references this object ordered by reference field
 	protected Map<Field, Set<T>> getDirectChildrenByRefField(T obj) {
 
@@ -353,7 +434,15 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 		return childrenByRefFieldMap;
 	}
 
-	// Get objects which references this object
+	/**
+	 * Only for internal use!
+	 * 
+	 * @param obj
+	 *            parent object
+	 * 
+	 * @return children
+	 */
+	// Get all objects which references this object
 	public Set<T> getDirectChildren(T obj) {
 
 		Set<T> children = new HashSet<>();
@@ -363,8 +452,16 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 		return children;
 	}
 
+	/**
+	 * Only for internal use!
+	 * 
+	 * @param obj
+	 *            object to check
+	 * 
+	 * @return true if any children exist, false otherwise
+	 */
 	// Check if object is referenced by any registered object
-	public boolean isReferenced(T obj) {
+	protected boolean isReferenced(T obj) {
 		return (!getDirectChildren(obj).isEmpty());
 	}
 
@@ -372,8 +469,18 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 	// Deletion
 	// -------------------------------------------------------------------------
 
+	/**
+	 * Only for internal use!
+	 * 
+	 * @param obj
+	 *            object to check
+	 * @param objectsToCheck
+	 *            list used to avoid endless recursion
+	 * 
+	 * @return true if object can be deleted, false otherwise
+	 */
 	// Recursively check if all direct and indirect children can be deleted
-	public boolean canBeDeletedRecursive(T obj, List<DomainObject> objectsToCheck) {
+	protected boolean canBeDeletedRecursive(T obj, List<DomainObject> objectsToCheck) {
 
 		if (!obj.canBeDeleted()) {
 			log.info("SDC: {} cannot be deleted because overriden #canBeDeleted() of {} class or any base class returned false!", obj.name(), obj.getClass().getSimpleName());

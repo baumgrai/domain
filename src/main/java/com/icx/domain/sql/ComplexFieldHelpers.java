@@ -17,11 +17,11 @@ import java.util.TreeMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.common.Reflection;
-import com.icx.common.base.CCollection;
-import com.icx.common.base.CList;
-import com.icx.common.base.CMap;
-import com.icx.common.base.Common;
+import com.icx.common.CCollection;
+import com.icx.common.CList;
+import com.icx.common.CMap;
+import com.icx.common.CReflection;
+import com.icx.common.Common;
 
 /**
  * Helpers for conversion of collections and maps to/from associated rows of entry tables
@@ -104,7 +104,7 @@ public abstract class ComplexFieldHelpers extends Common {
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	private static <T> T string2SimpleObject(Class<? extends T> objectClass, String s) {
 
-		objectClass = (Class<? extends T>) Reflection.getBoxingWrapperType(objectClass);
+		objectClass = (Class<? extends T>) CReflection.getBoxingWrapperType(objectClass);
 
 		if (s == null) {
 			return null;
@@ -145,7 +145,7 @@ public abstract class ComplexFieldHelpers extends Common {
 	private static <T> Collection<T> string2Collection(Class<? extends Collection<T>> collectionClass, Class<? extends T> elementClass, String collectionAsString) {
 
 		try {
-			Collection<T> collection = (collectionClass.isInterface() ? Reflection.newCollection(collectionClass) : collectionClass.getDeclaredConstructor().newInstance());
+			Collection<T> collection = (collectionClass.isInterface() ? CReflection.newCollection(collectionClass) : collectionClass.getDeclaredConstructor().newInstance());
 			if (collectionAsString != null) {
 				for (String element : collectionAsString.split("\\,")) {
 					collection.add(objectsEqual(element, NULL) ? null : string2SimpleObject(elementClass, element));
@@ -164,7 +164,7 @@ public abstract class ComplexFieldHelpers extends Common {
 	private static <K, V> Map<K, V> string2Map(Class<? extends Map<K, V>> mapClass, Class<? extends K> keyClass, Class<? extends V> valueClass, String mapAsString) {
 
 		try {
-			Map<K, V> map = (mapClass.isInterface() ? Reflection.newMap(mapClass) : mapClass.getDeclaredConstructor().newInstance());
+			Map<K, V> map = (mapClass.isInterface() ? CReflection.newMap(mapClass) : mapClass.getDeclaredConstructor().newInstance());
 
 			if (mapAsString != null) {
 				for (String entry : mapAsString.split("\\;")) {
@@ -251,7 +251,7 @@ public abstract class ComplexFieldHelpers extends Common {
 	@SuppressWarnings("unchecked")
 	static Collection<Object> entryRecords2Collection(ParameterizedType genericFieldType, List<SortedMap<String, Object>> entryRecords) {
 
-		Collection<Object> collection = Reflection.newCollection((Class<? extends Collection<Object>>) genericFieldType.getRawType());
+		Collection<Object> collection = CReflection.newCollection((Class<? extends Collection<Object>>) genericFieldType.getRawType());
 
 		if (CList.isEmpty(entryRecords)) {
 			return collection;
@@ -294,7 +294,7 @@ public abstract class ComplexFieldHelpers extends Common {
 	@SuppressWarnings("unchecked")
 	static Map<Object, Object> entryRecords2Map(ParameterizedType genericFieldType, List<SortedMap<String, Object>> entryRecords) {
 
-		Map<Object, Object> map = Reflection.newMap((Class<? extends Map<Object, Object>>) genericFieldType.getRawType());
+		Map<Object, Object> map = CReflection.newMap((Class<? extends Map<Object, Object>>) genericFieldType.getRawType());
 
 		if (CList.isEmpty(entryRecords)) {
 			return map;

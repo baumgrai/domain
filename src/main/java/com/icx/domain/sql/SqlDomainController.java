@@ -25,13 +25,14 @@ import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.common.base.CDateTime;
-import com.icx.common.base.CLog;
-import com.icx.common.base.Common;
-import com.icx.domain.DomainAnnotations.UseDataHorizon;
+import com.icx.common.CDateTime;
+import com.icx.common.CLog;
+import com.icx.common.Common;
 import com.icx.domain.DomainController;
 import com.icx.domain.DomainException;
 import com.icx.domain.DomainObject;
+import com.icx.domain.sql.Annotations.StoreAsString;
+import com.icx.domain.sql.Annotations.UseDataHorizon;
 import com.icx.domain.sql.LoadHelpers.IntermediateLoadResult;
 import com.icx.domain.sql.LoadHelpers.UnresolvedReference;
 import com.icx.jdbc.ConfigException;
@@ -53,43 +54,102 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 
 	static final Logger log = LoggerFactory.getLogger(SqlDomainController.class);
 
-	// TODO: Review performance
 	// TODO: Support file encryption
 
 	// -------------------------------------------------------------------------
 	// Finals
 	// -------------------------------------------------------------------------
 
+	/**
+	 * Name of standard properties file for domain properties
+	 */
 	public static final String DOMAIN_PROPERIES_FILE = "domain.properties";
-	public static final String DATA_HORIZON_PERIOD_PROP = "dataHorizonPeriod";
-	public static final String CRYPT_PASSWORD_PROP = "cryptPassword";
-	public static final String CRYPT_SALT_PROP = "cryptSalt";
+	static final String DATA_HORIZON_PERIOD_PROP = "dataHorizonPeriod";
+	static final String CRYPT_PASSWORD_PROP = "cryptPassword";
+	static final String CRYPT_SALT_PROP = "cryptSalt";
 
 	// -------------------------------------------------------------------------
 	// Members
 	// -------------------------------------------------------------------------
 
 	// Database connection object
-	public SqlDb sqlDb = null;
+	SqlDb sqlDb = null;
 
 	// Config properties from 'domain.properties'
-	public String dataHorizonPeriod = "1M"; // Data horizon controlled objects will be loaded from database only if they are modified after data horizon ('now' minus data horizon period)
-	public String cryptPassword = null;
-	public String cryptSalt = null;
+	String dataHorizonPeriod = "1M"; // Data horizon controlled objects will be loaded from database only if they are modified after data horizon ('now' minus data horizon period)
+	String cryptPassword = null;
+	String cryptSalt = null;
 
 	// Record map: map of object records by object domain class by object id
 	// Note: Objects of domain classes which are derived from other domain classes however have only object record with column content of all tables for derived classes
-	protected Map<Class<? extends SqlDomainObject>, Map<Long, SortedMap<String, Object>>> recordMap = null;
+	Map<Class<? extends SqlDomainObject>, Map<Long, SortedMap<String, Object>>> recordMap = null;
 
 	// -------------------------------------------------------------------------
-	// Constructor
+	// Constructor & basics
 	// -------------------------------------------------------------------------
 
 	/**
 	 * Constructor.
 	 */
 	public SqlDomainController() {
-		registry = new SqlRegistry();
+		setRegistry(new SqlRegistry());
+	}
+
+	/**
+	 * Only for internal use!
+	 * 
+	 * @return SQL registry
+	 */
+	// Get SQL registry
+	public SqlRegistry getSqlRegistry() {
+		return (SqlRegistry) getRegistry();
+	}
+
+	/**
+	 * Get high level SQL database connection object.
+	 * 
+	 * @return high level SQL database connection object
+	 */
+	public SqlDb getSqlDb() {
+		return sqlDb;
+	}
+
+	/**
+	 * Get connection pool associated to associated high level SQL database connection object.
+	 * 
+	 * @return connection pool
+	 */
+	public ConnectionPool getPool() {
+		return sqlDb.getPool();
+	}
+
+	/**
+	 * Close potentially open SQL connections in connection pool associated to high level SQL database connection object.
+	 * 
+	 * @throws SQLException
+	 *             on exception closing SQL database connection
+	 */
+	public void close() throws SQLException {
+		sqlDb.close();
+	}
+
+	/**
+	 * Only for unit tests.
+	 * 
+	 * @return period
+	 */
+	public String getDataHorizonPeriodForTest() {
+		return dataHorizonPeriod;
+	}
+
+	/**
+	 * Only for unit tests.
+	 * 
+	 * @param dataHorizonPeriod
+	 *            period to set
+	 */
+	public void setDataHorizonPeriodForTest(String dataHorizonPeriod) {
+		this.dataHorizonPeriod = dataHorizonPeriod;
 	}
 
 	// -------------------------------------------------------------------------
@@ -97,16 +157,19 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Register to-string and from-string converters for individual field types.
+	 * Register to-string and from-string converter for individual field types.
 	 * <p>
-	 * SQL data types of columns to store values of these classes in database tables will be string types ((N)VARCHAR) and values of this classes will be converted to string using to-string converter
-	 * before being stored in database (INSERT, UPDATE). On loading from database (SELECT) the stored string values will be re-converted to original values using from-string converter.
+	 * Fields of types, for which to-string and from-string converters are defined, must be annotated by {@link StoreAsString} annotation! Columns associated to these fields are of database specific
+	 * string type - (N)VARCHAR(charsize). Values will be converted to string using to-string converter before being stored in database on {@code save()} and loaded values will be re-converted using
+	 * from-string converter on loading objects from database ({@code synchronize()}, {@code load...()}).
 	 * <p>
-	 * Registering specific to-string and from-string converters is (only) necessary for value types which are not Java standard types or {@code File} or {@code Enum} and for structures which are
-	 * build up from Java standard types.
+	 * Registering specific to-string and from-string converters is effective only for value types which are not natively supported by Domain persistence mechanism. These natively supported types are
+	 * the Java standard types (excluding {@code byte}, {@code Byte}, {@code float}, {@code Float}) and {@code BigInteger}, {@code BigDecimal}, {@code Date}, {@code LocalDate}, {@code LocalTime},
+	 * {@code LocalDateTime}, {@code Enum}, {@code char[]}, {@code byte[]} and {@code File}.
 	 * <p>
-	 * Another possibility to define to-string and from-string conversion is to declare public methods {@code toString()} and {@code valueOf(String)} for specific field types which than automatically
-	 * will be used for conversion on storing and retrieving field values. Registration of these methods is not necessary.
+	 * Note: Another possibility to define to-string and from-string conversion is to declare public methods {@code toString()} and {@code valueOf(String)} for specific field types, which than
+	 * automatically will be called by Reflection for conversion on storing and retrieving field values. Registration of these methods is not necessary. Fields holding values of such types must also
+	 * be annotated by {@link StoreAsString} annotation.
 	 * 
 	 * @param cls
 	 *            class of values to convert
@@ -138,11 +201,14 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 						"SDC: Use of @Crypt annotation for fields or domain classes needs non-empty 'cryptPassword' property in 'domain.properties' file! If this property is not configured field values will be stored in database without encryption!");
 			}
 		}
-		try (SqlConnection sqlConnection = SqlConnection.open(sqlDb.pool, true)) {
-			((SqlRegistry) registry).registerDomainClassTableAssociation(sqlConnection.cn, sqlDb);
+
+		try (SqlConnection sqlConnection = SqlConnection.open(sqlDb.getPool(), true)) {
+			getSqlRegistry().registerDomainClassTableAssociation(sqlConnection.cn, sqlDb);
 		}
+
 		recordMap = new ConcurrentHashMap<>();
-		registry.getRegisteredObjectDomainClasses().forEach(c -> recordMap.put(c, new ConcurrentHashMap<>()));
+
+		getRegistry().getRegisteredObjectDomainClasses().forEach(c -> recordMap.put(c, new ConcurrentHashMap<>()));
 	}
 
 	/**
@@ -153,7 +219,7 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	 * @param dbProperties
 	 *            database connection properties ('dbConnectionString', 'dbUser', 'dbPassword')
 	 * @param domainProperties
-	 *            currently only 'dataHorizonPeriod' (e.g. '1h', '30d')
+	 *            only 'dataHorizonPeriod' is relevant here (e.g. '1h', '30d')
 	 * @param domainPackageName
 	 *            name of package where domain classes reside
 	 * 
@@ -175,7 +241,7 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	/**
 	 * Register given object domain classes and base domain classes.
 	 * <p>
-	 * Provided classes must extend {@link SqlDomainObject} class. Only object domain class (highest class in derivation order) must be provided here if derived domain classes exists.
+	 * Provided classes must extend {@link SqlDomainObject} class. Only object domain class (highest class in inheritance order) must be provided here if inherited domain classes exists.
 	 * <p>
 	 * Inner domain classes and parent domain classes (which are referenced by provided domain classes) will also be registered.
 	 * 
@@ -216,6 +282,11 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 		return CDateTime.subtract(LocalDateTime.now(), dataHorizonPeriod);
 	}
 
+	/*
+	 * (non-Javadoc)
+	 * 
+	 * @see com.icx.domain.DomainController#unregister(com.icx.domain.DomainObject)
+	 */
 	// Remove object record from record map and unregister object from object store
 	@Override
 	protected void unregister(SqlDomainObject obj) {
@@ -225,7 +296,12 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 		super.unregister(obj);
 	}
 
-	// Only for unit tests
+	/**
+	 * Only for unit tests.
+	 * 
+	 * @param obj
+	 *            object to unregister
+	 */
 	public void unregisterOnlyForTest(SqlDomainObject obj) {
 		unregister(obj);
 	}
@@ -238,8 +314,8 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 
 		// Collect field changes (because object record was removed here all field/value pairs will be found) and re-generate object record from field/value pairs of all inherited domain classes
 		SortedMap<String, Object> objectRecord = new TreeMap<>();
-		for (Class<? extends SqlDomainObject> domainClass : registry.getDomainClassesFor(obj.getClass())) {
-			Map<Field, Object> fieldChangesMap = SaveHelpers.getFieldChangesForDomainClass(((SqlRegistry) registry), obj, objectRecord, domainClass);
+		for (Class<? extends SqlDomainObject> domainClass : getRegistry().getDomainClassesFor(obj.getClass())) {
+			Map<Field, Object> fieldChangesMap = SaveHelpers.getFieldChangesForDomainClass(getSqlRegistry(), obj, objectRecord, domainClass);
 			objectRecord.putAll(SaveHelpers.fieldChangesMap2ColumnValueMap(this, fieldChangesMap, obj));
 		}
 
@@ -251,7 +327,12 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 		}
 	}
 
-	// Only for unit tests
+	/**
+	 * Only for unit tests.
+	 * 
+	 * @param obj
+	 *            object to re-register
+	 */
 	public void reregisterOnlyForTest(SqlDomainObject obj) {
 		reregister(obj);
 	}
@@ -259,7 +340,7 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	/**
 	 * Retrieve all registered and valid objects of a specific domain class.
 	 * <p>
-	 * 'valid' object means that object could be saved to database before without error.
+	 * 'valid' object means that object could be saved to database before without error ({@link #save(Connection, SqlDomainObject)}).
 	 * 
 	 * @param <S>
 	 *            specific domain object class type
@@ -287,7 +368,7 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	private LoadResult loadAssuringReferentialIntegrity(Function<Connection, Map<Class<? extends SqlDomainObject>, Map<Long, SortedMap<String, Object>>>> select) throws SQLException, SqlDbException {
 
 		// Get database connection from pool
-		try (SqlConnection sqlcn = SqlConnection.open(sqlDb.pool, true)) {
+		try (SqlConnection sqlcn = SqlConnection.open(sqlDb.getPool(), true)) {
 
 			// Initially load object records using given select-supplier
 			Map<Class<? extends SqlDomainObject>, Map<Long, SortedMap<String, Object>>> loadedRecordsMap = select.apply(sqlcn.cn);
@@ -340,10 +421,10 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	}
 
 	/**
-	 * Synchronize domain objects controlled by this domain controller instance with the associated database.
+	 * Synchronize domain objects controlled by this domain controller instance with the associated persistence database.
 	 * <p>
 	 * Method first saves potentially existing new objects (objects which are not already stored in database) to database, than loads all currently relevant objects from database and after that
-	 * unregisters objects which were deleted in database (by another instance) or which fell out of data horizon and which are not referenced by any other object.
+	 * unregisters objects which were deleted in database (by another instance) or which fell out of data horizon ({@link UseDataHorizon}) and are not referenced by any loaded child object.
 	 * <p>
 	 * Field values of existing local objects will be overridden by values retrieved from database on load. So, unsaved changes of field values, which were changed in database too, will be discarded
 	 * and overridden by database values! Warn logs will be written and warnings will be assigned to affected objects in this case. It's recommended to ensure that all local changes are saved before
@@ -352,14 +433,15 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	 * For data horizon controlled domain classes this method first loads only objects within data horizon {@link UseDataHorizon}. But method ensures referential integrity by generally loading all
 	 * referenced objects even if they are out of data horizon.
 	 * <p>
-	 * This method is used for initial loading of domain objects from persistence database on startup of domain controller. If there is a single domain controller instance connected to persistence
-	 * database this method only removes objects which fell out of data horizon from object store on subsequent calls. For single domain controller instance configurations where data horizon control
+	 * This method is used for initial loading of domain objects from persistence database on startup. If there is a single domain controller instance connected to persistence database this method
+	 * only removes objects which fell out of data horizon from object store on subsequent calls. This also means that for single domain controller instance configurations where data horizon control
 	 * is not active it is sufficient to call this method once at startup.
 	 * 
 	 * @param objectDomainClassesToExclude
-	 *            (optional) object domain classes which objects shall not be loaded from database
+	 *            (optional) object domain classes which objects shall not be loaded from database - if objects of this classes are referenced by loaded objects they will be loaded too (referential
+	 *            integrity)
 	 * 
-	 * @return true if any changed or new objects loaded from database, false otherwise
+	 * @return true if any changed or new objects were loaded from database, false otherwise
 	 * 
 	 * @throws SQLException
 	 *             if executed SELECT statement throws SQLException
@@ -401,14 +483,22 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	 * referential integrity).
 	 * <p>
 	 * Note: To provide a WHERE clause one needs knowledge of the relation of Java class/field names and associated SQL table/column names and also knowledge about column types associated to field
-	 * types. The basic rule for conversion of Java class/field names to SQL table/column names is: CaseFormat.UPPER_CAMEL -> CaseFormat.UPPER_UNDERSCORE. Tables are additionally prefixed by 'DOM_'.
-	 * E.g.: class name -> table name: {@code Xyz} -> 'DOM_Xyz', {@code XYZ} -> 'DOM_X_Y_Z' and field name -> column name: {@code xyz} -> 'XYZ'. {@code xYz} -> 'X_YZ'. If field is a reference field
-	 * referencing another domain class the correspondent column has appendix '_ID' (object references are realized as foreign key columns referencing unique object id). E.g. <code> class Bike {
-	 * Manufacturer manufacturer; }</code> -> MANUFACTURER_ID in DOM_BIKE). If field name may be a reserved name in SQL the column name is also prefixed by 'DOM_' (e.g.: {@code date} -> 'DOM_DATE',
-	 * {@code type} -> 'DOM_TYPE'). Relation of field and column types generally is database type specific. For building WHERE clause there are following rules: {@code String}, {@code Enum} and
-	 * {@code File} fields result in appropriate database specific string columns (VARCHAR, NVARCHAR2), number fields ({@code Integer}, {@code Long}, {@code Double}, {@code BigInteger},
-	 * {@code BigDecimal}) result in appropriate database specific number columns (NUMBER, INTEGER, FLOAT, DOUBLE, BIGINT), LocaDate, LocalTime, LocalDateTime fields result in appropriate database
-	 * specific date/time columns (DATE, TIME, TIMESTAMP, DATETIME) and byte array fields ({@code byte[]}) result in appropriate database specific BLOB columns (BLOB, VARBINARY(MAX), LONGBLOB).
+	 * types.
+	 * <p>
+	 * The basic rule for conversion of Java class/field names to SQL table/column names is: CaseFormat.UPPER_CAMEL -> CaseFormat.UPPER_UNDERSCORE. Tables are additionally prefixed by 'DOM_'. E.g.:
+	 * class name -> table name: {@code Xyz} -> 'DOM_Xyz', {@code XYZ} -> 'DOM_X_Y_Z' and field name -> column name: {@code xyz} -> 'XYZ'. {@code xYz} -> 'X_YZ'.
+	 * <p>
+	 * If field is a reference field referencing another domain class the correspondent column has appendix '_ID' (object references are realized as foreign key columns referencing unique object id).
+	 * E.g. <code> class Bike { Manufacturer manufacturer; }</code> -> column 'MANUFACTURER_ID' in table 'DOM_BIKE'.
+	 * <p>
+	 * If field name is or may be a reserved name in SQL the column name is prefixed by 'DOM_' (e.g.: {@code date} -> 'DOM_DATE', {@code type} -> 'DOM_TYPE', {@code number} -> 'DOM_NUMBER').
+	 * <p>
+	 * For fixed values used in WHERE clause there are following rules: {@code String} and {@code Enum} fields are associated with database specific string columns (VARCHAR, NVARCHAR2) and values in
+	 * WHERE clause have to be specified as string literals (STATUS='open'). Number fields ({@code Integer}, {@code Long}, {@code Double}, {@code BigInteger}, {@code BigDecimal}) are associated with
+	 * database specific number columns (NUMBER, INTEGER, FLOAT, DOUBLE, BIGINT) and values in WHERE clause have to be appropriate numbers (PRICE<12.0). LocaDate, LocalTime, LocalDateTime fields are
+	 * associated to database specific date/time columns (DATE, TIME, TIMESTAMP, DATETIME) and values in WHERE clause have to be valid database specific date/time strings.
+	 * <p>
+	 * {@code byte[]} and {@code char[]} and other array fields, as well as collection and map fields may not be used for WHERE clauses.
 	 * 
 	 * @param objectDomainClass
 	 *            object domain class of primary objects to load
@@ -439,9 +529,9 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	/**
 	 * (Re)load object from database.
 	 * <p>
-	 * If object is not initially saved or is not registered this method does nothing.
+	 * If object is not initially saved or is not registered, this method does nothing.
 	 * <p>
-	 * If direct or indirect parent objects exist which are not yet loaded due to data horizon control these object will be loaded (and instantiated) too.
+	 * If direct or indirect parent objects exist, which are not yet loaded due to data horizon condition, these object will be loaded (and instantiated) too.
 	 * <p>
 	 * Attention: Overrides unsaved changes of this object.
 	 * 
@@ -482,19 +572,19 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Allocate objects of one domain class for exclusive use by this domain controller instance.
+	 * Select and allocate objects of given domain class for exclusive use.
 	 * <p>
-	 * This method is intended to synchronize access if multiple domain controller instances concurrently operate on the same database.
+	 * This method is intended to synchronize access if multiple threads and/or multiple domain controller instances concurrently operate on the same database.
 	 * <p>
-	 * Allocated objects must later be released from exclusive use to allow exclusive use by other instances.
+	 * Allocated objects must later be released from exclusive use using {@link #releaseObjects(Collection, Class)}.
 	 * <p>
 	 * Exclusive allocation of objects is realized by inserting a record in a 'shadow' table for every allocated object with the object id as record id. The UNIQUE constraint for ID ensures, that this
-	 * can be done only once for one object.
+	 * can be done only once for one object. <b>No</b> FOR UPDATE clause is used on SELECT statement.
 	 * <p>
-	 * if 'update' function is given this function will be computed for all exclusively allocated objects and these objects will be saved to database immediately (e.g.
+	 * If 'update' function is specified this function will be computed initially for all exclusively allocated objects, and allocated objects will be saved to database immediately (e.g.
 	 * {@code o -> o.status = 'processing'} -> STATUS = 'processing').
 	 * <p>
-	 * Objects allocated here are typically already loaded by synchronization.
+	 * Objects allocated here are typically already loaded.
 	 * 
 	 * @param <S>
 	 *            specific domain object class type
@@ -556,7 +646,14 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	}
 
 	/**
-	 * Allocate this object exclusively, compute an update function on this object and save changed object immediately.
+	 * Select and allocate one object for exclusive use.
+	 * <p>
+	 * Allocated object must later be released from exclusive use using {@link #releaseObject(SqlDomainObject, Class, Consumer)}.
+	 * <p>
+	 * If 'update' function is specified this function will be computed initially for allocated object, and object will be saved to database immediately (e.g. {@code o -> o.status = 'processing'} ->
+	 * STATUS = 'processing').
+	 * <p>
+	 * For more information on exclusive object allocation see @{@link #allocateObjectsExclusively(Class, Class, String, int, Consumer)}.
 	 * 
 	 * @param <S>
 	 *            specific domain object class type
@@ -578,7 +675,7 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	@SuppressWarnings("unchecked")
 	public <S extends SqlDomainObject> boolean allocateObjectExclusively(S obj, Class<? extends SqlDomainObject> inProgressClass, Consumer<? super S> update) throws SQLException, SqlDbException {
 
-		String whereClause = ((SqlRegistry) registry).getTableFor(obj.getClass()).name + ".ID=" + obj.getId();
+		String whereClause = getSqlRegistry().getTableFor(obj.getClass()).name + ".ID=" + obj.getId();
 		Set<S> allocatedObjects = allocateObjectsExclusively((Class<S>) obj.getClass(), inProgressClass, whereClause, -1, update);
 		return (!allocatedObjects.isEmpty());
 	}
@@ -630,7 +727,7 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	}
 
 	/**
-	 * Convenience method to release multiple exclusively allocated objects from exclusive use.
+	 * Release multiple exclusively allocated objects from exclusive use.
 	 * 
 	 * @param <S>
 	 *            specific domain object class type
@@ -653,8 +750,8 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	/**
 	 * Exclusively compute a function on objects of one domain class and save updated objects immediately.
 	 * <p>
-	 * Works like {@link #allocateObjectsExclusively(Class, Class, String, int, Consumer)} but releases objects immediately after computing update function. Releasing updated objects
-	 * ({@link #releaseObject(SqlDomainObject, Class, Consumer)} is not necessary.
+	 * Works like {@link #allocateObjectsExclusively(Class, Class, String, int, Consumer)} but releases objects immediately after computing update function. Explicitly releasing updated objects is not
+	 * necessary.
 	 * 
 	 * @param <S>
 	 *            specific domain object class type
@@ -667,7 +764,7 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	 * @param update
 	 *            update function to compute immediately on selected objects (or null) - objects will be saved immediately after computing (e.g. {@code o -> o.status = 'done'} -> STATUS = 'done')
 	 * 
-	 * @return allocated objects
+	 * @return objects for which update function were computed
 	 * 
 	 * @throws SQLException
 	 *             exceptions thrown establishing connection or on executing SQL SELECT or UPDATE statement
@@ -692,13 +789,16 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	 * If object is 'new', which means it was not stored in database before, appropriate INSERT statement(s) will be performed, otherwise UPDATE statements for changed fields. If there are no
 	 * differences between object and object representation in database, nothing will be done and {@code false} will be returned.
 	 * <p>
-	 * If (any) domain class of this object has collection or map fields, INSERT and UPDATE statements will also be performed on 'entry' tables associated these fields.
+	 * If (any) domain class of this object has array collection or map fields, INSERT and UPDATE statements will also be performed on 'entry' tables associated these fields.
 	 * <p>
 	 * On SQL exception this exception and the field error(s) recognized will be assigned to the object. In this case object is marked as invalid and will not be found using
-	 * {@link SqlDomainController#allValid(Class)}. If object was already saved, UPDATE will be tried for every column separately to keep impact of failure small. For non-updatable fields original
-	 * content is restored to ensure data consistency between object and database representation.
+	 * {@link SqlDomainController#allValid(Class)}. If object was already saved, UPDATE will afterwards be tried for every field/column separately to keep impact of failure small. For non-updatable
+	 * fields original content is restored to ensure data consistency between object and database representation.
 	 * <p>
-	 * If initial saving - INSERTing object record(s) - fails whole transaction will be ROLLed BACK.
+	 * If an temporary invalid object can successfully be saved again (with changed and valid field values), assigned exception and field error(s) will be removed, so object than is considered again
+	 * as valid. again.
+	 * <p>
+	 * If initial saving - INSERTing object record(s) - fails whole transaction will be ROLLed BACK (if connection is not in auto-commit mode).
 	 * 
 	 * @param cn
 	 *            database connection
@@ -751,14 +851,14 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	/**
 	 * Save changed object to database.
 	 * <p>
-	 * Grabs a database connection form connection pool ({@link ConnectionPool} assigned to database connection object {@link SqlDb} and gives this connection back after saving object.
+	 * Grabs a non-auto-commit database connection form connection pool ({@link ConnectionPool} assigned to database connection object {@link SqlDb} and gives this connection back after saving object.
 	 * <p>
 	 * For detailed description see {@link #save(Connection, SqlDomainObject)}.
 	 * 
 	 * @param obj
 	 *            object to save
 	 * 
-	 * @return true if object's changes were saved to database, false if object was up-to-date and in error cases
+	 * @return true if object's changes were saved to database, false if object was up-to-date
 	 * 
 	 * @throws SQLException
 	 *             exception thrown during establishing database connection or execution of INSERT or UPDATE statement
@@ -767,38 +867,16 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	 */
 	public boolean save(SqlDomainObject obj) throws SQLException, SqlDbException {
 
-		// Use one transaction for all INSERTs and UPDATEs to allow ROLL BACK of whole transaction on error - on success transaction will be committed
-		try (SqlConnection sqlcn = SqlConnection.open(sqlDb.pool, false)) {
+		// Use one transaction for all INSERTs or UPDATEs to allow ROLL BACK of whole transaction on error - on success transaction will be committed
+		try (SqlConnection sqlcn = SqlConnection.open(sqlDb.getPool(), false)) {
 			return save(sqlcn.cn, obj);
 		}
 	}
 
 	/**
-	 * Save object and all direct and indirect children.
-	 * <p>
-	 * For detailed description of saving one object see {@link #save(SqlDomainObject)}.
-	 * 
-	 * @param obj
-	 *            main object object to save
-	 * 
-	 * @throws SQLException
-	 *             exception thrown during establishing database connection or execution of INSERT or UPDATE statement
-	 * @throws SqlDbException
-	 *             on internal errors
-	 */
-	public void saveIncludingChildren(SqlDomainObject obj) throws SQLException, SqlDbException {
-
-		for (SqlDomainObject child : getDirectChildren(obj)) {
-			saveIncludingChildren(child);
-		}
-
-		save(obj);
-	}
-
-	/**
 	 * Create, initialize, register and save ({@link #save(Connection, SqlDomainObject)}) object of domain class using given database connection.
 	 * <p>
-	 * If provided calls initialization function before object registration to ensure that registered object is also logically initialized.
+	 * If provided, calls initialization function before object registration to ensure that registered object is also logically initialized.
 	 * <p>
 	 * Uses default constructor which therefore must be defined explicitly if other constructors are defined!
 	 * <p>
@@ -858,7 +936,7 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	 * <p>
 	 * see {@link #createAndSave(Connection, Class, Consumer)} and {@link #save(SqlDomainObject)}.
 	 * <p>
-	 * Potentially thrown exception will be logged as well as exception context.
+	 * On unsuccessful saving object will be marked as invalid and field error(s) will be assigned to object. Thrown exception will be logged as well as exception context.
 	 * 
 	 * @param <S>
 	 *            specific domain object class type
@@ -887,12 +965,12 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Delete object and all referencing (child) objects if possible using existing database connection.
+	 * Delete this object and all referencing objects (if possible) using existing database connection.
 	 * <p>
 	 * Deletion of an object means: unregistering object and all direct and indirect child objects from object store, deleting associated records from database tables and removing object from
 	 * potentially existing accumulations of parent objects.
 	 * <p>
-	 * Checks if this object and all of the direct and indirect children can be deleted (see {@link DomainObject#canBeDeleted()}). No object will be deleted at all if this check fails.
+	 * Initially checks if this object and all of the direct and indirect children can be deleted (see {@link DomainObject#canBeDeleted()}). No object will be deleted at all if this check fails.
 	 * <p>
 	 * Note: Database records of old 'data horizon' controlled child objects (which are not registered), will be deleted directly by ON DELETE CASCADE clause (which is automatically defined for
 	 * FOREIGN KEYs in tables of 'data horizon' controlled domain classes in SQL scripts for database generation).
@@ -959,7 +1037,7 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	/**
 	 * Delete object and all referencing (child) objects if possible.
 	 * <p>
-	 * Grabs a database connection form connection pool ({@link ConnectionPool} assigned to database connection object {@link SqlDb} and gives this connection back after deletion.
+	 * Grabs a non-auto-commit database connection form connection pool ({@link ConnectionPool} assigned to database connection object {@link SqlDb} and gives this connection back after deletion.
 	 * <p>
 	 * For detailed description of deletion process see {@link #delete(Connection, SqlDomainObject)}.
 	 * 
@@ -976,7 +1054,7 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	public boolean delete(SqlDomainObject obj) throws SQLException, SqlDbException {
 
 		// Use one transaction for all DELETE operations to allow ROLLBACK of whole transaction on error - on success transaction will automatically be committed later on closing connection
-		try (SqlConnection sqlcn = SqlConnection.open(sqlDb.pool, false)) {
+		try (SqlConnection sqlcn = SqlConnection.open(sqlDb.getPool(), false)) {
 			delete(sqlcn.cn, obj);
 			return true;
 		}
@@ -987,12 +1065,12 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	// -------------------------------------------------------------------------
 
 	// Check for UNIQUE constraint violation
-	public boolean hasUniqueConstraintViolations(SqlDomainObject obj, Class<? extends SqlDomainObject> domainClass) {
+	boolean hasUniqueConstraintViolations(SqlDomainObject obj, Class<? extends SqlDomainObject> domainClass) {
 
 		boolean isConstraintViolated = false;
 
 		// Check if UNIQUE constraint is violated (UNIQUE constraints of single columns are also realized as table UNIQUE constraints)
-		SqlDbTable table = ((SqlRegistry) registry).getTableFor(domainClass);
+		SqlDbTable table = getSqlRegistry().getTableFor(domainClass);
 		for (SqlDbUniqueConstraint uc : table.uniqueConstraints) {
 
 			// Build predicate to check combined uniqueness and build lists of involved fields and values
@@ -1001,8 +1079,8 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 			List<Object> fieldValues = new ArrayList<>();
 
 			for (SqlDbColumn col : uc.columns) {
-				for (Field fld : registry.getDataAndReferenceFields(domainClass)) {
-					if (Common.objectsEqual(col, ((SqlRegistry) registry).getColumnFor(fld))) {
+				for (Field fld : getRegistry().getDataAndReferenceFields(domainClass)) {
+					if (Common.objectsEqual(col, getSqlRegistry().getColumnFor(fld))) {
 						combinedUniqueFields.add(fld);
 						Object fldValue = obj.getFieldValue(fld);
 						fieldValues.add(fldValue);
@@ -1016,7 +1094,7 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 				}
 			}
 
-			if (multipleUniqueColumnsPredicate != null && count(registry.getCastedDomainClass(obj), multipleUniqueColumnsPredicate) > 1) {
+			if (multipleUniqueColumnsPredicate != null && count(getRegistry().getCastedDomainClass(obj), multipleUniqueColumnsPredicate) > 1) {
 
 				List<String> fieldNames = combinedUniqueFields.stream().map(Member::getName).collect(Collectors.toList());
 				if (uc.columns.size() == 1) {
@@ -1040,11 +1118,11 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	}
 
 	// Check if value is too long for storing in associated column (yields only for enum fields - values of String fields which are to long will be truncated and field warning is generated on saving)
-	public boolean hasColumnSizeViolations(SqlDomainObject obj, Class<? extends SqlDomainObject> domainClass) {
+	boolean hasColumnSizeViolations(SqlDomainObject obj, Class<? extends SqlDomainObject> domainClass) {
 
 		boolean isConstraintViolated = false;
-		for (Field field : registry.getDataAndReferenceFields(domainClass)) {
-			SqlDbColumn column = ((SqlRegistry) registry).getColumnFor(field);
+		for (Field field : getRegistry().getDataAndReferenceFields(domainClass)) {
+			SqlDbColumn column = getSqlRegistry().getColumnFor(field);
 			Object fieldValue = obj.getFieldValue(field);
 
 			if ((fieldValue instanceof String || fieldValue instanceof Enum) && column.maxlen < fieldValue.toString().length()) {
@@ -1058,11 +1136,11 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	}
 
 	// Check if null value is provided for any column which has NOT NULL constraint
-	public boolean hasNotNullConstraintViolations(SqlDomainObject obj, Class<? extends SqlDomainObject> domainClass) {
+	boolean hasNotNullConstraintViolations(SqlDomainObject obj, Class<? extends SqlDomainObject> domainClass) {
 
 		boolean isConstraintViolated = false;
-		for (Field field : registry.getDataAndReferenceFields(domainClass)) {
-			SqlDbColumn column = ((SqlRegistry) registry).getColumnFor(field);
+		for (Field field : getRegistry().getDataAndReferenceFields(domainClass)) {
+			SqlDbColumn column = getSqlRegistry().getColumnFor(field);
 
 			if (!column.isNullable && obj.getFieldValue(field) == null) {
 				log.error("SDC: \tField  '{}': associated with column '{}' has NOT NULL constraint but field value provided is null for object {}!", field.getName(), column.name,
@@ -1090,7 +1168,7 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	public boolean hasConstraintViolations(SqlDomainObject obj) {
 
 		boolean isAnyConstraintViolated = false;
-		for (Class<? extends SqlDomainObject> domainClass : registry.getDomainClassesFor(obj.getClass())) {
+		for (Class<? extends SqlDomainObject> domainClass : getRegistry().getDomainClassesFor(obj.getClass())) {
 			isAnyConstraintViolated |= hasNotNullConstraintViolations(obj, domainClass);
 			isAnyConstraintViolated |= hasUniqueConstraintViolations(obj, domainClass);
 			isAnyConstraintViolated |= hasColumnSizeViolations(obj, domainClass);

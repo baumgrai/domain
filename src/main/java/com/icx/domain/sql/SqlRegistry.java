@@ -16,12 +16,12 @@ import java.util.Map.Entry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.common.Reflection;
-import com.icx.domain.DomainAnnotations.Secret;
-import com.icx.domain.DomainAnnotations.SqlColumn;
-import com.icx.domain.DomainAnnotations.SqlTable;
+import com.icx.common.CReflection;
 import com.icx.domain.DomainObject;
 import com.icx.domain.GuavaReplacements.CaseFormat;
+import com.icx.domain.sql.Annotations.Secret;
+import com.icx.domain.sql.Annotations.SqlColumn;
+import com.icx.domain.sql.Annotations.SqlTable;
 import com.icx.domain.Registry;
 import com.icx.jdbc.SqlDbHelpers;
 import com.icx.jdbc.SqlDb;
@@ -31,7 +31,7 @@ import com.icx.jdbc.SqlDbTable;
 import com.icx.jdbc.SqlDbTable.SqlDbColumn;
 
 /**
- * Singleton to register Java class/SQL table and field/column associations. Based on domain class registration of {@link Registry}. Only used internally.
+ * Register Java class/SQL table and field/column associations. Based on domain class registration of {@link Registry}. Only used internally.
  * 
  * @author baumgrai
  */
@@ -40,7 +40,7 @@ public class SqlRegistry extends Registry<SqlDomainObject> {
 	static final Logger log = LoggerFactory.getLogger(SqlRegistry.class);
 
 	public static final String TABLE_PREFIX = "DOM_";
-	public static final String SECRET_PREFIX = "SEC_";
+	static final String SECRET_PREFIX = "SEC_";
 
 	// -------------------------------------------------------------------------
 	// Statics
@@ -51,12 +51,11 @@ public class SqlRegistry extends Registry<SqlDomainObject> {
 
 	static {
 		try {
-			idField = DomainObject.class.getDeclaredField(DomainObject.ID_FIELD);
+			idField = DomainObject.class.getDeclaredField(Const.ID_FIELD);
 			lastModifiedInDbField = SqlDomainObject.class.getDeclaredField(Const.LAST_MODIFIED_IN_DB_FIELD);
 		}
 		catch (Exception e) {
-			log.error("SRG: Internal error: 'DomainObject' class does not contain field {} or 'SqlDomainObject' class does not contain field {}!", DomainObject.ID_FIELD,
-					Const.LAST_MODIFIED_IN_DB_FIELD);
+			log.error("SRG: Internal error: 'DomainObject' class does not contain field {} or 'SqlDomainObject' class does not contain field {}!", Const.ID_FIELD, Const.LAST_MODIFIED_IN_DB_FIELD);
 		}
 	}
 
@@ -77,7 +76,7 @@ public class SqlRegistry extends Registry<SqlDomainObject> {
 	// -------------------------------------------------------------------------
 
 	// Reference field -> column with foreign key constraint
-	public static boolean isSqlReferenceField(Field field) { // Static method here to use in tools
+	private static boolean isSqlReferenceField(Field field) { // Static method here to use in tools
 		return SqlDomainObject.class.isAssignableFrom(field.getType());
 	}
 
@@ -150,7 +149,7 @@ public class SqlRegistry extends Registry<SqlDomainObject> {
 	public SqlDbColumn getColumnFor(Field field) {
 		SqlDbColumn column = sqlColumnByFieldMap.get(field);
 		if (column == null) {
-			log.error("SRG: Internal error! No column associated to field '{}'!", Reflection.qualifiedName(field));
+			log.error("SRG: Internal error! No column associated to field '{}'!", CReflection.qualifiedName(field));
 			return null;
 		}
 		return column;
@@ -160,7 +159,7 @@ public class SqlRegistry extends Registry<SqlDomainObject> {
 	public SqlDbTable getEntryTableFor(Field complexField) {
 		SqlDbTable elementTable = sqlTableByComplexFieldMap.get(complexField);
 		if (elementTable == null) {
-			log.error("SRG: Internal error! No element or key/value table associated to field '{}'!", Reflection.qualifiedName(complexField));
+			log.error("SRG: Internal error! No element or key/value table associated to field '{}'!", CReflection.qualifiedName(complexField));
 			return null;
 		}
 		return elementTable;
@@ -170,7 +169,7 @@ public class SqlRegistry extends Registry<SqlDomainObject> {
 	public SqlDbColumn getMainTableRefIdColumnFor(Field complexField) {
 		SqlDbColumn refIdColumn = sqlMainRecordRefIdColumnByComplexFieldMap.get(complexField);
 		if (refIdColumn == null) {
-			log.error("SRG: Internal error! No referenced id column associated to element collection or key/value map field '{}'!", Reflection.qualifiedName(complexField));
+			log.error("SRG: Internal error! No referenced id column associated to element collection or key/value map field '{}'!", CReflection.qualifiedName(complexField));
 			return null;
 		}
 		return refIdColumn;
@@ -212,7 +211,7 @@ public class SqlRegistry extends Registry<SqlDomainObject> {
 						"Detected Java : SQL inconsistency! Table '" + registeredTable.toString() + "' associated to domain class '" + domainClass.getName() + "' does not have ID column!");
 			}
 			idColumn.fieldType = Long.class;
-			log.info("SRG: \t\t[ {} ({}) : {} ]", Reflection.qualifiedName(idField), idField.getType().getSimpleName(), idColumn.toStringWithoutTable(idField.getType()));
+			log.info("SRG: \t\t[ {} ({}) : {} ]", CReflection.qualifiedName(idField), idField.getType().getSimpleName(), idColumn.toStringWithoutTable(idField.getType()));
 
 			// Check column 'DOMAIN_CLASS'
 			SqlDbColumn domainClassColumn = registeredTable.findColumnByName(Const.DOMAIN_CLASS_COL);
@@ -231,7 +230,7 @@ public class SqlRegistry extends Registry<SqlDomainObject> {
 							"Detected Java : SQL inconsistency! Table " + registeredTable + " associated to domain class '" + domainClass.getName() + "' does not have LAST_MODIFIED column!");
 				}
 				lastModifiedColumn.fieldType = LocalDateTime.class;
-				log.info("SRG: \t\t[ {} ({}) : {} ]", Reflection.qualifiedName(lastModifiedInDbField), lastModifiedInDbField.getType().getSimpleName(),
+				log.info("SRG: \t\t[ {} ({}) : {} ]", CReflection.qualifiedName(lastModifiedInDbField), lastModifiedInDbField.getType().getSimpleName(),
 						lastModifiedColumn.toStringWithoutTable(lastModifiedInDbField.getType()));
 			}
 
@@ -249,7 +248,7 @@ public class SqlRegistry extends Registry<SqlDomainObject> {
 						// Stop registration
 						javaSqlInconsistence = true;
 						log.error("SRG: Nullable column '{}' of table '{}' cannot be associated to primitive field '{}' of domain class '{}' (which do not allow null values)!", columnName,
-								registeredTable.name, Reflection.qualifiedName(field), domainClass.getName());
+								registeredTable.name, CReflection.qualifiedName(field), domainClass.getName());
 					}
 
 					// Store [ field : column ] relation
@@ -263,21 +262,21 @@ public class SqlRegistry extends Registry<SqlDomainObject> {
 						column.fieldType = field.getType();
 					}
 
-					log.info("SRG: \t\t[ {} ({}) : {} ]", Reflection.qualifiedName(field), field.getType().getSimpleName(), column.toStringWithoutTable(field.getType()));
+					log.info("SRG: \t\t[ {} ({}) : {} ]", CReflection.qualifiedName(field), field.getType().getSimpleName(), column.toStringWithoutTable(field.getType()));
 				}
 				else { // If associated column does not exist...
 
 					if (field.isAnnotationPresent(Deprecated.class)) {
 						log.warn(
 								"SRG: Table '{}' associated to domain class '{}' does not have column '{}' associated to deprecated field '{}'! Unregister and further ignore this field in context of persistance.",
-								registeredTable.name, domainClass.getSimpleName(), columnName, Reflection.qualifiedName(field));
+								registeredTable.name, domainClass.getSimpleName(), columnName, CReflection.qualifiedName(field));
 						deprecatedFields.add(field); // Mark to unregister
 					}
 					else {
 						// Stop registration on serious inconsistency
 						javaSqlInconsistence = true;
 						log.error("SRG: Table '{}' associated to domain class '{}' does not have column '{}' associated to field '{}'!", registeredTable, domainClass.getName(), columnName,
-								Reflection.qualifiedName(field));
+								CReflection.qualifiedName(field));
 					}
 				}
 			}
@@ -302,19 +301,19 @@ public class SqlRegistry extends Registry<SqlDomainObject> {
 						if (complexField.getType().isArray()) {
 							Class<?> elementType = complexField.getType().getComponentType();
 							entryTable.findColumnByName(Const.ELEMENT_COL).fieldType = elementType;
-							log.info("SRG: \t\t[ {} : {}.{} ({}) ]", Reflection.fieldDeclaration(complexField), entryTable.name, refIdColumn.name, elementType.getTypeName());
+							log.info("SRG: \t\t[ {} : {}.{} ({}) ]", CReflection.fieldDeclaration(complexField), entryTable.name, refIdColumn.name, elementType.getTypeName());
 						}
 						else if (Collection.class.isAssignableFrom(complexField.getType())) {
 							Type elementType = ((ParameterizedType) complexField.getGenericType()).getActualTypeArguments()[0];
 							entryTable.findColumnByName(Const.ELEMENT_COL).fieldType = (elementType instanceof ParameterizedType ? String.class : (Class<?>) elementType);
-							log.info("SRG: \t\t[ {} : {}.{} ({}) ]", Reflection.fieldDeclaration(complexField), entryTable.name, refIdColumn.name, elementType.getTypeName());
+							log.info("SRG: \t\t[ {} : {}.{} ({}) ]", CReflection.fieldDeclaration(complexField), entryTable.name, refIdColumn.name, elementType.getTypeName());
 						}
 						else {
 							Type keyType = ((ParameterizedType) complexField.getGenericType()).getActualTypeArguments()[0];
 							Type valueType = ((ParameterizedType) complexField.getGenericType()).getActualTypeArguments()[1];
 							entryTable.findColumnByName(Const.KEY_COL).fieldType = (Class<?>) keyType;
 							entryTable.findColumnByName(Const.VALUE_COL).fieldType = (valueType instanceof ParameterizedType ? String.class : (Class<?>) valueType);
-							log.info("SRG: \t\t[ {} : {}.{} ({}/{}) ]", Reflection.fieldDeclaration(complexField), entryTable.name, refIdColumn.name, keyType.getTypeName(), valueType.getTypeName());
+							log.info("SRG: \t\t[ {} : {}.{} ({}/{}) ]", CReflection.fieldDeclaration(complexField), entryTable.name, refIdColumn.name, keyType.getTypeName(), valueType.getTypeName());
 						}
 					}
 				}
@@ -324,7 +323,7 @@ public class SqlRegistry extends Registry<SqlDomainObject> {
 					if (complexField.isAnnotationPresent(Deprecated.class)) {
 						log.warn(
 								"SRG: Table '{}' associated to deprecated element collection or key/value map field '{}' probably does not exist! Unregister and further ignore this field in context of persistance.",
-								tableName, Reflection.qualifiedName(complexField));
+								tableName, CReflection.qualifiedName(complexField));
 						deprecatedFields.add(complexField); // Mark to unregister
 					}
 					else {

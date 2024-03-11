@@ -1,8 +1,8 @@
 package com.icx.dom.junit.domain;
 
-import com.icx.domain.DomainAnnotations.SqlTable;
-import com.icx.domain.DomainAnnotations.UseDataHorizon;
 import com.icx.domain.DomainObject;
+import com.icx.domain.sql.Annotations.SqlTable;
+import com.icx.domain.sql.Annotations.UseDataHorizon;
 
 @UseDataHorizon
 @SqlTable(name = "DOM_AB")

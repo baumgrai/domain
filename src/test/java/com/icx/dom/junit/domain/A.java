@@ -11,16 +11,16 @@ import java.util.Map;
 import java.util.Set;
 
 import com.icx.dom.junit.domain.sub.X;
-import com.icx.domain.DomainAnnotations.Accumulation;
-import com.icx.domain.DomainAnnotations.Changed;
-import com.icx.domain.DomainAnnotations.Created;
-import com.icx.domain.DomainAnnotations.Crypt;
-import com.icx.domain.DomainAnnotations.Removed;
-import com.icx.domain.DomainAnnotations.Secret;
-import com.icx.domain.DomainAnnotations.SqlColumn;
-import com.icx.domain.DomainAnnotations.SqlTable;
-import com.icx.domain.DomainAnnotations.StoreAsString;
 import com.icx.domain.sql.SqlDomainObject;
+import com.icx.domain.sql.Annotations.Accumulation;
+import com.icx.domain.sql.Annotations.Changed;
+import com.icx.domain.sql.Annotations.Created;
+import com.icx.domain.sql.Annotations.Crypt;
+import com.icx.domain.sql.Annotations.Removed;
+import com.icx.domain.sql.Annotations.Secret;
+import com.icx.domain.sql.Annotations.SqlColumn;
+import com.icx.domain.sql.Annotations.SqlTable;
+import com.icx.domain.sql.Annotations.StoreAsString;
 
 @Changed(versions = { "1.1:notUnique=i;unique=i&integerValue;indexes=l", "1.2:indexesToDrop=longValue" })
 @SqlTable(uniqueConstraints = { "i, integerValue" }, indexes = { "l", "longValue" }) // Multi column constraints

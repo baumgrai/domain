@@ -10,9 +10,9 @@ import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.common.Prop;
-import com.icx.common.base.CFile;
-import com.icx.common.base.CRandom;
+import com.icx.common.CFile;
+import com.icx.common.CProp;
+import com.icx.common.CRandom;
 import com.icx.dom.app.survey.domain.call.PhoneCall.PhoneCallSurvey;
 import com.icx.dom.app.survey.domain.config.Question;
 import com.icx.dom.app.survey.domain.config.Question.QuestionType;
@@ -43,8 +43,8 @@ public class SurveyApp extends SqlDomainController {
 	public static void main(String[] args) throws Exception {
 
 		// Read JDBC and Domain properties. Note: you should not have multiple properties files with same name in your class path
-		Properties dbProps = Prop.readEnvironmentSpecificProperties(Prop.findPropertiesFile("db.properties"), "local/mysql/survey", null);
-		Properties domainProps = Prop.readProperties(Prop.findPropertiesFile("domain.properties"));
+		Properties dbProps = CProp.readEnvironmentSpecificProperties(CProp.findPropertiesFile("db.properties"), "local/mysql/survey", null);
+		Properties domainProps = CProp.readProperties(CProp.findPropertiesFile(SqlDomainController.DOMAIN_PROPERIES_FILE));
 
 		// Register domain classes and domain classes and database tables
 		sdc.initialize(dbProps, domainProps, com.icx.dom.app.survey.SurveyApp.class.getPackage().getName() + ".domain");
@@ -98,7 +98,7 @@ public class SurveyApp extends SqlDomainController {
 			}
 
 			// Create questions and assign them to survey
-			try (SqlConnection sqlcn = SqlConnection.open(sdc.sqlDb.pool, false)) {
+			try (SqlConnection sqlcn = SqlConnection.open(sdc.getPool(), false)) {
 
 				for (QuestionType qt : QuestionType.values()) {
 					Question.questionMap.put(qt, Question.createQuestion(sqlcn, qt));
@@ -223,7 +223,7 @@ public class SurveyApp extends SqlDomainController {
 			while (!stopAdminThreads) {
 
 				// Manipulate survey randomly
-				try (SqlConnection sqlcn = SqlConnection.open(sdc.sqlDb.pool, false)) {
+				try (SqlConnection sqlcn = SqlConnection.open(sdc.getPool(), false)) {
 
 					try {
 						Set<Survey> surveys = sdc.allocateObjectsExclusively(Survey.class, Survey.InProgress.class, "SEMAPHORE='GREEN'", 1, s -> s.semaphore = Semaphore.RED);

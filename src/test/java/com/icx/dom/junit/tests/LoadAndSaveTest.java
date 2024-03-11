@@ -33,13 +33,13 @@ import org.opentest4j.AssertionFailedError;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.common.Prop;
-import com.icx.common.base.CFile;
-import com.icx.common.base.CList;
-import com.icx.common.base.CMap;
-import com.icx.common.base.CResource;
-import com.icx.common.base.CSet;
-import com.icx.common.base.Common;
+import com.icx.common.CFile;
+import com.icx.common.CList;
+import com.icx.common.CMap;
+import com.icx.common.CProp;
+import com.icx.common.CResource;
+import com.icx.common.CSet;
+import com.icx.common.Common;
 import com.icx.dom.junit.TestHelpers;
 import com.icx.dom.junit.domain.A;
 import com.icx.dom.junit.domain.A.Stucture;
@@ -55,6 +55,7 @@ import com.icx.dom.junit.domain.sub.Z;
 import com.icx.domain.sql.SaveHelpers;
 import com.icx.domain.sql.SqlDomainController;
 import com.icx.domain.sql.SqlDomainObject;
+import com.icx.jdbc.ConnectionPool;
 import com.icx.jdbc.SqlConnection;
 import com.icx.jdbc.SqlDb;
 import com.icx.jdbc.SqlDb.DbType;
@@ -107,7 +108,7 @@ class LoadAndSaveTest extends TestHelpers {
 			sdc.delete(c);
 		}
 
-		try (SqlConnection sqlcn = SqlConnection.open(sdc.sqlDb.pool, true)) { // Data horizon controlled objects which were not be loaded
+		try (SqlConnection sqlcn = SqlConnection.open(sdc.getPool(), true)) { // Data horizon controlled objects which were not be loaded
 			SqlDb.deleteFrom(sqlcn.cn, "DOM_Z", null);
 			SqlDb.deleteFrom(sqlcn.cn, "DOM_Y", null);
 			SqlDb.deleteFrom(sqlcn.cn, "DOM_X", null);
@@ -139,11 +140,11 @@ class LoadAndSaveTest extends TestHelpers {
 
 			assertEquals(A.class, sdc.getDomainClassByName("A"));
 
-			File dbPropsFile = Prop.findPropertiesFile("db.properties");
+			File dbPropsFile = CProp.findPropertiesFile("db.properties");
 			String localConf = "local/" + dbType.toString().toLowerCase() + "/junit";
-			Properties dbProps = Prop.readEnvironmentSpecificProperties(dbPropsFile, localConf, CList.newList("dbConnectionString", "dbUser"));
+			Properties dbProps = CProp.readEnvironmentSpecificProperties(dbPropsFile, localConf, CList.newList(ConnectionPool.DB_CONNECTION_STRING_PROP, ConnectionPool.DB_USER_PROP));
 
-			Properties domainProps = Prop.readProperties(Prop.findPropertiesFile("domain.properties"));
+			Properties domainProps = CProp.readProperties(CProp.findPropertiesFile(SqlDomainController.DOMAIN_PROPERIES_FILE));
 
 			log.info("\tRegister all domain classes in package, establish logical database connection and associate Java <-> SQL...");
 
@@ -383,7 +384,7 @@ class LoadAndSaveTest extends TestHelpers {
 
 			assertEquals(2, sdc.count(O.class, o -> true));
 
-			try (SqlConnection sqlcn = SqlConnection.open(sdc.sqlDb.pool, false)) {
+			try (SqlConnection sqlcn = SqlConnection.open(sdc.getPool(), false)) {
 
 				log.info("\tDelete second object...");
 
@@ -396,39 +397,39 @@ class LoadAndSaveTest extends TestHelpers {
 				log.warn("Next error/warn message is expected here");
 				File file = new File("bike1.jpg");
 				file.delete(); // Forces putting an error message in file content in entry
-				sdc.sqlDb.update(sqlcn.cn, "DOM_A",
+				sdc.getSqlDb().update(sqlcn.cn, "DOM_A",
 						CMap.newMap("I", 2, "DOM_LONGTEXT", "äöüßÄÖÜ".toCharArray(), "DOM_FILE", SaveHelpers.buildFileByteEntry(file, "DOM_FILE"), "DOM_TYPE", "B", "O_ID", null), "S='S'");
 
-				sdc.sqlDb.update(sqlcn.cn, "DOM_A_STRINGS", CMap.newMap("ELEMENT_ORDER", 1), "ELEMENT='B'");
-				sdc.sqlDb.update(sqlcn.cn, "DOM_A_STRINGS", CMap.newMap("ELEMENT_ORDER", 0), "ELEMENT='C'");
+				sdc.getSqlDb().update(sqlcn.cn, "DOM_A_STRINGS", CMap.newMap("ELEMENT_ORDER", 1), "ELEMENT='B'");
+				sdc.getSqlDb().update(sqlcn.cn, "DOM_A_STRINGS", CMap.newMap("ELEMENT_ORDER", 0), "ELEMENT='C'");
 				SqlDb.deleteFrom(sqlcn.cn, "DOM_A_STRINGS", "ELEMENT='D'");
 
 				if (dbType == DbType.ORACLE) {
-					sdc.sqlDb.update(sqlcn.cn, "DOM_A_STRINGS", CMap.newMap("ELEMENT", "E"), "ELEMENT IS NULL");
+					sdc.getSqlDb().update(sqlcn.cn, "DOM_A_STRINGS", CMap.newMap("ELEMENT", "E"), "ELEMENT IS NULL");
 				}
 				else {
-					sdc.sqlDb.update(sqlcn.cn, "DOM_A_STRINGS", CMap.newMap("ELEMENT", "E"), "ELEMENT=''");
+					sdc.getSqlDb().update(sqlcn.cn, "DOM_A_STRINGS", CMap.newMap("ELEMENT", "E"), "ELEMENT=''");
 				}
-				sdc.sqlDb.insertInto(sqlcn.cn, "DOM_A_STRINGS", CMap.newSortedMap("A_ID", aa1.getId(), "ELEMENT", "G", "ELEMENT_ORDER", 6));
+				sdc.getSqlDb().insertInto(sqlcn.cn, "DOM_A_STRINGS", CMap.newSortedMap("A_ID", aa1.getId(), "ELEMENT", "G", "ELEMENT_ORDER", 6));
 
 				SqlDb.deleteFrom(sqlcn.cn, "DOM_A_DOUBLE_SET", "ELEMENT IS NULL");
-				sdc.sqlDb.insertInto(sqlcn.cn, "DOM_A_DOUBLE_SET", CMap.newSortedMap("A_ID", aa1.getId(), "ELEMENT", 0.4));
+				sdc.getSqlDb().insertInto(sqlcn.cn, "DOM_A_DOUBLE_SET", CMap.newSortedMap("A_ID", aa1.getId(), "ELEMENT", 0.4));
 
 				SqlDb.deleteFrom(sqlcn.cn, "DOM_A_BIG_DECIMAL_MAP", "ENTRY_KEY='d'");
 				SqlDb.deleteFrom(sqlcn.cn, "DOM_A_BIG_DECIMAL_MAP", "ENTRY_KEY IS NULL");
-				sdc.sqlDb.insertInto(sqlcn.cn, "DOM_A_BIG_DECIMAL_MAP", CMap.newSortedMap("A_ID", aa1.getId(), "ENTRY_KEY", "f", "ENTRY_VALUE", 6L));
+				sdc.getSqlDb().insertInto(sqlcn.cn, "DOM_A_BIG_DECIMAL_MAP", CMap.newSortedMap("A_ID", aa1.getId(), "ENTRY_KEY", "f", "ENTRY_VALUE", 6L));
 
 				SqlDb.deleteFrom(sqlcn.cn, "DOM_A_LIST_OF_LISTS", "ELEMENT IS NULL");
-				sdc.sqlDb.update(sqlcn.cn, "DOM_A_LIST_OF_LISTS", CMap.newMap("ELEMENT", "A,B,C"), "ELEMENT_ORDER=3");
+				sdc.getSqlDb().update(sqlcn.cn, "DOM_A_LIST_OF_LISTS", CMap.newMap("ELEMENT", "A,B,C"), "ELEMENT_ORDER=3");
 
 				SqlDb.deleteFrom(sqlcn.cn, "DOM_A_LIST_OF_MAPS", "ELEMENT IS NULL");
-				sdc.sqlDb.update(sqlcn.cn, "DOM_A_LIST_OF_MAPS", CMap.newMap("ELEMENT", "A=2;B=1;C=3"), "ELEMENT_ORDER=3");
+				sdc.getSqlDb().update(sqlcn.cn, "DOM_A_LIST_OF_MAPS", CMap.newMap("ELEMENT", "A=2;B=1;C=3"), "ELEMENT_ORDER=3");
 
 				SqlDb.deleteFrom(sqlcn.cn, "DOM_A_MAP_OF_LISTS", "ENTRY_KEY=0");
-				sdc.sqlDb.update(sqlcn.cn, "DOM_A_MAP_OF_LISTS", CMap.newMap("ENTRY_VALUE", "A,B,C"), "ENTRY_KEY=3");
+				sdc.getSqlDb().update(sqlcn.cn, "DOM_A_MAP_OF_LISTS", CMap.newMap("ENTRY_VALUE", "A,B,C"), "ENTRY_KEY=3");
 
 				SqlDb.deleteFrom(sqlcn.cn, "DOM_A_MAP_OF_MAPS", "ENTRY_KEY=0");
-				sdc.sqlDb.update(sqlcn.cn, "DOM_A_MAP_OF_MAPS", CMap.newMap("ENTRY_VALUE", "A=true;B=false"), "ENTRY_KEY=2");
+				sdc.getSqlDb().update(sqlcn.cn, "DOM_A_MAP_OF_MAPS", CMap.newMap("ENTRY_VALUE", "A=true;B=false"), "ENTRY_KEY=2");
 
 				sqlcn.cn.commit();
 			}
@@ -570,7 +571,7 @@ class LoadAndSaveTest extends TestHelpers {
 			log.info("\tTEST 5: dataHorizon()");
 
 			AA aa1 = null;
-			try (SqlConnection sqlcn = SqlConnection.open(sdc.sqlDb.pool, true)) {
+			try (SqlConnection sqlcn = SqlConnection.open(sdc.getPool(), true)) {
 
 				log.info("\tCreate and save data horizon controlled objects...");
 
@@ -620,8 +621,8 @@ class LoadAndSaveTest extends TestHelpers {
 
 			log.info("\tSynchronize again with database to unregister objects out of data horizon...");
 
-			String dataHorizonPeriod = sdc.dataHorizonPeriod;
-			sdc.dataHorizonPeriod = "1s";
+			String dataHorizonPeriod = sdc.getDataHorizonPeriodForTest();
+			sdc.setDataHorizonPeriodForTest("1s");
 			sdc.synchronize(); // Unregister x's and aa due to out-of-data-horizon condition (remove from heap)
 
 			log.info("\tAssertions on unregistration...");
@@ -639,7 +640,7 @@ class LoadAndSaveTest extends TestHelpers {
 			log.info("\tSynchronize again with database to force (re)loading referenced but unregistered objects...");
 
 			sdc.synchronize();
-			sdc.dataHorizonPeriod = dataHorizonPeriod;
+			sdc.setDataHorizonPeriodForTest(dataHorizonPeriod);
 
 			log.info("\tAssert reloading of referenced objects...");
 
@@ -719,12 +720,12 @@ class LoadAndSaveTest extends TestHelpers {
 			y3.z = z3;
 			sdc.save(y3);
 
-			try (SqlConnection sqlcn = SqlConnection.open(sdc.sqlDb.pool, false)) {
-				sdc.sqlDb.update(sqlcn.cn, "DOM_Y", CMap.newMap("Z_ID", z3.getId()), "ID=" + y1.getId());
-				sdc.sqlDb.update(sqlcn.cn, "DOM_Y", CMap.newMap("Y_ID", y3.getId()), "ID=" + y1.getId());
-				sdc.sqlDb.update(sqlcn.cn, "DOM_X", CMap.newMap("A_ID", aa3.getId()), "ID=" + x1.getId());
-				sdc.sqlDb.update(sqlcn.cn, "DOM_X", CMap.newMap("Y_ID", y3.getId()), "ID=" + x1.getId());
-				sdc.sqlDb.update(sqlcn.cn, "DOM_Z", CMap.newMap("X_ID", x3.getId()), "ID=" + z1.getId());
+			try (SqlConnection sqlcn = SqlConnection.open(sdc.getPool(), false)) {
+				sdc.getSqlDb().update(sqlcn.cn, "DOM_Y", CMap.newMap("Z_ID", z3.getId()), "ID=" + y1.getId());
+				sdc.getSqlDb().update(sqlcn.cn, "DOM_Y", CMap.newMap("Y_ID", y3.getId()), "ID=" + y1.getId());
+				sdc.getSqlDb().update(sqlcn.cn, "DOM_X", CMap.newMap("A_ID", aa3.getId()), "ID=" + x1.getId());
+				sdc.getSqlDb().update(sqlcn.cn, "DOM_X", CMap.newMap("Y_ID", y3.getId()), "ID=" + x1.getId());
+				sdc.getSqlDb().update(sqlcn.cn, "DOM_Z", CMap.newMap("X_ID", x3.getId()), "ID=" + z1.getId());
 			}
 
 			log.info("\tSynchronize again with database to recognize unsaved changes...");
@@ -893,8 +894,8 @@ class LoadAndSaveTest extends TestHelpers {
 
 			assertDoesNotThrow(() -> sdc.delete(c1));
 
-			try (SqlConnection sqlcn = SqlConnection.open(sdc.sqlDb.pool, false)) {
-				assertEquals(0, sdc.sqlDb.selectCountFrom(sqlcn.cn, "DOM_C", null));
+			try (SqlConnection sqlcn = SqlConnection.open(sdc.getPool(), false)) {
+				assertEquals(0, sdc.getSqlDb().selectCountFrom(sqlcn.cn, "DOM_C", null));
 			}
 
 			C c1a = sdc.createAndSave(C.class, null);
@@ -905,8 +906,8 @@ class LoadAndSaveTest extends TestHelpers {
 
 			assertDoesNotThrow(() -> sdc.delete(c2));
 
-			try (SqlConnection sqlcn = SqlConnection.open(sdc.sqlDb.pool, false)) {
-				assertEquals(0, sdc.sqlDb.selectCountFrom(sqlcn.cn, "DOM_C", null));
+			try (SqlConnection sqlcn = SqlConnection.open(sdc.getPool(), false)) {
+				assertEquals(0, sdc.getSqlDb().selectCountFrom(sqlcn.cn, "DOM_C", null));
 			}
 
 			C c1b = sdc.create(C.class, null);
@@ -917,8 +918,8 @@ class LoadAndSaveTest extends TestHelpers {
 
 			assertDoesNotThrow(() -> sdc.delete(c1b));
 
-			try (SqlConnection sqlcn = SqlConnection.open(sdc.sqlDb.pool, false)) {
-				assertEquals(0, sdc.sqlDb.selectCountFrom(sqlcn.cn, "DOM_C", null));
+			try (SqlConnection sqlcn = SqlConnection.open(sdc.getPool(), false)) {
+				assertEquals(0, sdc.getSqlDb().selectCountFrom(sqlcn.cn, "DOM_C", null));
 			}
 
 			log.info("\tError case exception on deletion...");
@@ -933,8 +934,8 @@ class LoadAndSaveTest extends TestHelpers {
 			log.warn("Error/warn messages regarding integrity constraint violation are expected here...");
 			assertThrows(SQLException.class, () -> sdc.delete(ce1));
 
-			try (SqlConnection sqlcn = SqlConnection.open(sdc.sqlDb.pool, false)) {
-				assertEquals(2, sdc.sqlDb.selectCountFrom(sqlcn.cn, "DOM_C", null));
+			try (SqlConnection sqlcn = SqlConnection.open(sdc.getPool(), false)) {
+				assertEquals(2, sdc.getSqlDb().selectCountFrom(sqlcn.cn, "DOM_C", null));
 			}
 
 			sdc.reregisterOnlyForTest(ce2);
@@ -942,8 +943,8 @@ class LoadAndSaveTest extends TestHelpers {
 			assertEquals(2, sdc.count(C.class, c -> true));
 			assertDoesNotThrow(() -> sdc.delete(ce1));
 
-			try (SqlConnection sqlcn = SqlConnection.open(sdc.sqlDb.pool, false)) {
-				assertEquals(0, sdc.sqlDb.selectCountFrom(sqlcn.cn, "DOM_C", null));
+			try (SqlConnection sqlcn = SqlConnection.open(sdc.getPool(), false)) {
+				assertEquals(0, sdc.getSqlDb().selectCountFrom(sqlcn.cn, "DOM_C", null));
 			}
 			assertEquals(0, sdc.count(C.class, c -> true));
 		}
@@ -1088,7 +1089,7 @@ class LoadAndSaveTest extends TestHelpers {
 
 			cleanup();
 
-			sdc.sqlDb.close();
+			sdc.getSqlDb().close();
 		}
 		catch (AssertionFailedError failed) {
 			throw failed;

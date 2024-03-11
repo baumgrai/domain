@@ -5,14 +5,14 @@ import java.time.temporal.ChronoUnit;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
-import com.icx.common.base.Common;
+import com.icx.common.Common;
 import com.icx.dom.app.bikestore.BikeStoreApp;
 import com.icx.dom.app.bikestore.domain.bike.Bike;
-import com.icx.domain.DomainAnnotations.SqlColumn;
-import com.icx.domain.DomainAnnotations.UseDataHorizon;
 import com.icx.domain.DomainObject;
 import com.icx.domain.sql.SqlDomainController;
 import com.icx.domain.sql.SqlDomainObject;
+import com.icx.domain.sql.Annotations.SqlColumn;
+import com.icx.domain.sql.Annotations.UseDataHorizon;
 
 @UseDataHorizon
 // This means that older orders, which were processed before data horizon (last modification date is before database synchronization time minus 'data horizon period') will not be loaded from database

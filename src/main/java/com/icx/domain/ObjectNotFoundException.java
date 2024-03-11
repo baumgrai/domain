@@ -9,16 +9,15 @@ public class ObjectNotFoundException extends Exception {
 
 	private static final long serialVersionUID = 1L;
 
+	/**
+	 * Constructor.
+	 * 
+	 * @param msg
+	 *            exception message
+	 */
 	public ObjectNotFoundException(
 			String msg) {
 
 		super(msg);
-	}
-
-	public ObjectNotFoundException(
-			String msg,
-			Exception ex) {
-
-		super(msg, ex);
 	}
 }

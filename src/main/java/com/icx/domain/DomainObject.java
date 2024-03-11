@@ -9,9 +9,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.common.Reflection;
-import com.icx.common.base.CLog;
-import com.icx.common.base.Common;
+import com.icx.common.CLog;
+import com.icx.common.CReflection;
+import com.icx.common.Common;
 import com.icx.domain.sql.SqlDomainController;
 import com.icx.domain.sql.SqlDomainObject;
 
@@ -28,20 +28,14 @@ public abstract class DomainObject extends Common implements Comparable<DomainOb
 	static final Logger log = LoggerFactory.getLogger(DomainObject.class);
 
 	// -------------------------------------------------------------------------
-	// Finals
-	// -------------------------------------------------------------------------
-
-	public static final String ID_FIELD = "id";
-
-	// -------------------------------------------------------------------------
 	// Members
 	// -------------------------------------------------------------------------
 
 	// ID
-	protected long id = 0;
+	private long id = 0;
 
 	/**
-	 * Get object id
+	 * Get object id.
 	 * 
 	 * @return object id
 	 */
@@ -49,12 +43,37 @@ public abstract class DomainObject extends Common implements Comparable<DomainOb
 		return id;
 	}
 
-	public void setId(long id) { // May not be called from applications - only used in SqlDomainController#selectForExclusiveUse()
+	/**
+	 * Only for internal use!
+	 * 
+	 * @param id
+	 *            object id
+	 */
+	public void setId(long id) {
 		this.id = id;
 	}
 
 	// Associated domain controller
-	public DomainController<?> dc = null;
+	private DomainController<? extends DomainObject> dc = null;
+
+	/**
+	 * Get domain controller which instantiated this object.
+	 * 
+	 * @return associated domain controller object
+	 */
+	public DomainController<? extends DomainObject> getDc() {
+		return dc;
+	}
+
+	/**
+	 * Only for internal use!
+	 * 
+	 * @param dc
+	 *            domain controller object to associate
+	 */
+	public void setDc(DomainController<? extends DomainObject> dc) {
+		this.dc = dc;
+	}
 
 	// Shadows for reference fields where accumulations are assigned to -
 	// contains referenced objects before updating accumulations and so allow both changing accumulation of old and new referenced objects
@@ -77,11 +96,7 @@ public abstract class DomainObject extends Common implements Comparable<DomainOb
 	}
 
 	/*
-	 * (non-Javadoc)
-	 * 
-	 * Compares objects by 'universal' object id - domainclassname@objectid - if not overridden by specific domain class
-	 * 
-	 * @see java.lang.Comparable#compareTo(java.lang.Object)
+	 * Compares objects by 'universal' object id - &lt;domainclassname&gt;@&lt;objectid&gt; - if not overridden by specific domain class
 	 */
 	@Override
 	public int compareTo(DomainObject o) {
@@ -103,7 +118,7 @@ public abstract class DomainObject extends Common implements Comparable<DomainOb
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Generates 'universal' object id - domainclassname@objectid
+	 * Generates 'universal' object id: scheme: &lt;domainclassname&gt;@&lt;objectid&gt;.
 	 * 
 	 * @return universal object id
 	 */
@@ -156,24 +171,40 @@ public abstract class DomainObject extends Common implements Comparable<DomainOb
 	// Fields
 	// -------------------------------------------------------------------------
 
+	/**
+	 * Only for internal use!
+	 * 
+	 * @param field
+	 *            field to get value from
+	 * 
+	 * @return value
+	 */
 	// Get field value for object
 	public Object getFieldValue(Field field) {
 		try {
 			return field.get(this);
 		}
 		catch (IllegalArgumentException | IllegalAccessException e) {
-			log.error("DOB: {} '{}' occurred trying to get value of field '{}' for object {}", e.getClass().getSimpleName(), e.getMessage(), Reflection.qualifiedName(field), name());
+			log.error("DOB: {} '{}' occurred trying to get value of field '{}' for object {}", e.getClass().getSimpleName(), e.getMessage(), CReflection.qualifiedName(field), name());
 			return null;
 		}
 	}
 
-	// Set field value for object
+	/**
+	 * Only for internal use!
+	 * 
+	 * @param field
+	 *            field
+	 * @param value
+	 *            value
+	 */
+	// Set value of field
 	public void setFieldValue(Field field, Object value) {
 		try {
 			field.set(this, value);
 		}
 		catch (IllegalArgumentException | IllegalAccessException e) {
-			log.error("DC: {} '{}' oocurred trying to set field '{}' of object {} to {}", e.getClass().getSimpleName(), e.getMessage(), Reflection.qualifiedName(field), name(),
+			log.error("DC: {} '{}' oocurred trying to set field '{}' of object {} to {}", e.getClass().getSimpleName(), e.getMessage(), CReflection.qualifiedName(field), name(),
 					CLog.forSecretLogging(field, value));
 		}
 	}
@@ -185,7 +216,7 @@ public abstract class DomainObject extends Common implements Comparable<DomainOb
 	/**
 	 * To override by specific domain class to check if object can be deleted.
 	 * <p>
-	 * If this method returns false for any object in a deletion process (deleting an object and direct an indirect child objects) no object will be deleted at all.
+	 * If this method returns false for any object in a deletion process (object itself or any direct or indirect child) no object will be deleted at all.
 	 * 
 	 * @return true if object can be deleted, false otherwise
 	 */
@@ -200,7 +231,7 @@ public abstract class DomainObject extends Common implements Comparable<DomainOb
 
 	// Get accumulation set from accumulation field for object - ensure set is not null
 	@SuppressWarnings("unchecked")
-	public Set<DomainObject> getAccumulationSet(Field accuField) {
+	Set<DomainObject> getAccumulationSet(Field accuField) {
 
 		Set<DomainObject> accumulationSet = (Set<DomainObject>) getFieldValue(accuField);
 		if (accumulationSet == null) {
@@ -215,7 +246,7 @@ public abstract class DomainObject extends Common implements Comparable<DomainOb
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Check if object is currently registered in object store.
+	 * Convenience method to check if object is currently registered in object store.
 	 * 
 	 * @return true if object is registered, false if not
 	 */

@@ -32,24 +32,24 @@ import org.junit.jupiter.api.TestMethodOrder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.common.Prop;
-import com.icx.common.Reflection;
-import com.icx.common.base.CArray;
-import com.icx.common.base.CCollection;
-import com.icx.common.base.CFile;
-import com.icx.common.base.CList;
-import com.icx.common.base.CLog;
-import com.icx.common.base.CMap;
-import com.icx.common.base.CMath;
-import com.icx.common.base.CRandom;
-import com.icx.common.base.CResource;
-import com.icx.common.base.CSet;
-import com.icx.common.base.Common;
+import com.icx.common.CArray;
+import com.icx.common.CCollection;
+import com.icx.common.CFile;
+import com.icx.common.CList;
+import com.icx.common.CLog;
+import com.icx.common.CMap;
+import com.icx.common.CMath;
+import com.icx.common.CProp;
+import com.icx.common.CRandom;
+import com.icx.common.CReflection;
+import com.icx.common.CResource;
+import com.icx.common.CSet;
+import com.icx.common.Common;
 import com.icx.dom.app.bikestore.BikeStoreApp;
 import com.icx.dom.app.bikestore.domain.client.Client;
 import com.icx.dom.app.bikestore.domain.client.Client.RegionInProgress;
 import com.icx.dom.junit.TestHelpers;
-import com.icx.domain.DomainAnnotations.Secret;
+import com.icx.domain.sql.Annotations.Secret;
 
 @TestMethodOrder(OrderAnnotation.class)
 class CommonTest extends TestHelpers {
@@ -112,15 +112,6 @@ class CommonTest extends TestHelpers {
 		assertEquals(123.46, Common.parseDouble("", 123.46), "parse double");
 
 		assertTrue(Common.isBoolean("true"));
-		assertTrue(Common.isInteger("123"));
-		assertFalse(Common.isInteger("123a	"));
-		assertTrue(Common.isLong("-1234567890"));
-		assertFalse(Common.isLong("1234567890X"));
-		assertTrue(Common.isDouble("+0.1"));
-		assertFalse(Common.isDouble("0&0"));
-		// assertTrue(Common.isDate("2/24/24", null));
-		assertTrue(Common.isDate("24.2.24", "dd.MM.yy"));
-		assertFalse(Common.isDate("24.FEB.2024", "dd.MM.yyyy"));
 
 		assertEquals("true", Common.formatBoolean(true, false));
 		assertEquals("false", Common.formatBoolean(null, false));
@@ -286,14 +277,14 @@ class CommonTest extends TestHelpers {
 
 		log.info("\n\nreflection()\n\n");
 
-		assertEquals(Client.class, Reflection.loadClass("com.icx.dom.app.bikestore.domain.client.Client"), "load class");
-		assertEquals(Client.class, Reflection.loadClass("Client"), "load class");
-		assertEquals(RegionInProgress.class, Reflection.loadInnerClass("RegionInProgress", Client.class), "load inner class");
+		assertEquals(Client.class, CReflection.loadClass("com.icx.dom.app.bikestore.domain.client.Client"), "load class");
+		assertEquals(Client.class, CReflection.loadClass("Client"), "load class");
+		assertEquals(RegionInProgress.class, CReflection.loadInnerClass("RegionInProgress", Client.class), "load inner class");
 
-		Reflection.retrieveLoadedPackageNames();
-		assertTrue(Reflection.getLoadedPackageNames().size() > 100, "loaded packages");
+		CReflection.retrieveLoadedPackageNames();
+		assertTrue(CReflection.getLoadedPackageNames().size() > 100, "loaded packages");
 
-		assertNotNull(Reflection.getClassesDir(BikeStoreApp.class).getPath(), "classes dir");
+		assertNotNull(CReflection.getClassesDir(BikeStoreApp.class).getPath(), "classes dir");
 	}
 
 	@SuppressWarnings("static-method")
@@ -306,33 +297,33 @@ class CommonTest extends TestHelpers {
 		File propFile = CResource.findFirstJavaResourceFile("test.properties");
 		assertNotNull(propFile);
 
-		propFile = Prop.findPropertiesFile("test.properties");
-		Properties props = Prop.readProperties(propFile);
+		propFile = CProp.findPropertiesFile("test.properties");
+		Properties props = CProp.readProperties(propFile);
 
-		assertEquals("abc", Prop.getStringProperty(props, "s", ""), "string property");
-		assertEquals("", Prop.getStringProperty(props, "s1", ""), "default string property");
+		assertEquals("abc", CProp.getStringProperty(props, "s", ""), "string property");
+		assertEquals("", CProp.getStringProperty(props, "s1", ""), "default string property");
 
-		assertEquals(true, Prop.getBooleanProperty(props, "b", false), "boolean property");
-		assertEquals(false, Prop.getBooleanProperty(props, "b1", false), "default boolean property");
+		assertEquals(true, CProp.getBooleanProperty(props, "b", false), "boolean property");
+		assertEquals(false, CProp.getBooleanProperty(props, "b1", false), "default boolean property");
 
-		assertEquals(-1, Prop.getIntProperty(props, "i", 0), "int property");
-		assertEquals(-1, Prop.getIntProperty(props, "i1", -1), "default int property");
+		assertEquals(-1, CProp.getIntProperty(props, "i", 0), "int property");
+		assertEquals(-1, CProp.getIntProperty(props, "i1", -1), "default int property");
 
-		assertEquals(100000000000000L, Prop.getLongProperty(props, "l", -1L), "long property");
-		assertEquals(-1L, Prop.getLongProperty(props, "l1", -1L), "default long property");
+		assertEquals(100000000000000L, CProp.getLongProperty(props, "l", -1L), "long property");
+		assertEquals(-1L, CProp.getLongProperty(props, "l1", -1L), "default long property");
 
-		assertEquals(2.5, Prop.getDoubleProperty(props, "d", -1.01), "double property");
-		assertEquals(-1.01, Prop.getDoubleProperty(props, "d1", -1.01), "default double property");
+		assertEquals(2.5, CProp.getDoubleProperty(props, "d", -1.01), "double property");
+		assertEquals(-1.01, CProp.getDoubleProperty(props, "d1", -1.01), "default double property");
 
-		assertEquals(CList.newList("a", "", null), Prop.getProperty(props, List.class, "list", null), "list property");
-		assertEquals(null, Prop.getProperty(props, List.class, "list1", null), "default list property");
+		assertEquals(CList.newList("a", "", null), CProp.getProperty(props, List.class, "list", null), "list property");
+		assertEquals(null, CProp.getProperty(props, List.class, "list1", null), "default list property");
 
-		assertEquals(CMap.newMap("a", "A", "b", "", "c", null), Prop.getProperty(props, Map.class, "map", null), "map property");
-		assertEquals(null, Prop.getProperty(props, Map.class, "map1", null), "default map property");
+		assertEquals(CMap.newMap("a", "A", "b", "", "c", null), CProp.getProperty(props, Map.class, "map", null), "map property");
+		assertEquals(null, CProp.getProperty(props, Map.class, "map1", null), "default map property");
 
-		assertNotNull(Prop.findPropertiesFile("equal.properties"), "equal properties files");
-		assertNull(Prop.findPropertiesFile("unequal.properties"), "unequal properties files");
-		assertNull(Prop.findPropertiesFile("nonexistent.properties"), "non-existent properties file");
+		assertNotNull(CProp.findPropertiesFile("equal.properties"), "equal properties files");
+		assertNull(CProp.findPropertiesFile("unequal.properties"), "unequal properties files");
+		assertNull(CProp.findPropertiesFile("nonexistent.properties"), "non-existent properties file");
 	}
 
 }

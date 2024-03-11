@@ -21,8 +21,8 @@ import org.junit.jupiter.api.TestMethodOrder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.common.Prop;
-import com.icx.common.base.CList;
+import com.icx.common.CList;
+import com.icx.common.CProp;
 import com.icx.dom.junit.TestHelpers;
 import com.icx.dom.junit.domain.A;
 import com.icx.dom.junit.domain.AA;
@@ -38,8 +38,8 @@ import com.icx.domain.Registry;
 import com.icx.domain.sql.Const;
 import com.icx.domain.sql.SqlDomainController;
 import com.icx.domain.sql.SqlDomainObject;
-import com.icx.domain.sql.SqlRegistry;
 import com.icx.domain.sql.tools.Java2Sql;
+import com.icx.jdbc.ConnectionPool;
 import com.icx.jdbc.SqlDbTable;
 import com.icx.jdbc.SqlDbTable.SqlDbColumn;
 import com.icx.jdbc.SqlDbTable.SqlDbUniqueConstraint;
@@ -100,58 +100,58 @@ class RegistryTest extends TestHelpers {
 
 		assertDoesNotThrow(() -> sdc.registerDomainClasses(SqlDomainObject.class, O.class, AA.class, A.Inner.class, AB.class, B.class, C.class, X.class, RemovedClass.class));
 
-		assertListsEqualButOrder(registeredDomainClasses, sdc.registry.getRegisteredDomainClasses(), "register domain classes by class list");
+		assertListsEqualButOrder(registeredDomainClasses, sdc.getRegistry().getRegisteredDomainClasses(), "register domain classes by class list");
 
 		log.info("\tUnregister...");
 
-		sdc.registry.unregisterField(A.class.getDeclaredField("s"));
-		assertFalse(sdc.registry.getDataFields(A.class).contains(A.class.getDeclaredField("s")));
-		sdc.registry.unregisterField(A.class.getDeclaredField("strings"));
-		assertFalse(sdc.registry.getComplexFields(A.class).contains(A.class.getDeclaredField("strings")));
-		sdc.registry.unregisterField(A.class.getDeclaredField("o"));
-		assertFalse(sdc.registry.getReferenceFields(A.class).contains(A.class.getDeclaredField("o")));
+		sdc.getRegistry().unregisterField(A.class.getDeclaredField("s"));
+		assertFalse(sdc.getRegistry().getDataFields(A.class).contains(A.class.getDeclaredField("s")));
+		sdc.getRegistry().unregisterField(A.class.getDeclaredField("strings"));
+		assertFalse(sdc.getRegistry().getComplexFields(A.class).contains(A.class.getDeclaredField("strings")));
+		sdc.getRegistry().unregisterField(A.class.getDeclaredField("o"));
+		assertFalse(sdc.getRegistry().getReferenceFields(A.class).contains(A.class.getDeclaredField("o")));
 
 		log.info("\tRegister by domain classes in specific package...");
 
-		assertDoesNotThrow(() -> sdc.registry.registerDomainClasses(SqlDomainObject.class, A.class.getPackage().getName()));
+		assertDoesNotThrow(() -> sdc.getRegistry().registerDomainClasses(SqlDomainObject.class, A.class.getPackage().getName()));
 
 		log.info("\tClass related checks...");
 
-		assertListsEqualButOrder(registeredDomainClasses, sdc.registry.getRegisteredDomainClasses(), "register domain classes by package name");
-		assertListsEqualButOrder(relevantDomainClasses, sdc.registry.getRelevantDomainClasses(), "relevant (also removed) domain classes");
-		assertListsEqualButOrder(registeredObjectDomainClasses, sdc.registry.getRegisteredObjectDomainClasses(), "registered object domain classes");
+		assertListsEqualButOrder(registeredDomainClasses, sdc.getRegistry().getRegisteredDomainClasses(), "register domain classes by package name");
+		assertListsEqualButOrder(relevantDomainClasses, sdc.getRegistry().getRelevantDomainClasses(), "relevant (also removed) domain classes");
+		assertListsEqualButOrder(registeredObjectDomainClasses, sdc.getRegistry().getRegisteredObjectDomainClasses(), "registered object domain classes");
 
-		assertTrue(sdc.registry.isRegisteredDomainClass(Z.class));
-		assertFalse(sdc.registry.isRegisteredDomainClass(RegistryTest.class));
-		assertTrue(sdc.registry.isObjectDomainClass(AA.class));
-		assertFalse(sdc.registry.isObjectDomainClass(A.class));
-		assertFalse(sdc.registry.isBaseDomainClass(AA.class));
-		assertTrue(sdc.registry.isBaseDomainClass(A.class));
+		assertTrue(sdc.getRegistry().isRegisteredDomainClass(Z.class));
+		assertFalse(sdc.getRegistry().isRegisteredDomainClass(RegistryTest.class));
+		assertTrue(sdc.getRegistry().isObjectDomainClass(AA.class));
+		assertFalse(sdc.getRegistry().isObjectDomainClass(A.class));
+		assertFalse(sdc.getRegistry().isBaseDomainClass(AA.class));
+		assertTrue(sdc.getRegistry().isBaseDomainClass(A.class));
 
 		log.info("\tField related checks...");
 
-		assertEquals(A.class.getDeclaredField("i"), sdc.registry.getFieldByName(A.class, "i"), "get field by name");
-		assertEquals(AA.class.getDeclaredConstructor(), sdc.registry.getConstructor(AA.class), "get constructor");
+		assertEquals(A.class.getDeclaredField("i"), sdc.getRegistry().getFieldByName(A.class, "i"), "get field by name");
+		assertEquals(AA.class.getDeclaredConstructor(), sdc.getRegistry().getConstructor(AA.class), "get constructor");
 
-		assertListsEqualButOrder(dataFieldsOfA, sdc.registry.getDataFields(A.class), "data fields");
-		assertListsEqualButOrder(complexFieldsOfA, sdc.registry.getComplexFields(A.class), "collection and map fields");
-		assertListsEqualButOrder(referenceFieldsOfX, sdc.registry.getReferenceFields(X.class), "reference fields");
-		assertListsEqualButOrder(accumulationFieldsOfA, sdc.registry.getAccumulationFields(A.class), "accumulation fields");
-		assertListsEqualButOrder(dataAndReferenceFieldsOfA, sdc.registry.getDataAndReferenceFields(A.class), "data and reference fields");
-		assertListsEqualButOrder(registeredFieldsOfA, sdc.registry.getRegisteredFields(A.class), "registered fields");
-		assertListsEqualButOrder(allFieldsReferencingA, sdc.registry.getAllReferencingFields(A.class), "referencing fields");
+		assertListsEqualButOrder(dataFieldsOfA, sdc.getRegistry().getDataFields(A.class), "data fields");
+		assertListsEqualButOrder(complexFieldsOfA, sdc.getRegistry().getComplexFields(A.class), "collection and map fields");
+		assertListsEqualButOrder(referenceFieldsOfX, sdc.getRegistry().getReferenceFields(X.class), "reference fields");
+		assertListsEqualButOrder(accumulationFieldsOfA, sdc.getRegistry().getAccumulationFields(A.class), "accumulation fields");
+		assertListsEqualButOrder(dataAndReferenceFieldsOfA, sdc.getRegistry().getDataAndReferenceFields(A.class), "data and reference fields");
+		assertListsEqualButOrder(registeredFieldsOfA, sdc.getRegistry().getRegisteredFields(A.class), "registered fields");
+		assertListsEqualButOrder(allFieldsReferencingA, sdc.getRegistry().getAllReferencingFields(A.class), "referencing fields");
 
 		assertTrue(Registry.isDataField(A.class.getDeclaredField("l")));
-		assertTrue(sdc.registry.isReferenceField(X.class.getDeclaredField("a")));
-		assertTrue(sdc.registry.isComplexField(A.class.getDeclaredField("mapOfMaps")));
-		assertEquals(A.class.getDeclaredField("xs"), sdc.registry.getAccumulationFieldForReferenceField(X.class.getDeclaredField("a")));
+		assertTrue(sdc.getRegistry().isReferenceField(X.class.getDeclaredField("a")));
+		assertTrue(sdc.getRegistry().isComplexField(A.class.getDeclaredField("mapOfMaps")));
+		assertEquals(A.class.getDeclaredField("xs"), sdc.getRegistry().getAccumulationFieldForReferenceField(X.class.getDeclaredField("a")));
 
-		assertEquals(A.class, sdc.registry.getFieldByName(A.class, "i").getDeclaringClass());
-		assertListsEqualButOrder(relevantFieldsOfA, sdc.registry.getRelevantFields(A.class), "relevant fields");
+		assertEquals(A.class, sdc.getRegistry().getFieldByName(A.class, "i").getDeclaringClass());
+		assertListsEqualButOrder(relevantFieldsOfA, sdc.getRegistry().getRelevantFields(A.class), "relevant fields");
 
 		log.info("\tCircular references...");
 
-		Set<List<String>> circularReferences = sdc.registry.determineCircularReferences();
+		Set<List<String>> circularReferences = sdc.getRegistry().determineCircularReferences();
 		assertEquals(3, circularReferences.size(), "circular references");
 		assertEquals(2, circularReferences.stream().filter(cr -> cr.size() == 1).count());
 		assertEquals(1, circularReferences.stream().filter(cr -> cr.size() == 3).count());
@@ -169,35 +169,35 @@ class RegistryTest extends TestHelpers {
 
 		SqlDomainController sdc = new SqlDomainController();
 
-		Properties dbProps = Prop.readEnvironmentSpecificProperties(Prop.findPropertiesFile("db.properties"), "local/mysql/junit", CList.newList("dbConnectionString", "dbUser"));
-		assertEquals("jdbc:mysql://localhost/junit?useSSL=false", Prop.getStringProperty(dbProps, "dbConnectionString", ""));
+		Properties dbProps = CProp.readEnvironmentSpecificProperties(CProp.findPropertiesFile("db.properties"), "local/mysql/junit",
+				CList.newList(ConnectionPool.DB_CONNECTION_STRING_PROP, ConnectionPool.DB_USER_PROP));
+		assertEquals("jdbc:mysql://localhost/junit?useSSL=false", CProp.getStringProperty(dbProps, ConnectionPool.DB_CONNECTION_STRING_PROP, ""));
 
-		Properties domainProps = Prop.readProperties(Prop.findPropertiesFile("domain.properties"));
-		assertNotNull(Prop.getStringProperty(domainProps, "dataHorizonPeriod", null));
+		Properties domainProps = CProp.readProperties(CProp.findPropertiesFile(SqlDomainController.DOMAIN_PROPERIES_FILE));
+		assertNotNull(CProp.getStringProperty(domainProps, "dataHorizonPeriod", null));
 
 		assertDoesNotThrow(() -> sdc.initialize(dbProps, domainProps, A.class.getPackage().getName()));
 
 		log.info("\tAssertions on class/table association...");
 
-		SqlDbTable tableA = sdc.sqlDb.findRegisteredTable("DOM_A");
-		SqlDbTable tableAA = sdc.sqlDb.findRegisteredTable("DOM_AA");
-		SqlDbTable tableX = sdc.sqlDb.findRegisteredTable("DOM_X");
-		SqlDbTable tableZ = sdc.sqlDb.findRegisteredTable("DOM_Z");
+		SqlDbTable tableA = sdc.getSqlDb().findRegisteredTable("DOM_A");
+		SqlDbTable tableAA = sdc.getSqlDb().findRegisteredTable("DOM_AA");
+		SqlDbTable tableX = sdc.getSqlDb().findRegisteredTable("DOM_X");
+		SqlDbTable tableZ = sdc.getSqlDb().findRegisteredTable("DOM_Z");
 
-		assertEquals("DOM_A", ((SqlRegistry) sdc.registry).getTableFor(A.class).name, "Associated table for class A");
-		assertEquals("DOM_AA", ((SqlRegistry) sdc.registry).getTableFor(AA.class).name, "Associated table for class AA (name specified in SqlTable annotation");
-		assertEquals("BOOLEAN", ((SqlRegistry) sdc.registry).getColumnFor(A.class.getDeclaredField("bool")).name, "Associated column for data field (name specified in SqlColumn annotation");
-		assertEquals("O_ID", ((SqlRegistry) sdc.registry).getColumnFor(A.class.getDeclaredField("o")).name, "Associated column for reference field");
-		assertEquals("DOM_A_STRINGS", ((SqlRegistry) sdc.registry).getEntryTableFor(A.class.getDeclaredField("strings")).name, "Associated entry table for list");
-		assertEquals("DOM_A_DOUBLE_SET", ((SqlRegistry) sdc.registry).getEntryTableFor(A.class.getDeclaredField("doubleSet")).name, "Associated entry table for set");
-		assertEquals("DOM_A_BIG_DECIMAL_MAP", ((SqlRegistry) sdc.registry).getEntryTableFor(A.class.getDeclaredField("bigDecimalMap")).name, "Associated entry table map");
-		assertEquals("DOM_A_LIST_OF_LISTS", ((SqlRegistry) sdc.registry).getEntryTableFor(A.class.getDeclaredField("listOfLists")).name, "Associated entry table for list of lists");
-		assertEquals("DOM_A_LIST_OF_MAPS", ((SqlRegistry) sdc.registry).getEntryTableFor(A.class.getDeclaredField("listOfMaps")).name, "Associated entry table for list of maps");
-		assertEquals("DOM_A_MAP_OF_LISTS", ((SqlRegistry) sdc.registry).getEntryTableFor(A.class.getDeclaredField("mapOfLists")).name, "Associated entry table for map of lists");
-		assertEquals("DOM_A_MAP_OF_MAPS", ((SqlRegistry) sdc.registry).getEntryTableFor(A.class.getDeclaredField("mapOfMaps")).name, "Associated entry table for map of maps");
+		assertEquals("DOM_A", sdc.getSqlRegistry().getTableFor(A.class).name, "Associated table for class A");
+		assertEquals("DOM_AA", sdc.getSqlRegistry().getTableFor(AA.class).name, "Associated table for class AA (name specified in SqlTable annotation");
+		assertEquals("BOOLEAN", sdc.getSqlRegistry().getColumnFor(A.class.getDeclaredField("bool")).name, "Associated column for data field (name specified in SqlColumn annotation");
+		assertEquals("O_ID", sdc.getSqlRegistry().getColumnFor(A.class.getDeclaredField("o")).name, "Associated column for reference field");
+		assertEquals("DOM_A_STRINGS", sdc.getSqlRegistry().getEntryTableFor(A.class.getDeclaredField("strings")).name, "Associated entry table for list");
+		assertEquals("DOM_A_DOUBLE_SET", sdc.getSqlRegistry().getEntryTableFor(A.class.getDeclaredField("doubleSet")).name, "Associated entry table for set");
+		assertEquals("DOM_A_BIG_DECIMAL_MAP", sdc.getSqlRegistry().getEntryTableFor(A.class.getDeclaredField("bigDecimalMap")).name, "Associated entry table map");
+		assertEquals("DOM_A_LIST_OF_LISTS", sdc.getSqlRegistry().getEntryTableFor(A.class.getDeclaredField("listOfLists")).name, "Associated entry table for list of lists");
+		assertEquals("DOM_A_LIST_OF_MAPS", sdc.getSqlRegistry().getEntryTableFor(A.class.getDeclaredField("listOfMaps")).name, "Associated entry table for list of maps");
+		assertEquals("DOM_A_MAP_OF_LISTS", sdc.getSqlRegistry().getEntryTableFor(A.class.getDeclaredField("mapOfLists")).name, "Associated entry table for map of lists");
+		assertEquals("DOM_A_MAP_OF_MAPS", sdc.getSqlRegistry().getEntryTableFor(A.class.getDeclaredField("mapOfMaps")).name, "Associated entry table for map of maps");
 
-		assertEquals("doubleValue", ((SqlRegistry) sdc.registry).getFieldFor(((SqlRegistry) sdc.registry).getColumnFor(A.class.getDeclaredField("doubleValue"))).getName(),
-				"Associated field for column");
+		assertEquals("doubleValue", sdc.getSqlRegistry().getFieldFor(sdc.getSqlRegistry().getColumnFor(A.class.getDeclaredField("doubleValue"))).getName(), "Associated field for column");
 
 		Set<SqlDbUniqueConstraint> ucs = tableA.findUniqueConstraintsByColumnName("S");
 		assertEquals(1, ucs.size(), "find unique constraints by columm name");
@@ -227,17 +227,17 @@ class RegistryTest extends TestHelpers {
 
 		log.info("\tError cases...");
 
-		File dbPropsFile = Prop.findPropertiesFile("db.properties");
+		File dbPropsFile = CProp.findPropertiesFile("db.properties");
 		String localConf = "local/" + LoadAndSaveTest.dbType.toString().toLowerCase() + "/junit";
-		Properties dbProps = Prop.readEnvironmentSpecificProperties(dbPropsFile, localConf, CList.newList("dbConnectionString", "dbUser"));
-		Properties domainProps = Prop.readProperties(Prop.findPropertiesFile("domain.properties"));
+		Properties dbProps = CProp.readEnvironmentSpecificProperties(dbPropsFile, localConf, CList.newList(ConnectionPool.DB_CONNECTION_STRING_PROP, ConnectionPool.DB_USER_PROP));
+		Properties domainProps = CProp.readProperties(CProp.findPropertiesFile(SqlDomainController.DOMAIN_PROPERIES_FILE));
 		sdc.initialize(dbProps, domainProps, "com.icx.dom.junit.domain");
 
-		assertNull(((SqlRegistry) sdc.registry).getTableFor(SqlDomainObject.class));
-		assertNull(((SqlRegistry) sdc.registry).getColumnFor(A.class.getDeclaredField("strings")));
-		assertNull(((SqlRegistry) sdc.registry).getEntryTableFor(A.class.getDeclaredField("l")));
-		assertNull(((SqlRegistry) sdc.registry).getMainTableRefIdColumnFor(A.class.getDeclaredField("i")));
-		SqlDbColumn domainClassColumn = ((SqlRegistry) sdc.registry).getTableFor(A.class).columns.stream().filter(c -> Const.DOMAIN_CLASS_COL.equals(c.name)).findAny().orElse(null);
-		assertNull(((SqlRegistry) sdc.registry).getFieldFor(domainClassColumn));
+		assertNull(sdc.getSqlRegistry().getTableFor(SqlDomainObject.class));
+		assertNull(sdc.getSqlRegistry().getColumnFor(A.class.getDeclaredField("strings")));
+		assertNull(sdc.getSqlRegistry().getEntryTableFor(A.class.getDeclaredField("l")));
+		assertNull(sdc.getSqlRegistry().getMainTableRefIdColumnFor(A.class.getDeclaredField("i")));
+		SqlDbColumn domainClassColumn = sdc.getSqlRegistry().getTableFor(A.class).columns.stream().filter(c -> Const.DOMAIN_CLASS_COL.equals(c.name)).findAny().orElse(null);
+		assertNull(sdc.getSqlRegistry().getFieldFor(domainClassColumn));
 	}
 }

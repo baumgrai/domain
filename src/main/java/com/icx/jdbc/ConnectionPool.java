@@ -11,8 +11,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.common.Prop;
-import com.icx.common.base.Common;
+import com.icx.common.CProp;
+import com.icx.common.Common;
 
 /**
  * JDBC database {@link Connection} pool.
@@ -23,11 +23,11 @@ import com.icx.common.base.Common;
  * {@code ConnectionPool} object can be created using {@link #ConnectionPool(Properties)} from {@link Properties} object containing <b>{@code dbConnectionString}</b>, <b>{@code dbUser}</b>,
  * <b>{@code dbPassword}</b> properties or directly using {@link #ConnectionPool(String, String, String, int)}.
  * <p>
- * At maximum {@code poolSize} open connections are kept in pool and reused on connection requests using {@link #getConnection()}. If # of open connections in pool equals pool size additional
- * connections will be closed physically on {@link #returnConnection(Connection)} and will to be reopened on further connection request. If pool size is {@code UNLIMITED} (recommended) connections
- * generally won't be closed physically before closing pool (which also means # of open connections in pool equals maximum # of connections used at the same time in the past). Pool size == 0 disables
- * pooling function: every connection requested is immediately closed physically on {@code returnConnection(Connection)}, so no unused connections stay open and a new physical database connection will
- * automatically be opened for any connection request (performance!).
+ * A maximum of {@code poolSize} open connections will be kept in pool and reused on connection requests using {@link #getConnection()}. If # of open connections in pool equals pool size, additional
+ * connections will be closed physically on {@link #returnConnection(Connection)}. Connection request on full pool enforces physically opening new database connections. If pool size is
+ * {@code UNLIMITED} (recommended) connections generally won't be closed physically before closing pool (which also means # of open connections in pool equals maximum # of connections used at the same
+ * time in the past). Pool size == 0 disables pooling function: every connection requested is immediately closed physically on {@code returnConnection(Connection)}, so no unused connections stay open
+ * and a new physical database connection will automatically be opened for any connection request (performance!).
  * 
  * @author baumgrai
  */
@@ -40,10 +40,25 @@ public class ConnectionPool extends Common {
 	// -------------------------------------------------------------------------
 
 	// JDBC properties
+
+	/**
+	 * Property name for database connection string property (in 'domain.properties')
+	 */
 	public static final String DB_CONNECTION_STRING_PROP = "dbConnectionString";
+
+	/**
+	 * Property name for database user property (in 'domain.properties')
+	 */
 	public static final String DB_USER_PROP = "dbUser";
+
+	/**
+	 * Property name for database password property (in 'domain.properties')
+	 */
 	public static final String DB_PASSWORD_PROP = "dbPassword";
-	public static final String DB_QUERYTIMEOUT_PROP = "dbQueryTimeout";
+
+	/**
+	 * Property name for pool size property (in 'domain.properties')
+	 */
 	public static final String POOL_SIZE_PROP = "poolSize";
 
 	public static final int UNLIMITED = -1;
@@ -53,16 +68,16 @@ public class ConnectionPool extends Common {
 	// -------------------------------------------------------------------------
 
 	// Pool size
-	int poolSize = UNLIMITED;
+	private int poolSize = UNLIMITED;
 
 	// Pooled connections
-	Set<Connection> connectionsInPool = ConcurrentHashMap.newKeySet();
-	Set<Connection> connectionsInUse = ConcurrentHashMap.newKeySet();
+	private Set<Connection> connectionsInPool = ConcurrentHashMap.newKeySet();
+	private Set<Connection> connectionsInUse = ConcurrentHashMap.newKeySet();
 
 	// Database connection string and credentials
-	String dbConnectionString = null;
-	String user = null;
-	String password = null;
+	private String dbConnectionString = null;
+	private String user = null;
+	private String password = null;
 
 	// -------------------------------------------------------------------------
 	// Constructor and close
@@ -122,10 +137,10 @@ public class ConnectionPool extends Common {
 
 		//@formatter:off
 		initPool(
-				Prop.getStringProperty(databaseProperties, DB_CONNECTION_STRING_PROP, null), 
-				Prop.getStringProperty(databaseProperties, DB_USER_PROP, null),
-				Prop.getStringProperty(databaseProperties, DB_PASSWORD_PROP, null), 
-				Prop.getIntProperty(databaseProperties, POOL_SIZE_PROP, UNLIMITED));
+				CProp.getStringProperty(databaseProperties, DB_CONNECTION_STRING_PROP, null), 
+				CProp.getStringProperty(databaseProperties, DB_USER_PROP, null),
+				CProp.getStringProperty(databaseProperties, DB_PASSWORD_PROP, null), 
+				CProp.getIntProperty(databaseProperties, POOL_SIZE_PROP, UNLIMITED));
 		//@formatter:on
 	}
 

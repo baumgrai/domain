@@ -3,31 +3,39 @@ package com.icx.domain.sql.tools;
 import java.lang.reflect.Field;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.common.base.CList;
-import com.icx.domain.DomainAnnotations;
-import com.icx.domain.DomainAnnotations.Changed;
-import com.icx.domain.DomainAnnotations.Created;
-import com.icx.domain.DomainAnnotations.Removed;
+import com.icx.common.CList;
+import com.icx.common.Common;
 import com.icx.domain.Registry;
 import com.icx.domain.sql.Const;
+import com.icx.domain.sql.Annotations;
 import com.icx.domain.sql.SqlDomainObject;
 import com.icx.domain.sql.SqlRegistry;
+import com.icx.domain.sql.Annotations.Changed;
+import com.icx.domain.sql.Annotations.Created;
+import com.icx.domain.sql.Annotations.Removed;
 import com.icx.domain.sql.tools.FkConstraint.ConstraintType;
 import com.icx.jdbc.SqlDbHelpers;
 import com.icx.jdbc.SqlDb.DbType;
 
 /**
- * Helpers for {@link Java2Sql} tool
+ * Helpers for {@link Java2Sql} tool.
+ * <p>
+ * Class, methods and fields are 'public' only for formal reasons. Java2Sql class can be copied and must be runnable in any application 'domain' package to generate SQL scripts for application's
+ * domain classes.
  * 
  * @author baumgrai
  */
@@ -50,44 +58,156 @@ public class Java2SqlHelpers extends SqlDbHelpers {
 
 	// Fields
 
+	public static boolean wasCreatedInVersion(Created created, String version) {
+
+		if (created == null) {
+			return false;
+		}
+		else {
+			return Common.untilFirst(created.version(), ":").equals(version);
+		}
+	}
+
+	public static String getCreatedVersion(Created created) {
+
+		if (created == null) {
+			return "1.0";
+		}
+		else {
+			return Common.untilFirst(created.version(), ":");
+		}
+	}
+
+	public static Map<String, String> getCreateInfo(Created created) {
+
+		if (created == null) {
+			return new HashMap<>();
+		}
+		else {
+			Map<String, String> changeInfoMap = new HashMap<>();
+
+			String changeInfoString = Common.behindFirst(created.version(), ":");
+			String[] changeEntryStrings = changeInfoString.split("\\;");
+			for (String changeEntryString : changeEntryStrings) {
+
+				String[] changeEntry = changeEntryString.split("\\=");
+				String changedAttribute = changeEntry[0];
+				String value = "";
+				if (changeEntry.length > 1) {
+					value = changeEntry[1];
+				}
+
+				changeInfoMap.put(changedAttribute, value);
+			}
+
+			return changeInfoMap;
+		}
+	}
+
 	// Check if field was created in version
 	public static boolean wasCreatedInVersion(Field field, String version) {
-		return (DomainAnnotations.wasCreatedInVersion(field.getAnnotation(Created.class), version));
+		return (wasCreatedInVersion(field.getAnnotation(Created.class), version));
 	}
 
 	// Get version where field was created in
 	public static String getCreatedVersion(Field field) {
-		return (DomainAnnotations.getCreatedVersion(field.getAnnotation(Created.class)));
+		return (getCreatedVersion(field.getAnnotation(Created.class)));
 	}
 
 	// Get create information for field
 	public static Map<String, String> getCreateInfo(Field field) {
-		return DomainAnnotations.getCreateInfo(field.getAnnotation(Created.class));
+		return getCreateInfo(field.getAnnotation(Created.class));
+	}
+
+	public static boolean wasChangedInVersion(Changed changed, String version) {
+
+		if (changed == null) {
+			return false;
+		}
+		else {
+			return Stream.of(changed.versions()).map(vi -> Common.untilFirst(vi, ":")).anyMatch(v -> v.equals(version));
+		}
+	}
+
+	public static List<String> getVersionsWithChanges(Changed changed) {
+
+		if (changed == null) {
+			return new ArrayList<>();
+		}
+		else {
+			return Stream.of(changed.versions()).map(vi -> Common.untilFirst(vi, ":")).collect(Collectors.toList());
+		}
+	}
+
+	public static Map<String, String> getChangeInfo(Changed changed, String version) {
+
+		if (changed == null) {
+			return new HashMap<>();
+		}
+		else {
+			Map<String, String> changeInfoMap = new HashMap<>();
+
+			String changeInfoString = Common.behindFirst(Stream.of(changed.versions()).filter(vi -> Common.untilFirst(vi, ":").equals(version)).findAny().orElse(""), ":");
+			String[] changeEntryStrings = changeInfoString.split("\\;");
+			for (String changeEntryString : changeEntryStrings) {
+
+				String[] changeEntry = changeEntryString.split("\\=");
+				String changedAttribute = changeEntry[0];
+				String value = "";
+				if (changeEntry.length > 1) {
+					value = changeEntry[1];
+				}
+
+				changeInfoMap.put(changedAttribute, value);
+			}
+
+			return changeInfoMap;
+		}
 	}
 
 	// Check if field was changed in version
 	public static boolean wasChangedInVersion(Field field, String version) {
-		return (DomainAnnotations.wasChangedInVersion(field.getAnnotation(Changed.class), version));
+		return (wasChangedInVersion(field.getAnnotation(Changed.class), version));
 	}
 
 	// Get versions in which field was changed
 	public static List<String> getVersionsWithChanges(Field field) {
-		return DomainAnnotations.getVersionsWithChanges(field.getAnnotation(Changed.class));
+		return getVersionsWithChanges(field.getAnnotation(Changed.class));
 	}
 
 	// Get change information for field and version
 	public static Map<String, String> getChangeInfo(Field field, String version) {
-		return DomainAnnotations.getChangeInfo(field.getAnnotation(Changed.class), version);
+		return getChangeInfo(field.getAnnotation(Changed.class), version);
+	}
+
+	public static boolean wasRemovedInVersion(Removed removed, String version) {
+
+		if (removed == null) {
+			return false;
+		}
+		else {
+			return removed.version().equals(version);
+		}
+	}
+
+	public static String getRemovedVersion(Removed removed) {
+
+		if (removed == null) {
+			return "";
+		}
+		else {
+			return removed.version();
+		}
 	}
 
 	// Check if field was removed in version
 	public static boolean wasRemovedInVersion(Field field, String version) {
-		return (DomainAnnotations.wasRemovedInVersion(field.getAnnotation(Removed.class), version));
+		return (wasRemovedInVersion(field.getAnnotation(Removed.class), version));
 	}
 
 	// Get version where field was created in
 	public static String getRemovedVersion(Field field) {
-		return (DomainAnnotations.getRemovedVersion(field.getAnnotation(Removed.class)));
+		return (getRemovedVersion(field.getAnnotation(Removed.class)));
 	}
 
 	// Check if any changes to given field column are to consider for given version
@@ -99,70 +219,70 @@ public class Java2SqlHelpers extends SqlDbHelpers {
 
 	// Check if domain class was created in version
 	public static boolean wasCreatedInVersion(Class<?> cls, String version) {
-		return (DomainAnnotations.wasCreatedInVersion(cls.getAnnotation(Created.class), version));
+		return (wasCreatedInVersion(cls.getAnnotation(Created.class), version));
 	}
 
 	// Get version where domain class was created in
 	public static String getCreatedVersion(Class<?> cls) {
-		return (DomainAnnotations.getCreatedVersion(cls.getAnnotation(Created.class)));
+		return (getCreatedVersion(cls.getAnnotation(Created.class)));
 	}
 
 	// Get create information for domain class
 	public static Map<String, String> getCreateInfo(Class<?> cls) {
-		return DomainAnnotations.getCreateInfo(cls.getAnnotation(Created.class));
+		return getCreateInfo(cls.getAnnotation(Created.class));
 	}
 
 	// Check if domain class was changed in version
 	public static boolean wasChangedInVersion(Class<?> cls, String version) {
-		return (DomainAnnotations.wasChangedInVersion(cls.getAnnotation(Changed.class), version));
+		return (wasChangedInVersion(cls.getAnnotation(Changed.class), version));
 	}
 
 	// Get versions in which domain class was changed
 	public static List<String> getVersionsWithChanges(Class<?> cls) {
-		return DomainAnnotations.getVersionsWithChanges(cls.getAnnotation(Changed.class));
+		return getVersionsWithChanges(cls.getAnnotation(Changed.class));
 	}
 
 	// Get change information for domain class and version
 	public static Map<String, String> getChangeInfo(Class<?> cls, String version) {
-		return DomainAnnotations.getChangeInfo(cls.getAnnotation(Changed.class), version);
+		return getChangeInfo(cls.getAnnotation(Changed.class), version);
 	}
 
 	// Check if domain class was removed in version
 	public static boolean wasRemovedInVersion(Class<?> cls, String version) {
-		return (DomainAnnotations.wasRemovedInVersion(cls.getAnnotation(Removed.class), version));
+		return (wasRemovedInVersion(cls.getAnnotation(Removed.class), version));
 	}
 
 	// Get version where domain class was created in
 	public static String getRemovedVersion(Class<?> cls) {
-		return (DomainAnnotations.getRemovedVersion(cls.getAnnotation(Removed.class)));
+		return (getRemovedVersion(cls.getAnnotation(Removed.class)));
 	}
 
 	// Incremental update scripts
 
 	public static void updateColumnAttributes(Column column, Map<String, String> changeInfoMap) {
 
-		if (changeInfoMap.containsKey(DomainAnnotations.CHARSIZE)) {
-			column.charsize = Integer.valueOf(changeInfoMap.get(DomainAnnotations.CHARSIZE));
+		if (changeInfoMap.containsKey(Annotations.CHARSIZE)) {
+			column.charsize = Integer.valueOf(changeInfoMap.get(Annotations.CHARSIZE));
 			column.isText = false; // If charsize is given in version info column can only be a 'normal' text column, not a CLOB, etc. in this version
 			log.info("J2S: \t\t\tColumn '{}': Got charsize {} from version info", column.name, column.charsize);
 		}
 
-		if (changeInfoMap.containsKey(DomainAnnotations.NOT_NULL)) {
-			column.notNull = (column.field.getType().isPrimitive() || Boolean.valueOf(changeInfoMap.get(DomainAnnotations.NOT_NULL)));
+		if (changeInfoMap.containsKey(Annotations.NOT_NULL)) {
+			column.notNull = (column.field.getType().isPrimitive() || Boolean.valueOf(changeInfoMap.get(Annotations.NOT_NULL)));
 			log.info("J2S: \t\t\tColumn '{}': Got NOT NULL {} from version info", column.name, column.notNull);
 		}
 
-		if (changeInfoMap.containsKey(DomainAnnotations.UNIQUE)) { // Do not set column attribute here - to allow subsequent check for change of UNIQUE state
-			log.info("J2S: \t\t\tColumn '{}': Got UNIQUE {} from version info", column.name, Boolean.valueOf(changeInfoMap.get(DomainAnnotations.UNIQUE)));
+		if (changeInfoMap.containsKey(Annotations.UNIQUE)) { // Do not set column attribute here - to allow subsequent check for change of UNIQUE state
+			log.info("J2S: \t\t\tColumn '{}': Got UNIQUE {} from version info", column.name, Boolean.valueOf(changeInfoMap.get(Annotations.UNIQUE)));
 		}
 
-		if (changeInfoMap.containsKey(DomainAnnotations.IS_TEXT)) {
-			column.isText = Boolean.valueOf(changeInfoMap.get(DomainAnnotations.IS_TEXT));
+		if (changeInfoMap.containsKey(Annotations.IS_TEXT)) {
+			column.isText = Boolean.valueOf(changeInfoMap.get(Annotations.IS_TEXT));
 			log.info("J2S: \t\t\tColumn '{}': Got 'isText' {} from version info", column.name, column.isText);
 		}
 
-		if (changeInfoMap.containsKey(DomainAnnotations.NUMERICAL_TYPE)) {
-			String numericalType = changeInfoMap.get(DomainAnnotations.NUMERICAL_TYPE);
+		if (changeInfoMap.containsKey(Annotations.NUMERICAL_TYPE)) {
+			String numericalType = changeInfoMap.get(Annotations.NUMERICAL_TYPE);
 			try {
 				column.fieldRelatedType = Class.forName("java.lang." + numericalType);
 			}
@@ -306,8 +426,6 @@ public class Java2SqlHelpers extends SqlDbHelpers {
 
 		return versions;
 	}
-
-	// NOT NULL
 
 	// TODO: Allow incremental adding of NOT NULL columns (create as NULL, UPDATE records by default value, set NOT NULL)
 	// For adding NOT NULL columns: Get assumed column Jdbc type from field type (for Java2Sql where database and tables are not present)

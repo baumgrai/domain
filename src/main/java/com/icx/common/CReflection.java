@@ -28,16 +28,14 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.common.base.Common;
-
 /**
  * Java Reflection helpers.
  * 
  * @author baumgrai
  */
-public abstract class Reflection extends Common {
+public abstract class CReflection extends Common {
 
-	static final Logger log = LoggerFactory.getLogger(Reflection.class);
+	static final Logger log = LoggerFactory.getLogger(CReflection.class);
 
 	// -------------------------------------------------------------------------
 	// Statics
@@ -312,7 +310,7 @@ public abstract class Reflection extends Common {
 	}
 
 	// NoClass - to cache instead of null if class could not be loaded because Concurrent map does not support null values
-	static class NoClass {
+	private static class NoClass {
 	}
 
 	/**

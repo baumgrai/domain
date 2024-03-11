@@ -41,7 +41,7 @@ public class FieldError {
 	// Constructor
 	// -------------------------------------------------------------------------
 
-	public FieldError(
+	FieldError(
 			boolean isCritical,
 			SqlDomainObject obj,
 			Field field,

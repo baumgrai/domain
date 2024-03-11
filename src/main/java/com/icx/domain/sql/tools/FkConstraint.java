@@ -7,7 +7,10 @@ import com.icx.domain.sql.SqlRegistry;
 import com.icx.jdbc.SqlDbHelpers;
 
 /**
- * Modeling a foreign key constraint for a table column in context of {@link Java2Sql} tool
+ * Modeling a foreign key constraint for a table column in context of {@link Java2Sql} tool.
+ * <p>
+ * Class, methods and fields are 'public' only for formal reasons. Java2Sql class can be copied and must be runnable in any application 'domain' package to generate SQL scripts for application's domain
+ * classes.
  * 
  * @author baumgrai
  */

@@ -9,10 +9,10 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.common.base.CList;
-import com.icx.common.base.CLog;
-import com.icx.common.base.CMap;
-import com.icx.common.base.Common;
+import com.icx.common.CList;
+import com.icx.common.CLog;
+import com.icx.common.CMap;
+import com.icx.common.Common;
 import com.icx.jdbc.SqlDb;
 import com.icx.jdbc.SqlDbException;
 
@@ -33,8 +33,8 @@ public class DeleteHelpers extends Common {
 
 		for (SqlDomainObject objectToCheck : objectsToCheck) {
 
-			for (Class<? extends SqlDomainObject> domainClass : sdc.registry.getDomainClassesFor(objectToCheck.getClass())) {
-				for (Field refField : sdc.registry.getReferenceFields(domainClass)) {
+			for (Class<? extends SqlDomainObject> domainClass : sdc.getRegistry().getDomainClassesFor(objectToCheck.getClass())) {
+				for (Field refField : sdc.getRegistry().getReferenceFields(domainClass)) {
 
 					if (objectsEqual(objectToCheck.getFieldValue(refField), objectToDelete)) {
 
@@ -47,8 +47,8 @@ public class DeleteHelpers extends Common {
 						objectToCheck.setFieldValue(refField, null);
 
 						// UPDATE object SET column value to NULL
-						String referencingTableName = ((SqlRegistry) sdc.registry).getTableFor(sdc.registry.getCastedDeclaringDomainClass(refField)).name;
-						String foreignKeyColumnName = ((SqlRegistry) sdc.registry).getColumnFor(refField).name;
+						String referencingTableName = sdc.getSqlRegistry().getTableFor(sdc.getRegistry().getCastedDeclaringDomainClass(refField)).name;
+						String foreignKeyColumnName = sdc.getSqlRegistry().getColumnFor(refField).name;
 						sdc.sqlDb.update(cn, referencingTableName, CMap.newSortedMap(foreignKeyColumnName, null), Const.ID_COL + "=" + objectToCheck.getId());
 					}
 				}
@@ -60,15 +60,15 @@ public class DeleteHelpers extends Common {
 	private static void deleteFromDatabase(Connection cn, SqlDomainController sdc, SqlDomainObject obj) throws SQLException, SqlDbException {
 
 		// Delete records belonging to this object: object records for domain class(es) and potentially existing entry records
-		for (Class<? extends SqlDomainObject> domainClass : CList.reverse(sdc.registry.getDomainClassesFor(obj.getClass()))) {
+		for (Class<? extends SqlDomainObject> domainClass : CList.reverse(sdc.getRegistry().getDomainClassesFor(obj.getClass()))) {
 
 			// Delete possibly existing element or key/value records from entry tables before deleting object record for domain class itself
-			for (Field complexField : sdc.registry.getComplexFields(domainClass)) {
-				SqlDb.deleteFrom(cn, ((SqlRegistry) sdc.registry).getEntryTableFor(complexField).name, ((SqlRegistry) sdc.registry).getMainTableRefIdColumnFor(complexField).name + "=" + obj.getId());
+			for (Field complexField : sdc.getRegistry().getComplexFields(domainClass)) {
+				SqlDb.deleteFrom(cn, sdc.getSqlRegistry().getEntryTableFor(complexField).name, sdc.getSqlRegistry().getMainTableRefIdColumnFor(complexField).name + "=" + obj.getId());
 			}
 
 			// Delete object record for domain class
-			SqlDb.deleteFrom(cn, ((SqlRegistry) sdc.registry).getTableFor(domainClass).name, Const.ID_COL + "=" + obj.getId());
+			SqlDb.deleteFrom(cn, sdc.getSqlRegistry().getTableFor(domainClass).name, Const.ID_COL + "=" + obj.getId());
 		}
 	}
 

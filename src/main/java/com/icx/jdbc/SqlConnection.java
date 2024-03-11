@@ -7,7 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Autoclosable database connection class based on {@link ConnectionPool}.
+ * Thin autoclosable database connection layer based on {@link ConnectionPool}.
  * 
  * @author baumgrai
  */
@@ -19,6 +19,9 @@ public class SqlConnection implements AutoCloseable {
 	// Members
 	// -------------------------------------------------------------------------
 
+	/**
+	 * SQL connection
+	 */
 	public Connection cn = null;
 
 	private ConnectionPool pool = null;
@@ -57,6 +60,11 @@ public class SqlConnection implements AutoCloseable {
 		return new SqlConnection(pool, autoCommit);
 	}
 
+	/*
+	 * (non-Javadoc)
+	 * 
+	 * @see java.lang.AutoCloseable#close()
+	 */
 	@Override
 	public void close() {
 
@@ -82,6 +90,9 @@ public class SqlConnection implements AutoCloseable {
 
 	/**
 	 * Commit transaction.
+	 * 
+	 * @param cn
+	 *            connection where transaction is running
 	 * 
 	 * @return true if commit succeeded, false otherwise
 	 */
@@ -110,6 +121,9 @@ public class SqlConnection implements AutoCloseable {
 
 	/**
 	 * Roll back transaction.
+	 * 
+	 * @param cn
+	 *            connection where transaction is running
 	 * 
 	 * @return true if roll back succeeded, false otherwise
 	 */

@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import com.icx.common.base.Common;
+import com.icx.common.Common;
 
 public class TestHelpers extends Common {
 

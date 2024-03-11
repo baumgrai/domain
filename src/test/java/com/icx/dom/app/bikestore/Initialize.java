@@ -9,7 +9,7 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.common.base.CFile;
+import com.icx.common.CFile;
 import com.icx.dom.app.bikestore.domain.Manufacturer;
 import com.icx.dom.app.bikestore.domain.bike.Bike;
 import com.icx.dom.app.bikestore.domain.bike.Bike.Breaks;
@@ -41,7 +41,7 @@ public class Initialize {
 
 		// Note: To speed up initialization use one transaction to delete all existing objects. Potential exceptions on DELETE will stop test
 
-		try (SqlConnection sqlcn = SqlConnection.open(BikeStoreApp.sdc.sqlDb.pool, false)) {
+		try (SqlConnection sqlcn = SqlConnection.open(BikeStoreApp.sdc.getPool(), false)) {
 
 			// Delete means: remove Java object from object store and DELETE object records in database, and do so for all children too (behaves like ON DELETE CASCADE)!
 			for (RegionInProgress regionInProgress : BikeStoreApp.sdc.all(RegionInProgress.class)) {
@@ -101,7 +101,7 @@ public class Initialize {
 		// Save manufacturers - INSERTs are performed here
 
 		// Note: To speed up initialization use one transaction to save multiple new objects. Transaction will automatically be committed on closing connection
-		try (SqlConnection sqlcn = SqlConnection.open(BikeStoreApp.sdc.sqlDb.pool, false)) {
+		try (SqlConnection sqlcn = SqlConnection.open(BikeStoreApp.sdc.getPool(), false)) {
 			for (Manufacturer manufacturer : BikeStoreApp.sdc.all(Manufacturer.class)) {
 				BikeStoreApp.sdc.save(sqlcn.cn, manufacturer);
 			}
@@ -151,7 +151,7 @@ public class Initialize {
 		// Note: if an object is saved which has an parent object which is not yet stored in persistence database this parent object is saved automatically before saving object itself (to have valid
 		// child/parent relation realized by FOREIGN KEY column with parent id in database)
 
-		try (SqlConnection sqlcn = SqlConnection.open(BikeStoreApp.sdc.sqlDb.pool, false)) {
+		try (SqlConnection sqlcn = SqlConnection.open(BikeStoreApp.sdc.getPool(), false)) {
 			for (Bike bike : bikes) {
 
 				BikeStoreApp.sdc.register(bike);

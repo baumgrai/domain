@@ -4,7 +4,6 @@ import java.lang.reflect.Field;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -32,22 +31,31 @@ public abstract class SqlDomainObject extends DomainObject {
 	// -------------------------------------------------------------------------
 
 	// Date of last modification
-	public LocalDateTime lastModifiedInDb = null;
+	LocalDateTime lastModifiedInDb = null;
 
 	// Is already saved to database?
 	transient boolean isStored = false;
 
+	/**
+	 * Check if domain object is already stored to database (persisted).
+	 * 
+	 * @return true, if domain object is already stored, false otherwise
+	 */
 	public boolean isStored() {
 		return isStored;
 	}
 
-	public void setIsStored() {
+	void setIsStored() {
 		isStored = true;
 	}
 
-	// Get associated SQL domain controller
+	/**
+	 * Get associated SQL domain controller.
+	 * 
+	 * @return associated SQL domain controller
+	 */
 	public SqlDomainController sdc() {
-		return (SqlDomainController) dc;
+		return (SqlDomainController) getDc();
 	}
 
 	// -------------------------------------------------------------------------
@@ -55,7 +63,16 @@ public abstract class SqlDomainObject extends DomainObject {
 	// -------------------------------------------------------------------------
 
 	// SQL exception occurred during last try to save object
-	public transient Exception currentException = null;
+	transient Exception currentException = null;
+
+	/**
+	 * Get exception occurred on trying to save object or null.
+	 * 
+	 * @return exception, if exception occurred on trying to save object, null otherwise
+	 */
+	public Exception getCurrentException() {
+		return currentException;
+	}
 
 	// Field errors which prohibit object saving or warnings which force truncating field content on saving
 	private transient Map<Field, FieldError> fieldErrorMap = new ConcurrentHashMap<>();
@@ -74,9 +91,9 @@ public abstract class SqlDomainObject extends DomainObject {
 	}
 
 	/**
-	 * Check if domain object could be saved without critical errors (or is still not saved to database).
+	 * Check if domain object could be recently saved without errors (or if it is still not saved to database).
 	 * 
-	 * @return true if domain object was saved without critical errors or is still not saved to database, false otherwise
+	 * @return true if domain object was saved without critical errors or is still not saved to database, false otherwise ({@link SqlDomainController#save(java.sql.Connection, SqlDomainObject)})
 	 */
 	public boolean isValid() {
 		return (currentException == null && fieldErrorMap.values().stream().noneMatch(fe -> fe.isCritical));
@@ -115,7 +132,7 @@ public abstract class SqlDomainObject extends DomainObject {
 	}
 
 	/**
-	 * Get field errors for this object.
+	 * Get field errors and warnings for this object.
 	 * 
 	 * @return field errors
 	 */
@@ -126,15 +143,6 @@ public abstract class SqlDomainObject extends DomainObject {
 	// -------------------------------------------------------------------------
 	// Convenience methods
 	// -------------------------------------------------------------------------
-
-	public boolean wasChangedLocally() {
-
-		Map<Field, Object> fieldChangesMap = new HashMap<>();
-		for (Class<? extends SqlDomainObject> domainClass : sdc().registry.getDomainClassesFor(this.getClass())) {
-			fieldChangesMap.putAll(SaveHelpers.getFieldChangesForDomainClass(((SqlRegistry) sdc().registry), this, sdc().recordMap.get(this.getClass()).get(this.getId()), domainClass));
-		}
-		return !fieldChangesMap.isEmpty();
-	}
 
 	/**
 	 * Convenience method to delete object without throwing exception - see {@link SqlDomainController#delete(SqlDomainObject)}.
@@ -164,18 +172,6 @@ public abstract class SqlDomainObject extends DomainObject {
 		catch (SQLException | SqlDbException e) {
 			return false;
 		}
-	}
-
-	/**
-	 * Convenience method to save object and all direct and indirect children without throwing exception see {@link SqlDomainController#saveIncludingChildren(SqlDomainObject)}.
-	 */
-	public void saveIncludingChildren() {
-
-		for (SqlDomainObject child : ((SqlDomainController) dc).getDirectChildren(this)) {
-			child.saveIncludingChildren();
-		}
-
-		save();
 	}
 
 }

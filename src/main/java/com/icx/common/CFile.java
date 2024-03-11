@@ -1,4 +1,4 @@
-package com.icx.common.base;
+package com.icx.common;
 
 import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
