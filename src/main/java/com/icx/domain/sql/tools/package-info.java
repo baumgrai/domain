@@ -1,5 +1,5 @@
 /**
- * Java2Sql tool and related classes.
+ * Java2Sql tool and related classes to generate SQL scripts for persistence database from domain classes.
  * <p>
  * Java2Sql builds SQL scripts for generation of persistence database using domain class definitions in Java source code.
  * <p>
