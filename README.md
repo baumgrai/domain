@@ -23,8 +23,8 @@ In your application:
 **How will data be persisted?**
 - Every 'domain' class has a corresponding table in the persistence database
 - Fields of type `String`, `Char`, `Short`, `Integer`, `Long`, `Double` (and appropriate primitive types) `Enum`, `BigInteger`, `BigDecimal`, `LocalDate`, `LocalTime`, `LocalDateTime`, `Date`, `byte[]`, `char[]`, `File` have corresponding columns of appropriate type in the persistence table
-- Lists, sets, arrays and maps (of these types) have corresponding 'entry' tables (also collections of <String> collections or <?, String> maps themselves ad maps with <String> collections or <?, String> maps as values)
-- fields of any other type, for which a string conversion provider is defined, have corresponding a text columns 
+- List, set, array and map fields have corresponding 'entry' tables
+- Fields of any other type, for which a string conversion provider is defined, have corresponding a text columns
 
 **Topics addressed by *Domain* persistence mechanism:**
 - inheritance - there is no restriction regarding inheritance of domain classes (`Bike extends SqlDomainObject`, `RaceBike extends Bike`, `Bianchi extends RaceBike`)
