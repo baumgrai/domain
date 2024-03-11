@@ -18,6 +18,7 @@ In your application:
    - Create objects to persist using `DomainController#create()` or create them by constructors and register them for persitence with `DomainController#register()`
    - Persist objects with `#save()` - or create and immediately persist objects using `SqlDomainController#createAndSave()`
    - Access objects using methods like `DomainController#findAll()`, `DomainController#findAny()`
+   - Remove objects from object store and delete associated persistence records from database using `#delete()`
 
 **How will data be persisted?**
 - Every 'domain' class has a corresponding table in the persistence database
