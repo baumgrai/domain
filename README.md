@@ -25,14 +25,14 @@ In your application:
 - Lists, sets, arrays and maps (of these types) have corresponding 'entry' tables (also collections of <String> collections or <?, String> maps themselves ad maps with <String> collections or <?, String> maps as values)
 - fields of any other type, for which a string conversion provider is defined, have corresponding a text columns 
 
-The following topics are addressed by *Domain*:
+Topics addressed by *Domain* persistence mechanism:
 - inheritance - there is no restriction regarding inheritance of domain classes (`Bike extends SqlDomainObject`, `RaceBike extends Bike`, `Bianchi extends RaceBike`)
 - parent child relations of domain objects (`class Manufacturer {...}`, `class Bike { Manufacturer manufacturer; ...}`)
 - direct access to children by managed 'accumulations' fields (`class Manufacturer {... @Accumulation Set<Bike> bikes; }`)
 - circular references on class and object level (`class X { X next; }`, `class A { B b; }`, `class B { C c; }`, `class C { A a; }`)
 - n:m relations between domain objects - using helper classes (`class A {...}`, `class B {...}`, `class AB { A a; B b; }`)
 - protection of sensitive data - encrypt data in database using `@Crypt` annotation and suppress logging sensitive data using `@Secret` annotation
-- house keeping - keep only relevant objects in heap (which are newer than a configurable time in the past) using `@UseDataHorizon` annotation and `dataHorizonPeriod` property  
+- house keeping - keep only relevant objects (which are newer than a configurable time in the past) in heap using `@UseDataHorizon` annotation and `dataHorizonPeriod` property  
 - selective object loading - load only a part of the persisted objects using `SqlDomainController#loadOnly()`[^1]
 - referential integrity - even if not all persisted objects are loaded into object store - parent is loaded if child is loaded
 - concurrent access - operate with multiple threads and/or domain controller instances on the same persistence database, synchronize concurrent access using `SqlDomainController#allocateObjectsExclusively()`[^1]
@@ -43,5 +43,5 @@ The following topics are addressed by *Domain*:
 - *domain* runs in Java >=8 environments
 - *domain* has a small footprint of 10k LoC and 200kB jar
 - ***domain* has only logging (*slf4j* and *logback*) and database drivers as dependencies**
-- Unit tests cover > 85% of code
 - Demo application 'BikeStore' demonstrates usage of many of th e features  
+- Unit tests cover > 85% of code
