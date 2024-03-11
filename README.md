@@ -19,10 +19,11 @@ In your application:
    - Persist objects with `#save()` - or create and immediately persist objects using `SqlDomainController#createAndSave()`
    - Access objects using methods like `DomainController#findAll()`, `DomainController#findAny()`
 
-Which data can be persisted?
-- `String`, `Char`, `Short`, `Integer`, `Long`, `Double` (and appropriate primitive types) - also `Enum` types, `BigInteger`, `BigDecimal`, `LocalDate`, `LocalTime`, `LocalDateTime`, `Date`, `byte[]`, `char[]`, `File` in columns of appropriate type
-- Lists, sets, arrays and maps of these types in 'entry' tables, also collections of <String> collections or <?, String> maps, maps with <String> colections or <?, String> maps as values 
-- any other type as string in text columns by defining specific string conversion providers
+**How will data be persisted?**
+- Every 'domain' class has a corresponding table in the persistence database
+- Fields of type `String`, `Char`, `Short`, `Integer`, `Long`, `Double` (and appropriate primitive types) `Enum`, `BigInteger`, `BigDecimal`, `LocalDate`, `LocalTime`, `LocalDateTime`, `Date`, `byte[]`, `char[]`, `File` have corresponding columns of appropriate type in the persistence table
+- Lists, sets, arrays and maps (of these types) have corresponding 'entry' tables (also collections of <String> collections or <?, String> maps themselves ad maps with <String> collections or <?, String> maps as values)
+- fields of any other type, for which a string conversion provider is defined, have corresponding a text columns 
 
 The following topics are addressed by *Domain*:
 - inheritance - there is no restriction regarding inheritance of domain classes (`Bike extends SqlDomainObject`, `RaceBike extends Bike`, `Bianchi extends RaceBike`)
