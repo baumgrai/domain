@@ -41,7 +41,7 @@ In your application:
 
 [^1]: SQL knowledge and knowledge of *domain* specific Java <-> SQL conversion is needed if objects shall be loaded seletively from database and if objects shall be allocated exclusively. *domain* specific Java <-> SQL conversion is described in package documentation of Javadoc.
 
-**Additional information:**
+**Further information:**
 - *domain* runs in Java >=8 environments
 - *domain* has a small footprint of 10k LoC and 200kB jar
 - ***domain* has only logging (*slf4j* and *logback*) and database drivers as dependencies**
