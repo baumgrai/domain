@@ -20,7 +20,7 @@ In your application:
    - Access objects using methods like `DomainController#findAll()`, `DomainController#findAny()`
    - Remove objects from object store and delete associated persistence records from database using `#delete()`
 
-**How will data be persisted?**
+**How data is persisted?**
 - Every 'domain' class has a corresponding table in the persistence database
 - Fields of type `String`, `Char`, `Short`, `Integer`, `Long`, `Double` (and appropriate primitive types) `Enum`, `BigInteger`, `BigDecimal`, `LocalDate`, `LocalTime`, `LocalDateTime`, `Date`, `byte[]`, `char[]`, `File` have corresponding columns of appropriate type in the persistence table
 - List, set, array and map fields have corresponding 'entry' tables
