@@ -9,7 +9,7 @@ If you - for any reason - do not want to use Hibernate, Spring, etc. for your pe
 
 Let all your 'domain' classes to persist extend `SqlDomainObject` class directly or indirectly (inheritance is supported).
 
-Let `Java2Sql` tool generate the SQL scripts for the persistence database based on yor 'domain' classes and generate the persistence database.
+Let `Java2Sql` tool generate the SQL scripts for the persistence database based on your 'domain' classes and generate the persistence database.
 
 Configure the database connection in `db.properties`.
 
