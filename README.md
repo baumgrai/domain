@@ -24,7 +24,7 @@ In your application:
 - Every 'domain' class has a corresponding table in the persistence database
 - Fields of type `String`, `Char`, `Short`, `Integer`, `Long`, `Double` (and appropriate primitive types) `Enum`, `BigInteger`, `BigDecimal`, `LocalDate`, `LocalTime`, `LocalDateTime`, `Date`, `byte[]`, `char[]`, `File` have corresponding columns of appropriate type in the persistence table
 - List, set, array and map fields have corresponding 'entry' tables
-- Fields of any other type, for which a string conversion provider is defined, have corresponding a text columns
+- Fields of any other type, for which a string conversion provider is defined, have corresponding text columns
 
 **Topics addressed by *Domain* persistence mechanism:**
 - inheritance - there is no restriction regarding inheritance of domain classes (`Bike extends SqlDomainObject`, `RaceBike extends Bike`, `Bianchi extends RaceBike`)
