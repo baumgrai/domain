@@ -1,0 +1,5 @@
+com.icx.common
+com.icx.domain
+com.icx.domain.sql
+com.icx.domain.sql.tools
+com.icx.jdbc
