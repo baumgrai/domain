@@ -327,8 +327,9 @@ public class Java2SqlHelpers extends SqlDbHelpers {
 			if (elementType instanceof Class<?>) {
 				elementColumn = entryTable.addStandardColumn(Const.ELEMENT_COL, (Class<?>) elementType);
 			}
-			else { // if elementType instanceof ParameterizedType
+			else { // if element itself is collection or map
 				elementColumn = entryTable.addStandardColumn(Const.ELEMENT_COL, String.class);
+				elementColumn.isText = true;
 			}
 
 			// Avoid null pointer exception on following tests
@@ -357,7 +358,7 @@ public class Java2SqlHelpers extends SqlDbHelpers {
 			if (!(keyType instanceof Class<?>)) {
 				log.error("J2S: Key type of map {} must be a simple type (not a collection or a map)!", keyType);
 			}
-			else { // if elementType instanceof ParameterizedType
+			else { // if value type instanceof ParameterizedType
 				keyColumn = entryTable.addStandardColumn(Const.KEY_COL, (Class<?>) keyType);
 				keyColumn.charsize = 512; // Less bytes allowed for keys in UNIQUE constraints
 			}
@@ -366,8 +367,9 @@ public class Java2SqlHelpers extends SqlDbHelpers {
 			if (valueType instanceof Class<?>) {
 				entryTable.addStandardColumn(Const.VALUE_COL, (Class<?>) valueType);
 			}
-			else { // if elementType instanceof ParameterizedType
-				entryTable.addStandardColumn(Const.VALUE_COL, String.class);
+			else { // if value itself is collection or map
+				Column valueColumn = entryTable.addStandardColumn(Const.VALUE_COL, String.class);
+				valueColumn.isText = true;
 			}
 
 			// Add UNIQUE constraint on key
