@@ -798,7 +798,7 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	 * If a temporary invalid object can successfully be saved again (with changed and valid field values), assigned exception and field error(s) will be removed from object, so object than is
 	 * considered again as valid. again.
 	 * <p>
-	 * If initial saving - INSERTing object record(s) - fails, whole transaction will be ROLLed BACK (if connection is not in auto-commit mode).
+	 * If initial saving - inserting object record(s) - fails, whole transaction will be rolled back (if connection is not in auto-commit mode).
 	 * 
 	 * @param cn
 	 *            database connection
@@ -813,11 +813,6 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	 *             on internal errors
 	 */
 	public boolean save(Connection cn, SqlDomainObject obj) throws SQLException, SqlDbException {
-
-		if (!isRegistered(obj)) {
-			log.warn("SDC: Object {} cannot be saved because it was not registered before!", obj.name());
-			return false;
-		}
 
 		try {
 			// Save object

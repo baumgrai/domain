@@ -421,7 +421,7 @@ public abstract class SaveHelpers extends Common {
 			}
 
 			// Re-register meanwhile unregistered parent object
-			if (!sdc.isRegistered(parentObject)) { // Parent object was unregistered before saving this object (during synchronization due to data horizon condition)
+			if (!sdc.isRegistered(parentObject) && parentObject.getId() > 0) { // Parent object was unregistered before saving this object (during synchronization due to data horizon condition)
 				log.warn("SDC: {}Parent {} is not registered anymore (probably out of data horizon) - reregister object", CLog.tabs(stackSize), DomainObject.name(parentObject));
 				sdc.reregister(parentObject);
 			}
@@ -474,7 +474,7 @@ public abstract class SaveHelpers extends Common {
 			SqlDomainObject parentObject = entry.getValue();
 
 			// Ignore if meanwhile unregistered
-			if (!sdc.isRegistered(parentObject)) {// Parent object was deleted during saving this object
+			if (!sdc.isRegistered(parentObject) && parentObject.getId() > 0) {// Parent object was deleted during saving this object
 				log.warn("SDC: {}Parent {} is not registered anymore!", CLog.tabs(stackSize), DomainObject.name(parentObject));
 				continue;
 			}
@@ -567,8 +567,14 @@ public abstract class SaveHelpers extends Common {
 	// Save object in one transaction to database
 	static boolean save(Connection cn, SqlDomainController sdc, SqlDomainObject obj, List<SqlDomainObject> objectsToCheckForCircularReference) throws SQLException, SqlDbException {
 
-		// Check if object was already stored within current (recursive) save operation
+		// Register object in object store before (initial) saving if not already done
 		int stackSize = objectsToCheckForCircularReference.size();
+		if (!sdc.isRegistered(obj) && obj.getId() == 0) {
+			log.debug("SDC: {}Object {} was not registered before - register now", CLog.tabs(stackSize), obj.name());
+			sdc.register(obj);
+		}
+
+		// Check if object was already stored within current (recursive) save operation
 		if (objectsToCheckForCircularReference.contains(obj)) {
 			if (log.isDebugEnabled()) {
 				log.debug("SDC: {}Object {} was already stored or tried to store within this recursive save operation (detected circular reference)", CLog.tabs(stackSize), obj.name());
