@@ -15,9 +15,9 @@ Configure the database connection in `db.properties`.
 
 In your application:
    - Initially create a 'domain controller' and call `SqlDomainController#synchronize()` to load objects from persistence database
-   - Create objects to persist using `DomainController#create()` or create them by constructors and register them for persitence with `DomainController#register()`
-   - Persist objects with `#save()` - or create and immediately persist objects using `SqlDomainController#createAndSave()`
-   - Access objects using methods like `DomainController#findAll()`, `DomainController#findAny()`
+   - create and persist objects immediately using `SqlDomainController#createAndSave()`
+   - if you prefer constructors: persist new objects with `SqlDomainController#save()`
+   - on #create() or #save() objects will be registered in domain controller's object store. Access objects using methods like `DomainController#findAll()`, `DomainController#findAny()`
    - Remove objects from object store and delete associated persistence records from database using `#delete()`
 
 **How data is persisted?**
