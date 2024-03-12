@@ -7,6 +7,7 @@ import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -24,14 +25,12 @@ import com.icx.common.CReflection;
 import com.icx.common.Common;
 
 /**
- * Helpers for conversion of collections and maps to/from associated rows of entry tables
+ * Helpers for conversion of collections and maps to and from 'entry' tables and helpers to convert collections and maps to and from string representation.
  * <p>
- * Fields of domain classes which contain collections or maps are represented in database as separate 'entry' tables unlike fields containing simple values which will be represented as table columns.
- * Methods of this class perform conversion between these representations.
+ * Collections and maps of 'first level' will be represented in persistence database as so called 'entry' tables, which contain one 'entry' record per element of collection or entry of map.
  * <p>
- * Collections supported as fields of domain objects may contain alternatively strings, numbers (Integer, Long, Float, Double), enum values and other simple objects, which can be constructed using a
- * constructor with one string argument. The same is valid for keys and values of maps supported as fields of domain objects. Collection elements and map values may also be themselves collections or
- * maps of simple elements. But map keys may only be simple elements.
+ * Collections and maps of 'second level' - means as elements of collections or values of maps themselves - are also supported, but only if their elements or keys/values can simply be converted to and
+ * from string representation using {@code toString()} for conversion of value to string and {@code valueOf()} method or constructor with String argument for rebuilding value from string.
  * 
  * @author baumgrai
  */
@@ -82,7 +81,7 @@ public abstract class ComplexFieldHelpers extends Common {
 
 	// Collection element or value of map entry -> value to store in database table column
 	// Method will only be used for elements of collections or keys or values of maps - so here lists of lists, lists of maps, maps with lists or maps as keys or values will be handled
-	static Object element2ColumnValue(Object element) {
+	private static Object element2ColumnValue(Object element) {
 
 		if (element instanceof Collection) { // Elements of collection or values of map are collections
 			return collection2String((Collection<?>) element);
@@ -99,8 +98,11 @@ public abstract class ComplexFieldHelpers extends Common {
 	// Convert values stored in column to elements of collections or keys and values of maps
 	// -------------------------------------------------------------------------
 
-	// String -> object, used in string2Collection() and string2Map() to allow converting collections and maps of objects which are not strings; works for enum objects, strings and objects which can
-	// be constructed using a constructor with one string argument
+	// String constructor cache
+	private static Map<Class<?>, Constructor<?>> stringConstructorMap = new HashMap<>();
+
+	// String -> object, used in string2Collection() and string2Map() to allow converting collections and maps of objects which are not strings; works for enum objects, strings, numbers and objects
+	// which can be constructed using a constructor with one string argument
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	private static <T> T string2SimpleObject(Class<? extends T> objectClass, String s) {
 
@@ -117,20 +119,27 @@ public abstract class ComplexFieldHelpers extends Common {
 				if (Enum.class.isAssignableFrom(objectClass)) {
 					return (T) Enum.valueOf((Class<? extends Enum>) objectClass, s);
 				}
+				else if (objectClass == Short.class) {
+					return (T) Short.valueOf(s);
+				}
 				else if (objectClass == Integer.class) {
 					return (T) Integer.valueOf(s);
 				}
 				else if (objectClass == Long.class) {
 					return (T) Long.valueOf(s);
 				}
-				else if (objectClass == Float.class) {
-					return (T) Float.valueOf(s);
-				}
 				else if (objectClass == Double.class) {
 					return (T) Double.valueOf(s);
 				}
 				else {
-					Constructor<?> constructor = objectClass.getConstructor(String.class);
+					Constructor<?> constructor = null;
+					if (stringConstructorMap.containsKey(objectClass)) {
+						constructor = stringConstructorMap.get(objectClass);
+					}
+					else {
+						constructor = objectClass.getConstructor(String.class);
+						stringConstructorMap.put(objectClass, constructor);
+					}
 					return (T) constructor.newInstance(s);
 				}
 			}
@@ -288,6 +297,11 @@ public abstract class ComplexFieldHelpers extends Common {
 		}
 
 		return entryRecords;
+	}
+
+	// Convert single entry of map to key/value map to UPDATE appropriate records in entry table
+	static SortedMap<String, Object> mapEntry2ColumnValueMap(Object value) {
+		return CMap.newSortedMap(Const.VALUE_COL, ComplexFieldHelpers.element2ColumnValue(value));
 	}
 
 	// Convert records of entry table to map
