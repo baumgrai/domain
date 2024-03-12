@@ -17,7 +17,7 @@ In your application:
    - Initially create a 'domain controller' and call `SqlDomainController#synchronize()` to load objects from persistence database
    - create and persist objects immediately using `SqlDomainController#createAndSave()`
    - if you prefer constructors: persist new objects with `SqlDomainController#save()`
-   - on `#create()` or `#save()` objects will be registered in domain controller's object store. Access objects using methods like `DomainController#findAll()`, `DomainController#findAny()`
+   - on `#create()`, `#createAndSave()` or `#save()` objects will be registered in domain controller's object store. Access objects using methods like `DomainController#findAll()`, `DomainController#findAny()`
    - Remove objects from object store and delete associated persistence records from database using `#delete()`
 
 **How data is persisted?**
