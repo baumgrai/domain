@@ -159,7 +159,7 @@ public abstract class Annotations {
 	// For fields
 	// ----------------------------------------------------------------------
 
-	public static final int DEFAULT_CHARSIZE = 1024;
+	public static final int DEFAULT_CHARSIZE = 512;
 
 	/**
 	 * For fields which are associated to columns (not array, Collection or Map fields): (Non default) column name, NOT NULL and UNIQUE constraint, text length, etc. of column associated with field
@@ -183,7 +183,7 @@ public abstract class Annotations {
 		public boolean unique() default false;
 
 		/**
-		 * Define char size of text column associated to field (default 1024).
+		 * Define char size of text column associated to field (default 512).
 		 * 
 		 * @return size of character column associated with this field
 		 */
@@ -231,7 +231,7 @@ public abstract class Annotations {
 	 * {@code toString()} and {@code valueOf(String)} which do the job of to- and from-string-conversion.
 	 * <p>
 	 * {@link StoreAsString} annotation forces {@link Java2Sql} tool to generate a string ((N)VARCHAR(size)) column associated with this field. Charsize of column can be defined using
-	 * {@link SqlColumn#charsize()} if it shall differ from default charsize 1024.
+	 * {@link SqlColumn#charsize()} if it shall differ from default charsize 512.
 	 */
 	@Retention(RetentionPolicy.RUNTIME)
 	@Target(ElementType.FIELD)
