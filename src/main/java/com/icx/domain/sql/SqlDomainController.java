@@ -483,7 +483,16 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	 * referential integrity).
 	 * <p>
 	 * Note: To provide a WHERE clause one needs knowledge of the relation of Java class/field names and associated SQL table/column names and also knowledge about column types associated to field
-	 * types. See {@link Java2Sql} for details of class/table and field/column naming conversion rules.
+	 * types:
+	 * <p>
+	 * The basic rule for conversion of Java class/field names to SQL table/column names is: CaseFormat.UPPER_CAMEL -> CaseFormat.UPPER_UNDERSCORE. Tables are additionally prefixed by 'DOM_'. E.g.:
+	 * class name -> table name: {@code Xyz} -> 'DOM_Xyz', {@code XYZ} -> 'DOM_X_Y_Z' and field name -> column name: {@code xyz} -> 'XYZ'. {@code xYz} -> 'X_YZ'.
+	 * <p>
+	 * If field is a reference field referencing another domain class, the corresponding column has appendix '_ID' (object references are realized as foreign key columns referencing unique object id).
+	 * E.g. <code> class Bike { Manufacturer manufacturer; }</code> -> column 'MANUFACTURER_ID' in table 'DOM_BIKE'.
+	 * <p>
+	 * If field name is or may be a reserved name in SQL, column name is prefixed by 'DOM_' (e.g.: {@code LocalDate date} -> 'DOM_DATE', {@code Type type} -> 'DOM_TYPE', {@code Double number} ->
+	 * 'DOM_NUMBER').
 	 * <p>
 	 * Fixed values of {@code String} and {@code Enum} fields in WHERE clause have to be specified as string literals -> NAME='Order1' AND STATUS='open'. Number values ({@code Integer}, {@code Long},
 	 * {@code Double}, {@code BigInteger}, {@code BigDecimal}) have to be specified as appropriate numbers -> PRICE<12.0. LocalDate, LocalTime, LocalDateTime values have to be valid database specific

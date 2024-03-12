@@ -1,21 +1,22 @@
 /**
  * Contains {@link Java2Sql} tool and related classes to generate SQL scripts for persistence database (basic information about Domain persistence mechanism including generation of persistence
- * database, description of supported field types and class/field -> table/column conversion is provided here).
+ * database and description of supported field types is provided here).
  * <p>
- * SQL script generation bases on Java classes for which objects shall be persisted and which therefore must extend {@code SqlDomainObject} directly or indirectly. These classes are called 'domain'
- * classes. They should reside in a specific package ('domain' package) and/or in sub-packages of this package. Package name of 'domain' package may be 'domain' itself, but this is not a must.
+ * Java classes for which objects shall be persisted must extend {@code SqlDomainObject} class directly or indirectly. SQL script generation for persistence database bases on these so called 'domain'
+ * classes. Domain classes must reside under a specific 'domain' package. This domain package may have an arbitrary sub-package structure containing the domain classes. Package name of domain package
+ * may be 'domain' itself, but this is not a must.
  * <p>
- * To generate SQL scripts for your specific persistence database copy {@code Java2Sql.java} into your 'domain' package and start it there without parameters (before starting you may have to change
- * the package name in the first line of code of {@code Java2Sql.java}).
+ * To generate SQL scripts for your persistence database copy {@code Java2Sql.java} into your 'domain' package and start it there without parameters (before starting you may have to change the package
+ * name in the first line of code of {@code Java2Sql.java}).
  * <p>
  * {@code Java2Sql} generates three SQL table generation scripts: {@code xxx_ms_sql.sql}, {@code xxx_mysql.sql} and {@code xxx_oracle.sql} in directory {@code sql}, where 'xxx' is the name of the
- * package containing the 'domain' package.
+ * package containing the domain package. Please check logs of SQL script generation for potential errors before executing generated SQL scripts.
  * <p>
- * {@code Java2Sql} supports version control: Product versions, in which domain classes or single fields were created, modified or removed, can be defined annotating {@link Created}, {@link Changed},
- * {@link Removed} to these fields and classes. {@code Java2Sql} then produces incremental database update scripts for any product version defined in one of these annotations - additionally to the
- * scripts for the whole database.
+ * SQL script generation also supports version control: product versions, in which domain classes or single fields were created, modified or removed, can be defined annotating {@link Created},
+ * {@link Changed}, {@link Removed} to these fields and classes. {@code Java2Sql} then produces incremental database update scripts for any product version defined in one of these annotations - in
+ * addition to the scripts for the whole database.
  * <p>
- * Following list shows which Java types types are natively supported for fields of persistable domain classes and which column types will be used in persistence tables for these field types:
+ * Following list shows, which Java types are natively supported for fields of domain classes and which column types will be used in persistence tables:
  * <p>
  * <ul>
  * <li>{@code String} -> database specific (N)VARCHAR({@link SqlColumn#charsize()}) or long TEXT - {@link SqlColumn#isText()} - type
@@ -23,31 +24,23 @@
  * <li>{@code Char}/{@code char} -> database specific (N)VARCHAR(1) type
  * <li>Java number types (and their primitive equivalents): {@code Boolean}, {@code Short}, {@code Integer}, {@code Double} (but not {@code Byte} and {@code Float}) -> database specific number types
  * (e.g. NUMBER, INTEGER, FLOAT, DOUBLE)
- * <li>{@code BigInteger} -> NUMBER, BIGINT, {@code BigDecimal} -> NUMBER, FLOAT, DOUBLE
+ * <li>{@code BigInteger} -> NUMBER, BIGINT; {@code BigDecimal} -> NUMBER, FLOAT, DOUBLE
  * <li>{@code Date}, {@code LocalDate}, {@code LocalTime}, {@code LocalDateTime} - database specific date/time types (DATE, TIME, TIMESTAMP, DATETIME)
  * <li>{@code char[]}, {@code byte[]} -> database specific CLOB (CLOB, NVARCHAR(MAX), LONGTEXT) or BLOB (BLOB, VARBINARY(MAX), LONGBLOB) types
  * <li>{@code File} -> BLOB (including file path name)
  * <li>Arrays, collections and maps of above types - mapped to separate 'entry' tables instead of table columns (which means that there is no size restriction regarding arrays, collections or maps)
- * <li>Collections and maps which elements or values themselves are collections or maps - restricted to element or value type String or Enum of these sub-collections or -maps (e.g.
- * {@code List<Map<String, String>>}, {@code Map<Integer, List<String>>}). Collections and maps as elements or values of collections or maps will be stored as string (using simple imnernal
- * Collection/Map -> string conversion), and long TEXT column type will be used to store string representation of sub-collections or -maps in entry table.
  * </ul>
+ * Note: collections and maps of 'second level' - means as elements of collections or values of maps themselves (e.g. {@code List<Map<Integer, Type>>}, {@code Map<String, Map<String, String>>}) - are
+ * also directly supported, but only if their elements or keys/values can be converted to and from string representation using {@code toString()} and existing {@code valueOf()} method
+ * ({@code String, Enum, Integer, Long, Double}) or using existing constructor with one String argument.
  * <p>
- * Other types than the above described ones can also be used for fields to persist, if these types can be converted to and re-converted from string representation. Appropriate to/from string
+ * Other types than the above described ones can also be used for fields to persist if these types can be converted to and re-converted from string representation. Appropriate to/from string
  * converters must be defined and registered using {@link SqlDomainController#registerStringConvertersForType(Class, java.util.function.Function, java.util.function.Function)}, and
  * {@link StoreAsString} must be annotated to fields of these types. Database specific (N)VARCHAR columns then will be generated by {@code Java2Sql} for fields of these types and column's character
  * sizes can be defined using {@link SqlColumn#charsize()} or {@link SqlColumn#isText()}.
- * <p>
- * The basic conversion rule for Java class/field names to SQL table/column names is: CaseFormat.UPPER_CAMEL -> CaseFormat.UPPER_UNDERSCORE. Tables are additionally prefixed by 'DOM_'. E.g.: class
- * name -> table name: {@code Xyz} -> 'DOM_Xyz', {@code XYZ} -> 'DOM_X_Y_Z' and field name -> column name: {@code xyz} -> 'XYZ'. {@code xYz} -> 'X_YZ'.
- * <p>
- * If field is a reference field referencing another domain class, the corresponding column has appendix '_ID' (object references are realized as foreign key columns referencing unique object id).
- * E.g. <code> class Bike { Manufacturer manufacturer; }</code> -> column 'MANUFACTURER_ID' in table 'DOM_BIKE'.
- * <p>
- * If field name is or may be a reserved name in SQL, column name is prefixed by 'DOM_' (e.g.: {@code LocalDate date} -> 'DOM_DATE', {@code Type type} -> 'DOM_TYPE', {@code Double number} ->
- * 'DOM_NUMBER').
  * 
  * @since 1.0
+ * 
  * @author baumgrai
  */
 package com.icx.domain.sql.tools;
