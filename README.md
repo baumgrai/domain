@@ -3,7 +3,7 @@
 
 If you - for any reason - do not want to use Hibernate, Spring, etc. for your persistence needs, this software may be worth a look. 
 
-supports ***Oracle*, *MS/SQL-Server*, *MySQL* and *MariaDB***
+Supports ***Oracle*, *MS/SQL-Server*, *MySQL* and *MariaDB***
 
 **Usage:**
 
