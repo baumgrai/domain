@@ -4,9 +4,9 @@ import java.util.Set;
 
 import com.icx.dom.app.bikestore.domain.bike.Bike;
 import com.icx.dom.app.bikestore.domain.client.Client.Country;
-import com.icx.domain.sql.SqlDomainObject;
 import com.icx.domain.sql.Annotations.Accumulation;
 import com.icx.domain.sql.Annotations.SqlColumn;
+import com.icx.domain.sql.SqlDomainObject;
 
 public class Manufacturer extends SqlDomainObject {
 
@@ -24,7 +24,9 @@ public class Manufacturer extends SqlDomainObject {
 
 	// Constructors
 
-	public Manufacturer() { // Default constructor must exist! It will be used by domain controller for instantiation of objects loaded from database and within create() and createAndSave() methods.
+	// Default constructor must exist! It will be used by domain controller for instantiation of objects loaded from database and within create() and createAndSave() methods.
+	// Default constructor must be explicitly defined here because another constructor is defined
+	public Manufacturer() {
 	}
 
 	// Application specific constructor without internal domain object registration - instantiated object must be registered afterwards!
@@ -41,6 +43,11 @@ public class Manufacturer extends SqlDomainObject {
 	@Override
 	public String toString() {
 		return name;
+	}
+
+	public void init(String name, Country country) {
+		this.name = name;
+		this.country = country;
 	}
 
 }

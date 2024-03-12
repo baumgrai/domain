@@ -672,7 +672,7 @@ class LoadAndSaveTest extends TestHelpers {
 			log.info("\tCreate objects with - also circular - references and save one object to force saving all others...");
 
 			AA aa1 = sdc.create(AA.class, aa -> aa.setS("aa1"));
-			Z z1 = sdc.create(Z.class, null);
+			Z z1 = new Z();
 			Y y1 = sdc.create(Y.class, y -> y.z = z1);
 			y1.y = y1;
 			X x1 = sdc.create(X.class, x -> {

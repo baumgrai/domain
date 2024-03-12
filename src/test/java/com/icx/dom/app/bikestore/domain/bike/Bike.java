@@ -4,16 +4,17 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Set;
 import java.util.SortedMap;
+import java.util.TreeMap;
 
 import com.icx.common.CList;
 import com.icx.common.Common;
 import com.icx.dom.app.bikestore.domain.Manufacturer;
 import com.icx.dom.app.bikestore.domain.client.Order;
 import com.icx.domain.DomainObject;
-import com.icx.domain.sql.SqlDomainObject;
 import com.icx.domain.sql.Annotations.Accumulation;
 import com.icx.domain.sql.Annotations.SqlColumn;
 import com.icx.domain.sql.Annotations.SqlTable;
+import com.icx.domain.sql.SqlDomainObject;
 
 /**
  * Bike model with properties and availability by size.
@@ -64,7 +65,8 @@ public abstract class Bike extends SqlDomainObject {
 	// Lists, Sets and Maps will be stored in separate 'entry' tables - there is no column associated with a List/Set or Map field
 	public List<Size> sizes;
 
-	public SortedMap<Size, Integer> availabilityMap;
+	// Collection and map fields will be automatically initialized on object registration if not already done - initialize bike availability map here to allow access before object registration
+	public SortedMap<Size, Integer> availabilityMap = new TreeMap<>();
 
 	@SqlColumn(notNull = true) // Forces NOT NULL constraint for assigned column
 	public BigDecimal price;

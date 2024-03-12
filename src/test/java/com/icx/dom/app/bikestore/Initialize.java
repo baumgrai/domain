@@ -61,8 +61,6 @@ public class Initialize {
 			}
 
 			// Note: deleting bikes explicitly is not necessary because Bike references Manufacturer with NOT NULL constraint and so all bikes will be deleted by deleting manufacturers
-
-			// Note: transaction will automatically be committed on closing connection
 		}
 
 		log.info("Existing objects deleted.");
@@ -75,43 +73,45 @@ public class Initialize {
 
 		log.info("Create objects...");
 
-		// There are three ways to assign objects to Domain persistence system:
+		// There are multiple ways to assign objects to Domain persistence system:
 
-		// I: Use any specific constructor for object instantiation here
+		// I: Use domain controllers #createAndSave() method with init routine which acts as logical constructor
+
+		// Create and save manufacturers
+		Manufacturer bianchi = BikeStoreApp.sdc.createAndSave(Manufacturer.class, m -> {
+			m.name = "Bianchi";
+			m.country = Country.ITALY;
+		});
+		Manufacturer colnago = BikeStoreApp.sdc.createAndSave(Manufacturer.class, m -> m.init("Colnago", Country.ITALY));
+		Manufacturer cervelo = BikeStoreApp.sdc.createAndSave(Manufacturer.class, m -> m.init("Cervélo", Country.ITALY));
+		Manufacturer derosa = BikeStoreApp.sdc.createAndSave(Manufacturer.class, m -> m.init("De Rosa", Country.ITALY));
+		Manufacturer peugeot = BikeStoreApp.sdc.createAndSave(Manufacturer.class, m -> m.init("Peugeot", Country.FRANCE));
+		Manufacturer lapierre = BikeStoreApp.sdc.createAndSave(Manufacturer.class, m -> m.init("Lapierre", Country.FRANCE));
+
+		// II: Use domain controllers #create() method and save objects afterwards (or rely on automatically saving objects on saving children (bikes) which is not really recommended)
+
+		Manufacturer canyon = BikeStoreApp.sdc.create(Manufacturer.class, m -> m.init("Canyon", Country.GERMANY));
+		canyon.save(); // object's #save() can be used here because object is already registered if it was created by domain controllers #create()
+		Manufacturer cannondale = BikeStoreApp.sdc.create(Manufacturer.class, m -> m.init("Cannondale", Country.UNITED_STATES));
+		cannondale.save();
+		Manufacturer trek = BikeStoreApp.sdc.create(Manufacturer.class, m -> m.init("Trek", Country.UNITED_STATES));
+		Manufacturer specialized = BikeStoreApp.sdc.create(Manufacturer.class, m -> m.init("Specialized", Country.UNITED_STATES));
+		Manufacturer marin = BikeStoreApp.sdc.create(Manufacturer.class, m -> m.init("Marin", Country.UNITED_STATES));
+
+		// III: Create objects by individual constructor and (register and) save them afterwards (or rely on automatically registering and saving objects on saving children)
 		// Note: If you define individual constructors you have to define the parameterless default constructor too, which is used by domain controller to instantiate objects loaded from database
 
-		// Create and register manufacturers - explicit registration
-		Manufacturer bianchi = BikeStoreApp.sdc.register(new Manufacturer("Bianchi", Country.ITALY));
-		Manufacturer colnago = BikeStoreApp.sdc.register(new Manufacturer("Colnago", Country.ITALY));
-		Manufacturer cervelo = BikeStoreApp.sdc.register(new Manufacturer("Cervélo", Country.ITALY));
-		Manufacturer derosa = BikeStoreApp.sdc.register(new Manufacturer("De Rosa", Country.ITALY));
-		Manufacturer peugeot = BikeStoreApp.sdc.register(new Manufacturer("Peugeot", Country.FRANCE));
-		Manufacturer lapierre = BikeStoreApp.sdc.register(new Manufacturer("Lapierre", Country.FRANCE));
-		Manufacturer canyon = BikeStoreApp.sdc.register(new Manufacturer("Canyon", Country.GERMANY));
-		Manufacturer cannondale = BikeStoreApp.sdc.register(new Manufacturer("Cannondale", Country.UNITED_STATES));
-		Manufacturer trek = BikeStoreApp.sdc.register(new Manufacturer("Trek", Country.UNITED_STATES));
-		Manufacturer specialized = BikeStoreApp.sdc.register(new Manufacturer("Specialized", Country.UNITED_STATES));
-		Manufacturer marin = BikeStoreApp.sdc.register(new Manufacturer("Marin", Country.UNITED_STATES));
-		Manufacturer santacruz = BikeStoreApp.sdc.register(new Manufacturer("Santa Cruz", Country.UNITED_STATES));
-		Manufacturer scott = BikeStoreApp.sdc.register(new Manufacturer("Scott", Country.SWITZERLAND));
-		Manufacturer koga = BikeStoreApp.sdc.register(new Manufacturer("Koga", Country.NETHERLANDS));
-		Manufacturer rockymountain = BikeStoreApp.sdc.register(new Manufacturer("Rocky Mountain", Country.CANADA));
-		Manufacturer bmc = BikeStoreApp.sdc.register(new Manufacturer("BMC", Country.SWITZERLAND));
-
-		// Save manufacturers - INSERTs are performed here
-
-		// Note: To speed up initialization use one transaction to save multiple new objects. Transaction will automatically be committed on closing connection
-		try (SqlConnection sqlcn = SqlConnection.open(BikeStoreApp.sdc.getPool(), false)) {
-			for (Manufacturer manufacturer : BikeStoreApp.sdc.all(Manufacturer.class)) {
-				BikeStoreApp.sdc.save(sqlcn.cn, manufacturer);
-			}
-		}
-
-		// II: Use specific constructor for object instantiation which internally registers objects.
+		Manufacturer santacruz = new Manufacturer("Santa Cruz", Country.UNITED_STATES);
+		BikeStoreApp.sdc.save(santacruz); // Note: domain controller's #save() must be used if object was created by constructor - because it must be registered before saving...
+		Manufacturer scott = new Manufacturer("Scott", Country.SWITZERLAND);
+		BikeStoreApp.sdc.register(scott); // ...or register object explicitly and then use object's #save()
+		scott.save();
+		Manufacturer koga = new Manufacturer("Koga", Country.NETHERLANDS);
+		Manufacturer rockymountain = new Manufacturer("Rocky Mountain", Country.CANADA);
+		Manufacturer bmc = new Manufacturer("BMC", Country.SWITZERLAND);
 
 		byte[] picture = CFile.readBinary(BikeStoreApp.BIKE_PICTURE);
 
-		// Create and initially save bikes - registration is done by constructor
 		List<Bike> bikes = new ArrayList<>();
 
 		bikes.add(new RaceBike(bianchi, "SPECIALISSIMA", Frame.CARBON, Breaks.DISK, 24, 11449.0, picture).groups(GroupSet.SHIMANO, GroupSet.CAMPAGNOLO, GroupSet.SRAM).allSizes());
@@ -142,21 +142,16 @@ public class Initialize {
 		bikes.add(new MTB(santacruz, "Tallboy", Frame.CARBON, Breaks.DISK, 12, 5399.0, picture).wheels(WheelSize.W29).downhill().setWeight(14.0).allSizes());
 		bikes.add(new MTB(rockymountain, "Instinct Alloy 10", Frame.ALLOY, Breaks.DISK, 12, 2607.14, picture).wheels(WheelSize.W27_5).forWoman().setWeight(16.0).setSizes(Size.XS, Size.S));
 
-		// Register and save bikes
-
-		// Note: On object registration fields of type List, Set or Map are initialized by empty ArrayList, HashSet and HashMap objects automatically if they are not already initialized. Accumulation
-		// fields will be initialized by empty Concurrent set.
+		// Save new bike objects
 
 		// Note: it's generally recommended to save new and changed objects as soon as possible to avoid unsaved invalid objects in object store
-		// Note: if an object is saved which has an parent object which is not yet stored in persistence database this parent object is saved automatically before saving object itself (to have valid
-		// child/parent relation realized by FOREIGN KEY column with parent id in database)
+		// Note: if an object is saved which has an parent object which is not yet stored in persistence database this parent object is saved automatically too before saving object itself (to have
+		// valid child/parent relation realized by FOREIGN KEY column with parent id in database)
 
 		try (SqlConnection sqlcn = SqlConnection.open(BikeStoreApp.sdc.getPool(), false)) {
 			for (Bike bike : bikes) {
 
-				BikeStoreApp.sdc.register(bike);
-
-				for (Size size : bike.sizes) { // availability map can be accessed now because it will be initialized automatically on registration if not done on object creation
+				for (Size size : bike.sizes) {
 					bike.availabilityMap.put(size, BikeStoreApp.AVAILABLE_BIKES);
 				}
 
@@ -164,7 +159,7 @@ public class Initialize {
 			}
 		}
 
-		// Check object validity
+		// Check object validity (formal here)
 		if (BikeStoreApp.sdc.all(Bike.class).stream().anyMatch(b -> !b.isValid())) {
 			List<FieldError> fieldErrors = BikeStoreApp.sdc.all(Bike.class).stream().filter(b -> !b.isValid()).flatMap(b -> b.getErrorsAndWarnings().stream()).collect(Collectors.toList());
 			throw new ConfigException("Not all bikes could be saved! (" + fieldErrors + ")");
