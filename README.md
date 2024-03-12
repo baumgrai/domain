@@ -26,7 +26,7 @@ In your application:
 - List, set, array and map fields have corresponding 'entry' tables
 - Fields of any other type, for which a string conversion provider is defined, have corresponding text columns
 
-**Topics addressed by *Domain* persistence mechanism:**
+**Addressed topics:**
 - support of class inheritance - there is no restriction regarding inheritance of domain classes (`Bike extends SqlDomainObject`, `RaceBike extends Bike`, `Bianchi extends RaceBike`)
 - representation of parent child relations of domain objects (`class Manufacturer {...}`, `class Bike { Manufacturer manufacturer; ...}`) and also of n:m relations between domain objects - using helper classes (`class A {...}`, `class B {...}`, `class AB { A a; B b; }`)
 - direct access to object's children by managed 'accumulations' fields (`class Manufacturer {... @Accumulation Set<Bike> bikes; }`)
