@@ -300,13 +300,12 @@ public abstract class SaveHelpers extends Common {
 					}
 
 					// Update entry records for changed map entries
-					for (Object key : mapEntriesToChange.keySet()) {
-						SortedMap<String, Object> updateMap = CMap.newSortedMap(Const.VALUE_COL, ComplexFieldHelpers.element2ColumnValue(mapEntriesToChange.get(key)));
-						Object columnKey = key;
+					for (Entry<Object, Object> entry : mapEntriesToChange.entrySet()) {
+						Object key = entry.getKey();
 
 						// UPDATE <entry table> SET ENTRY_VALUE=<entry value> WHERE <object reference column>=<objectid> AND ENTRY_KEY=<entry key>
-						sdc.sqlDb.update(cn, entryTableName, updateMap, refIdColumnName + "=" + object.getId() + " AND " + Const.KEY_COL + "="
-								+ (columnKey instanceof String || columnKey instanceof Enum || columnKey instanceof File ? "'" + columnKey + "'" : columnKey));
+						sdc.sqlDb.update(cn, entryTableName, ComplexFieldHelpers.mapEntry2ColumnValueMap(entry.getValue()),
+								refIdColumnName + "=" + object.getId() + " AND " + Const.KEY_COL + "=" + (key instanceof String || key instanceof Enum ? "'" + key + "'" : key));
 					}
 
 					// Update object record by new map - do not use field map itself to allow detecting changes in map against map in object record
