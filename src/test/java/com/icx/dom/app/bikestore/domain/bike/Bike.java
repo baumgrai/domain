@@ -43,7 +43,7 @@ public abstract class Bike extends SqlDomainObject {
 
 	// Data members
 
-	// Define text column size different from default 1024 - increasing size forces awareness of DB specific limits!
+	// Define text column size different from default 512 - increasing size forces awareness of DB specific limits!
 	@SqlColumn(notNull = true, charsize = 64)
 	public String model;
 
