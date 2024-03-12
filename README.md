@@ -3,7 +3,7 @@
 
 If you - for any reason - do not want to use Hibernate, Spring, etc. for your persistence needs, this software may be worth a look. 
 
-***domain* supports *Oracle*, *MS/SQL-Server*, *MySQL* and *MariaDB***
+supports ***Oracle*, *MS/SQL-Server*, *MySQL* and *MariaDB***
 
 **Usage:**
 
@@ -45,5 +45,5 @@ In your application:
 - *domain* runs in Java >=8 environments
 - *domain* has a small footprint of 10k LoC and 200kB jar
 - ***domain* has only logging (*slf4j* and *logback*) and database drivers as dependencies**
-- Demo application 'BikeStore' demonstrates usage of many of the features  
+- Demo applications 'BikeStore' and 'Survey' and unit tests demonstrates usage of all features  
 - Unit tests cover > 85% of code
