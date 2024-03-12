@@ -5,7 +5,6 @@ import java.io.CharArrayReader;
 import java.io.File;
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.sql.Blob;
 import java.sql.Clob;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
@@ -397,23 +396,10 @@ public class SqlDb extends Common {
 					log.debug("SQL: Table name and field type of column '{}' could not be determined because column names are not prefixed by table name ({}).", columnName, qualifiedColumnNames);
 				}
 
-				// For LOB types retrieve values based on column type
 				int columnType = rsmd.getColumnType(c);
-				if (columnType == Types.BLOB) { // Assume BLOB is byte[] - max 2GB is supported
-					Blob blob = rs.getBlob(c);
-					if (blob != null) {
-						columnValue = blob.getBytes(1, ((Number) blob.length()).intValue());
-					}
-				}
-				else if (columnType == Types.CLOB) { // Assume CLOB is String - max 2G characters is supported
-					Clob clob = rs.getClob(c);
-					if (clob != null) {
-						columnValue = clob.getSubString(1, ((Number) clob.length()).intValue()).toCharArray();
-					}
-				}
-				else if (fieldType == null) {
+				if (fieldType == null) { // No field type specified
 
-					// If no field type given retrieve date/time column values as Java 8 date/time objects and other column values based on column type
+					// Retrieve date/time column values as Java 8 date/time objects and other column values based on column type
 					if (columnType == Types.TIMESTAMP || columnType == Types.TIMESTAMP_WITH_TIMEZONE) {
 						columnValue = rs.getObject(c, LocalDateTime.class);
 					}
@@ -427,8 +413,9 @@ public class SqlDb extends Common {
 						columnValue = rs.getObject(c);
 					}
 				}
-				else {
-					// If field type given retrieve value based on field type and convert values if necessary
+				else { // Field type is specified
+
+					// Retrieve value based on field type and convert values if necessary
 					if (fieldType == String.class) {
 						columnValue = rs.getObject(c, String.class);
 					}
@@ -484,13 +471,17 @@ public class SqlDb extends Common {
 					else if (fieldType == LocalDateTime.class || fieldType == LocalDate.class || fieldType == LocalTime.class || Date.class.isAssignableFrom(fieldType) || fieldType == byte[].class) {
 						columnValue = rs.getObject(c, fieldType);
 					}
-					else if (File.class.isAssignableFrom(fieldType)) {
+					else if (fieldType == byte[].class || File.class.isAssignableFrom(fieldType)) {
 						columnValue = rs.getObject(c, byte[].class);
 					}
 					else if (fieldType == char[].class) {
-						columnValue = rs.getObject(c);
+						columnValue = rs.getObject(c); // char[].class is not accepted as column type - at least for Oracle
 						if (columnValue instanceof String) {
 							columnValue = ((String) columnValue).toCharArray();
+						}
+						else if (columnValue instanceof Clob) {
+							Clob clob = (Clob) columnValue;
+							columnValue = clob.getSubString(1, ((Number) clob.length()).intValue()).toCharArray();
 						}
 					}
 					else {
