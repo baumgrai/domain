@@ -17,7 +17,6 @@
  * addition to the scripts for the whole database.
  * <p>
  * Following list shows, which Java types are natively supported for fields of domain classes and which column types will be used in persistence tables:
- * <p>
  * <ul>
  * <li>{@code String} -> database specific (N)VARCHAR({@link SqlColumn#charsize()}) or long TEXT - {@link SqlColumn#isText()} - type
  * <li>{@code Enum} -> database specific (N)VARCHAR(max(maxenumnamelength, 64)) type

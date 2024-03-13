@@ -495,7 +495,7 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	 * 'DOM_NUMBER').
 	 * <p>
 	 * Fixed values of {@code String} and {@code Enum} fields in WHERE clause have to be specified as string literals -> NAME='Order1' AND STATUS='open'. Number values ({@code Integer}, {@code Long},
-	 * {@code Double}, {@code BigInteger}, {@code BigDecimal}) have to be specified as appropriate numbers -> PRICE<12.0. LocalDate, LocalTime, LocalDateTime values have to be valid database specific
+	 * {@code Double}, {@code BigInteger}, {@code BigDecimal}) have to be specified as appropriate numbers -> PRICE>12.0. LocalDate, LocalTime, LocalDateTime values have to be valid database specific
 	 * date/time strings.
 	 * <p>
 	 * Note: Columns for {@code byte[]}, {@code char[]} and other array fields, as well as collection and map fields may not be used for WHERE clauses.
