@@ -44,5 +44,5 @@ In your application:
 - *domain* runs in Java >=8 environments
 - *domain* has a small footprint of 10k LoC and 200kB jar
 - ***domain* depends only on logging (*slf4j* and *logback*) and database drivers** (no Spring, Guava, Apache, etc. is needed)
-- Demo applications 'BikeStore' and 'Survey' and unit tests demonstrates usage of all features  
-- Unit tests cover > 85% of code
+- demo applications 'BikeStore' and 'Survey' and unit tests demonstrates usage of all features  
+- unit tests cover > 85% of code
