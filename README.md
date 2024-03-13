@@ -23,7 +23,7 @@ In your application:
 - representation of parent child relations of domain objects (`class Manufacturer {...}`, `class Bike { Manufacturer manufacturer; ...}`) and also of n:m relations between domain objects (`class A {...}`, `class B {...}`, `class AB { A a; B b; }`)
 - direct access to object's children by managed 'accumulations' fields (`class Manufacturer {... @Accumulation Set<Bike> bikes; }`)
 - support of circular references on class and object level (`class X { X next; }`, `class A { B b; }`, `class B { C c; }`, `class C { A a; }`)
-- protection of sensitive data - encrypt data in database using `@Crypt` annotation and suppress logging sensitive data using `@Secret` annotation
+- protection of sensitive data - encrypt data in database using `@Crypt` annotation and suppress logging sensitive data at any log level using `@Secret` annotation
 - house keeping - keep only relevant objects (which are newer than a configurable time in the past) in heap using `@UseDataHorizon` annotation and `dataHorizonPeriod` property  
 - selective object loading - load only a part of the persisted objects from database using `SqlDomainController#loadOnly()`[^1]
 - ensures referential integrity - even if not all persisted objects are loaded into object store - parent is loaded if child is loaded
