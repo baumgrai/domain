@@ -32,7 +32,7 @@ In your application:
 [^1]: SQL knowledge and knowledge of *domain* specific Java <-> SQL naming conversion rules is needed only for building WHERE clauses if objects shall be loaded seletively from database or if objects shall be allocated exclusively. Java <-> SQL naming conversion rules are described in Javadoc.
 
 **Version Control:** 
-- annotate version information to \*new, *changed* and ~~removed~~ classes and fields and let `Java2Sql` tool automatically generate incremental database update scripts 
+- annotate version information to \*new, *changed* and ~~removed~~ domain classes and fields and let `Java2Sql` tool automatically generate incremental database update scripts 
 
 **How data is persisted?**
 - every 'domain' class has a corresponding table in the persistence database
