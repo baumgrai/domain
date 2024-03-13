@@ -35,10 +35,10 @@ In your application:
 - annotate version information to \*new, *changed* and ~~removed~~ classes and fields and let `Java2Sql` tool automatically generate incremental database update scripts 
 
 **How data is persisted?**
-- Every 'domain' class has a corresponding table in the persistence database
-- Fields of type `String`, `Char`, `Short`, `Integer`, `Long`, `Double` (and appropriate primitive types) `Enum`, `BigInteger`, `BigDecimal`, `LocalDate`, `LocalTime`, `LocalDateTime`, `Date`, `byte[]`, `char[]`, `File` have corresponding columns of appropriate type in the persistence table
-- List, set, array and map fields have corresponding 'entry' tables
-- Fields of any other type, for which a string conversion provider is defined, have corresponding text columns
+- every 'domain' class has a corresponding table in the persistence database
+- fields of type `String`, `Char`, `Short`, `Integer`, `Long`, `Double` (and appropriate primitive types) `Enum`, `BigInteger`, `BigDecimal`, `LocalDate`, `LocalTime`, `LocalDateTime`, `Date`, `byte[]`, `char[]`, `File` correspond to columns of appropriate type in the persistence table
+- lists, sets, arrays and maps correspond to 'entry' tables
+- fields of any other type - for which a string conversion provider have to be defined - correspond to text columns in the persistence table
 
 **Further information:**
 - *domain* runs in Java >=8 environments
