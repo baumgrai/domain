@@ -12,11 +12,11 @@ Let all your 'domain' classes to persist extend `SqlDomainObject` class directly
 Let `Java2Sql` tool generate the SQL scripts for the persistence database based on your 'domain' classes and generate the persistence database.
 
 In your application:
-   - Initially create an `SqlDomainController` object which connects to the persistence database
+   - initially create an `SqlDomainController` object which connects to the persistence database
    - call `SqlDomainController#synchronize()` to load objects from persistence database
    - create and persist objects using `SqlDomainController#createAndSave()` - or if you prefer constructors: persist new objects with `SqlDomainController#save()`
    - on `#createAndSave()` or `#save()` objects will be registered in domain controller's object store. You may search objects there by predicates using methods like `DomainController#findAll()`, `DomainController#findAny()`
-   - Remove objects from object store and delete associated persistence records from database using `#delete()`
+   - remove objects from object store and delete associated persistence records from database using `#delete()`
 
 **How data is persisted?**
 - Every 'domain' class has a corresponding table in the persistence database
