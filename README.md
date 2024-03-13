@@ -20,7 +20,7 @@ In your application:
 
 **Features:**
 - support of class inheritance - there is no restriction regarding inheritance of domain classes (`Bike extends SqlDomainObject`, `RaceBike extends Bike`, `Bianchi extends RaceBike`)
-- representation of parent child relations of domain objects (`class Manufacturer {...}`, `class Bike { Manufacturer manufacturer; ...}`) and also of n:m relations between domain objects (`class A {...}`, `class B {...}`, `class AB { A a; B b; }`)
+- representation of parent child relations of domain objects (`class Manufacturer {...}`, `class Bike { Manufacturer manufacturer; ...}`) and also of n:m relations (`class A {...}`, `class B {...}`, `class AB { A a; B b; }`)
 - direct access to object's children by managed 'accumulations' fields (`class Manufacturer {... @Accumulation Set<Bike> bikes; }`)
 - support of circular references on class and object level (`class X { X next; }`, `class A { B b; }`, `class B { C c; }`, `class C { A a; }`)
 - protection of sensitive data - encrypt data in database using `@Crypt` annotation and suppress logging sensitive data at any log level using `@Secret` annotation
