@@ -25,11 +25,11 @@ In your application:
 - support of circular references on class and object level (`class X { X next; }`, `class A { B b; }`, `class B { C c; }`, `class C { A a; }`)
 - protection of sensitive data - encrypt data in database using `@Crypt` annotation and suppress logging sensitive data using `@Secret` annotation
 - house keeping - keep only relevant objects (which are newer than a configurable time in the past) in heap using `@UseDataHorizon` annotation and `dataHorizonPeriod` property  
-- selective object loading - load only a part of the persisted objects using `SqlDomainController#loadOnly()`[^1]
+- selective object loading - load only a part of the persisted objects from database using `SqlDomainController#loadOnly()`[^1]
 - ensures referential integrity - even if not all persisted objects are loaded into object store - parent is loaded if child is loaded
 - allows concurrent access to persistence database - operate with multiple threads and/or domain controller instances on the same persistence database and synchronize concurrent access using `SqlDomainController#allocateObjectsExclusively()`[^1]
 
-[^1]: SQL knowledge and knowledge of *domain* specific Java <-> SQL conversion is needed if objects shall be loaded seletively from database and if objects shall be allocated exclusively. *domain* specific Java <-> SQL conversion is described in Javadoc.
+[^1]: SQL knowledge and knowledge of *domain* specific Java <-> SQL naming conversion rules is needed only for building WHERE clauses if objects shall be loaded seletively from database or if objects shall be allocated exclusively. Java <-> SQL naming conversion rules are described in Javadoc.
 
 **Version Control:** 
 - annotate version information to \*new, *changed* and ~~removed~~ classes and fields and let `Java2Sql` tool automatically generate incremental database update scripts 
