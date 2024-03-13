@@ -36,7 +36,7 @@ In your application:
 - ensures referential integrity - even if not all persisted objects are loaded into object store - parent is loaded if child is loaded
 - allows concurrent access to persistence database - operate with multiple threads and/or domain controller instances on the same persistence database and synchronize concurrent access using `SqlDomainController#allocateObjectsExclusively()`[^1]
 
-**Version Control** 
+**Version Control:** 
 - annotate version information to \*new, *changed* and ~~removed~~ classes and fields and let `Java2Sql` tool automatically generate incremental database update scripts 
 
 [^1]: SQL knowledge and knowledge of *domain* specific Java <-> SQL conversion is needed if objects shall be loaded seletively from database and if objects shall be allocated exclusively. *domain* specific Java <-> SQL conversion is described in Javadoc.
@@ -44,6 +44,6 @@ In your application:
 **Further information:**
 - *domain* runs in Java >=8 environments
 - *domain* has a small footprint of 10k LoC and 200kB jar
-- ***domain* has only logging (*slf4j* and *logback*) and database drivers as dependencies**
+- ***domain* depends only on logging (*slf4j* and *logback*) and database drivers** (no Spring, Guava, Apache, etc. is needed)
 - Demo applications 'BikeStore' and 'Survey' and unit tests demonstrates usage of all features  
 - Unit tests cover > 85% of code
