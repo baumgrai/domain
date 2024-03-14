@@ -146,7 +146,7 @@ public class Initialize {
 		// Save new bike objects
 
 		// Note: it's generally recommended to save new and changed objects as soon as possible to avoid unsaved invalid objects in object store
-		// Note: if an object is saved which has an parent object which is not yet stored in persistence database this parent object is saved automatically too before saving object itself (to have
+		// Note: if an object is saved which has a parent object, which is not yet stored in persistence database, this parent object is saved automatically too before saving object itself (to have
 		// valid child/parent relation realized by FOREIGN KEY column with parent id in database)
 
 		try (SqlConnection sqlcn = SqlConnection.open(BikeStoreApp.sdc.getPool(), false)) {
