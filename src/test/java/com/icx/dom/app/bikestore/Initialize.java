@@ -109,6 +109,7 @@ public class Initialize {
 		Manufacturer koga = new Manufacturer("Koga", Country.NETHERLANDS);
 		Manufacturer rockymountain = new Manufacturer("Rocky Mountain", Country.CANADA);
 		Manufacturer bmc = new Manufacturer("BMC", Country.SWITZERLAND);
+		// Note: objects, which were only created by constructor but which are not registered, are not known to domain controller and cannot be found using DomainController#findAll(), etc.
 
 		byte[] picture = CFile.readBinary(BikeStoreApp.BIKE_PICTURE);
 
