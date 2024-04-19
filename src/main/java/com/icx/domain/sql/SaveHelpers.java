@@ -36,7 +36,6 @@ import com.icx.common.Common;
 import com.icx.domain.DomainObject;
 import com.icx.domain.Registry;
 import com.icx.domain.sql.Annotations.Crypt;
-import com.icx.jdbc.SqlDb;
 import com.icx.jdbc.SqlDbException;
 import com.icx.jdbc.SqlDbTable;
 import com.icx.jdbc.SqlDbTable.SqlDbColumn;
@@ -229,176 +228,68 @@ public abstract class SaveHelpers extends Common {
 	}
 
 	// DELETE, UPDATE or/and INSERT entry records reflecting table related collection or map fields (complex fields) and update object record - ignore column related fields here
-	@SuppressWarnings({ "unchecked", "rawtypes" })
-	private static void updateEntryTables(Connection cn, SqlDomainController sdc, Map<Field, Object> fieldChangesMap, SortedMap<String, Object> objectRecord, SqlDomainObject object)
+	private static void updateEntryTable(Connection cn, SqlDomainController sdc, Field complexField, Object newComplexValue, SortedMap<String, Object> objectRecord, SqlDomainObject object)
 			throws SqlDbException, SQLException {
 
 		// Consider complex, table related fields...
-		for (Field complexField : fieldChangesMap.keySet().stream().filter(f -> sdc.getRegistry().isComplexField(f)).collect(Collectors.toList())) {
+		String entryTableName = sdc.getSqlRegistry().getEntryTableFor(complexField).name;
+		String refIdColumnName = sdc.getSqlRegistry().getMainTableRefIdColumnFor(complexField).name;
+		boolean isSorted = false;
 
-			String entryTableName = sdc.getSqlRegistry().getEntryTableFor(complexField).name;
-			String refIdColumnName = sdc.getSqlRegistry().getMainTableRefIdColumnFor(complexField).name;
+		// DELETE, UPDATE and/or INSERT entry records for maps, sets, lists and arrays
+		try {
+			if (Map.class.isAssignableFrom(complexField.getType())) {
+				isSorted = SortedMap.class.isAssignableFrom(complexField.getType());
 
+				// DELETE, INSERT and/or UPDATE entry records representing map on changes in map
+				Map<?, ?> oldMap = (Map<?, ?>) objectRecord.computeIfAbsent(entryTableName, m -> new HashMap<>());
+				Map<?, ?> newMap = (Map<?, ?>) newComplexValue;
+				ComplexFieldHelpers.updateEntriesForMap(oldMap, newMap, sdc, cn, entryTableName, refIdColumnName, object);
+
+				// Update object record by new map
+				objectRecord.put(entryTableName, isSorted ? new TreeMap<>(newMap) : new HashMap<>(newMap));
+			}
+			else if (Set.class.isAssignableFrom(complexField.getType())) {
+				isSorted = SortedSet.class.isAssignableFrom(complexField.getType());
+
+				// DELETE and/or UPDATE entry records representing set on changes in set
+				Set<?> oldSet = (Set<?>) objectRecord.computeIfAbsent(entryTableName, m -> new HashSet<>());
+				Set<?> newSet = (Set<?>) newComplexValue;
+				ComplexFieldHelpers.updateEntriesForSet(oldSet, newSet, sdc, cn, entryTableName, refIdColumnName, object);
+
+				// Update object record by new set
+				objectRecord.put(entryTableName, isSorted ? new TreeSet<>(newSet) : new HashSet<>(newSet));
+			}
+			else if (List.class.isAssignableFrom(complexField.getType())) {
+
+				// DELETE, INSERT and UPDATE entry records representing list on changes in list
+				List<?> oldList = (List<?>) objectRecord.computeIfAbsent(entryTableName, m -> new ArrayList<>());
+				List<?> newList = (List<?>) newComplexValue;
+				ComplexFieldHelpers.updateEntriesForList(oldList, newList, sdc, cn, entryTableName, refIdColumnName, object);
+
+				// Update object record by new list
+				objectRecord.put(entryTableName, new ArrayList<>(newList));
+			}
+			else if (complexField.getType().isArray()) {
+
+				// DELETE, INSERT and/or UPDATE entry records representing array on changes of array
+				Object newArray = newComplexValue;
+				int length = ComplexFieldHelpers.updateEntriesForArray(newArray, sdc, cn, entryTableName, refIdColumnName, object);
+
+				// Update object record by new array
+				Object recordArray = Array.newInstance(complexField.getType().getComponentType(), length);
+				System.arraycopy(newArray, 0, recordArray, 0, length);
+				objectRecord.put(entryTableName, recordArray);
+			}
+			else {
+				log.error("SDC: Value of field '{}' is of unsupported type '{}'!", complexField.getName(), complexField.getType().getName());
+			}
+		}
+		catch (SQLException sqlex) {
 			boolean isMap = Map.class.isAssignableFrom(complexField.getType());
-			boolean isSortedMap = SortedMap.class.isAssignableFrom(complexField.getType());
-			boolean isList = List.class.isAssignableFrom(complexField.getType());
-			boolean isSet = Set.class.isAssignableFrom(complexField.getType());
-			boolean isSortedSet = SortedSet.class.isAssignableFrom(complexField.getType());
-			boolean isArray = complexField.getType().isArray();
-
-			// DELETE, UPDATE and/or INSERT entry records for maps, sets and lists
-			try {
-				if (isMap) {
-					Map<?, ?> oldMap = (Map<?, ?>) objectRecord.computeIfAbsent(entryTableName, m -> new HashMap<>());
-					Map<?, ?> newMap = (Map<?, ?>) fieldChangesMap.get(complexField);
-
-					Set<Object> mapKeysToRemove = new HashSet<>();
-					Map<Object, Object> mapEntriesToInsert = new HashMap<>();
-					Map<Object, Object> mapEntriesToChange = new HashMap<>();
-					boolean hasOldMapNullKey = false;
-
-					// Determine map entries which do not exist anymore
-					for (Entry<?, ?> oldMapEntry : oldMap.entrySet()) {
-						if (!newMap.containsKey(oldMapEntry.getKey())) {
-							if (oldMapEntry.getKey() == null) {
-								hasOldMapNullKey = true;
-							}
-							else {
-								mapKeysToRemove.add(oldMapEntry.getKey());
-							}
-						}
-					}
-
-					// Determine new and changed map entries
-					for (Entry<?, ?> newMapEntry : newMap.entrySet()) {
-						if (!oldMap.containsKey(newMapEntry.getKey())) {
-							mapEntriesToInsert.put(newMapEntry.getKey(), newMapEntry.getValue());
-						}
-						else if (!objectsEqual(oldMap.get(newMapEntry.getKey()), newMapEntry.getValue())) {
-							mapEntriesToChange.put(newMapEntry.getKey(), newMapEntry.getValue());
-						}
-					}
-
-					// Delete entry records for removed map entries
-					if (!mapKeysToRemove.isEmpty()) {
-						// Multiple deletes with lists of max 1000 elements (Oracle limitation)
-						for (String idsList : Helpers.buildElementListsWithMaxElementCount(mapKeysToRemove, 1000)) {
-							// DELETE FROM <entry table> WHERE <object reference column>=<objectid> AND ENTRY_KEY IN <keys of entries to remove>
-							SqlDb.deleteFrom(cn, entryTableName, refIdColumnName + "=" + object.getId() + " AND " + Const.KEY_COL + " IN (" + idsList + ")");
-						}
-					}
-
-					if (hasOldMapNullKey) {
-						// DELETE FROM <entry table> WHERE <object reference column>=<objectid> AND ENTRY_KEY IS NULL
-						SqlDb.deleteFrom(cn, entryTableName, refIdColumnName + "=" + object.getId() + " AND " + Const.KEY_COL + " IS NULL");
-					}
-
-					// Insert entry records for new map entries
-					if (!mapEntriesToInsert.isEmpty()) {
-						// (batch) INSERT INTO <entry table> (<object reference column>, ENTRY_KEY, ENTRY_VALUE) VALUES (<objectid>, <converted key>, <converted value>)
-						sdc.sqlDb.insertInto(cn, entryTableName, ComplexFieldHelpers.map2EntryRecords(refIdColumnName, object.getId(), mapEntriesToInsert));
-					}
-
-					// Update entry records for changed map entries
-					for (Entry<Object, Object> entry : mapEntriesToChange.entrySet()) {
-						Object key = entry.getKey();
-
-						// UPDATE <entry table> SET ENTRY_VALUE=<entry value> WHERE <object reference column>=<objectid> AND ENTRY_KEY=<entry key>
-						sdc.sqlDb.update(cn, entryTableName, ComplexFieldHelpers.mapEntry2ColumnValueMap(entry.getValue()),
-								refIdColumnName + "=" + object.getId() + " AND " + Const.KEY_COL + "=" + (key instanceof String || key instanceof Enum ? "'" + key + "'" : key));
-					}
-
-					// Update object record by new map - do not use field map itself to allow detecting changes in map against map in object record
-					objectRecord.put(entryTableName, isSortedMap ? new TreeMap<>(newMap) : new HashMap<>(newMap));
-				}
-				else if (isSet) {
-					Set<?> oldSet = (Set<?>) objectRecord.computeIfAbsent(entryTableName, m -> new HashSet<>());
-					Set<?> newSet = (Set<?>) fieldChangesMap.get(complexField);
-
-					Set<Object> elementsToRemove = new HashSet<>();
-					Set<Object> elementsToInsert = new HashSet<>();
-					boolean hasNullElement = false;
-
-					// Determine elements which do not exist anymore
-					for (Object oldElement : oldSet) {
-						if (!newSet.contains(oldElement)) {
-							if (oldElement == null) {
-								hasNullElement = true;
-							}
-							else {
-								elementsToRemove.add(oldElement);
-							}
-						}
-					}
-
-					// Determine new elements (null element is no exception from default handling on insertInto())
-					for (Object newElement : newSet) {
-						if (!oldSet.contains(newElement)) {
-							elementsToInsert.add(newElement);
-						}
-					}
-
-					// Delete entry records for removed elements
-					if (!elementsToRemove.isEmpty()) {
-						// Multiple deletes with lists of max 1000 elements (Oracle limitation)
-						for (String idsList : Helpers.buildElementListsWithMaxElementCount(elementsToRemove, 1000)) {
-							// DELETE FROM <entry table> WHERE <object reference column>=<objectid> AND ENTRY_KEY IN <keys of entries to remove>
-							SqlDb.deleteFrom(cn, entryTableName, refIdColumnName + "=" + object.getId() + " AND " + Const.ELEMENT_COL + " IN (" + idsList + ")");
-						}
-					}
-
-					if (hasNullElement) {
-						// DELETE FROM <entry table> WHERE <object reference column>=<objectid> AND ELEMENT IS NULL
-						SqlDb.deleteFrom(cn, entryTableName, refIdColumnName + "=" + object.getId() + " AND " + Const.ELEMENT_COL + " IS NULL");
-					}
-
-					// Insert entry records for new elements
-					if (!elementsToInsert.isEmpty()) {
-						// (batch) INSERT INTO <entry table> (<object reference column>, ELEMENT) VALUES (<objectid>, <set element>)
-						sdc.sqlDb.insertInto(cn, entryTableName, ComplexFieldHelpers.collection2EntryRecords(refIdColumnName, object.getId(), elementsToInsert));
-					}
-
-					// Update object record by new set - do not use field set itself to allow detecting changes in set against set in object record
-					objectRecord.put(entryTableName, isSortedSet ? new TreeSet<>(newSet) : new HashSet<>(newSet));
-				}
-				else if (isList) { // List - clear and rebuild list from scratch to avoid complexity if only order of list elements changed
-					List<?> newList = (List<?>) fieldChangesMap.get(complexField);
-
-					// DELETE FROM <entry table> WHERE <object reference column>=<objectid>
-					SqlDb.deleteFrom(cn, entryTableName, refIdColumnName + "=" + object.getId());
-					// (batch) INSERT INTO <entry table> (<object reference column>, ELEMENT, ELEMENT_ORDER) VALUES (<objectid>, <list element>, <order>)
-					sdc.sqlDb.insertInto(cn, entryTableName, ComplexFieldHelpers.collection2EntryRecords(refIdColumnName, object.getId(), newList));
-
-					// Update object record by new list
-					objectRecord.put(entryTableName, new ArrayList<>(newList)); // Do not use field list itself to allow detecting changes in list against list in object record
-				}
-				else if (isArray) {
-					Object newArray = fieldChangesMap.get(complexField);
-					int length = Array.getLength(newArray);
-					List listOfArrayElements = new ArrayList<>();
-					for (int i = 0; i < length; i++) {
-						listOfArrayElements.add(Array.get(newArray, i));
-					}
-
-					// DELETE FROM <entry table> WHERE <object reference column>=<objectid>
-					SqlDb.deleteFrom(cn, entryTableName, refIdColumnName + "=" + object.getId());
-					// (batch) INSERT INTO <entry table> (<object reference column>, ELEMENT, ELEMENT_ORDER) VALUES (<objectid>, <array element>, <order>)
-					sdc.sqlDb.insertInto(cn, entryTableName, ComplexFieldHelpers.collection2EntryRecords(refIdColumnName, object.getId(), listOfArrayElements));
-
-					// Update object record by new array - do not use field array itself to allow detecting changes in array against array in object record
-					Object recordArray = Array.newInstance(complexField.getType().getComponentType(), length);
-					System.arraycopy(newArray, 0, recordArray, 0, length);
-					objectRecord.put(entryTableName, recordArray);
-				}
-				else {
-					log.error("SDC: Value of field '{}' is of unsupported type '{}'!", complexField.getName(), complexField.getType().getName());
-				}
-			}
-			catch (SQLException sqlex) {
-				log.error("SDC: Exception on updating entry table '{}' for {} field '{}' of object '{}'", entryTableName, (isMap ? "map" : "collection"), complexField.getName(), object.name());
-				object.setFieldError(complexField, "Entries for this " + (isMap ? "map" : "collection") + " field could not be updated in database");
-				throw sqlex;
-			}
+			log.error("SDC: Exception on updating entry table '{}' for {} field '{}' of object '{}'", entryTableName, (isMap ? "map" : "collection"), complexField.getName(), object.name());
+			object.setFieldError(complexField, "Entries for this " + (isMap ? "map" : "collection") + " field could not be updated in database");
+			throw sqlex;
 		}
 	}
 
@@ -616,13 +507,13 @@ public abstract class SaveHelpers extends Common {
 			collectedParentObjectMap.putAll(storeOrCollectUnstoredParentObjects(cn, sdc, obj, domainClass, objectsToCheckForCircularReference));
 
 			// Get field changes for domain class
-			Map<Field, Object> fieldChangesMap = getFieldChangesForDomainClass(sdc.getSqlRegistry(), obj, objectRecord, domainClass);
-			if (!fieldChangesMap.isEmpty()) {
+			Map<Field, Object> fieldChangesForDomainClassMap = getFieldChangesForDomainClass(sdc.getSqlRegistry(), obj, objectRecord, domainClass);
+			if (!fieldChangesForDomainClassMap.isEmpty()) {
 				wasChanged = true;
 			}
 
 			// Build column value map for INSERT or UPDATE - ignore changes of complex fields which are not associated with a column (but with an 'entry' table)
-			SortedMap<String, Object> columnValueMap = fieldChangesMap2ColumnValueMap(sdc, fieldChangesMap, obj);
+			SortedMap<String, Object> columnValueMap = fieldChangesMap2ColumnValueMap(sdc, fieldChangesForDomainClassMap, obj);
 
 			if (!obj.isStored) { // INSERT
 
@@ -705,8 +596,8 @@ public abstract class SaveHelpers extends Common {
 			objectRecord.putAll(columnValueMap);
 
 			// Handle table related fields (collections and maps): Delete old entry records, update changed map entries and insert new entries
-			if (fieldChangesMap.keySet().stream().anyMatch(f -> sdc.getRegistry().isComplexField(f))) {
-				updateEntryTables(cn, sdc, fieldChangesMap, objectRecord, obj);
+			for (Field complexField : fieldChangesForDomainClassMap.keySet().stream().filter(f -> sdc.getRegistry().isComplexField(f)).collect(Collectors.toList())) {
+				updateEntryTable(cn, sdc, complexField, fieldChangesForDomainClassMap.get(complexField), objectRecord, obj);
 			}
 		}
 
