@@ -52,6 +52,7 @@ import com.icx.dom.junit.domain.O;
 import com.icx.dom.junit.domain.sub.X;
 import com.icx.dom.junit.domain.sub.Y;
 import com.icx.dom.junit.domain.sub.Z;
+import com.icx.domain.sql.ComplexFieldHelpers;
 import com.icx.domain.sql.SaveHelpers;
 import com.icx.domain.sql.SqlDomainController;
 import com.icx.domain.sql.SqlDomainObject;
@@ -400,8 +401,8 @@ class LoadAndSaveTest extends TestHelpers {
 				sdc.getSqlDb().update(sqlcn.cn, "DOM_A",
 						CMap.newMap("I", 2, "DOM_LONGTEXT", "äöüßÄÖÜ".toCharArray(), "DOM_FILE", SaveHelpers.buildFileByteEntry(file, "DOM_FILE"), "DOM_TYPE", "B", "O_ID", null), "S='S'");
 
-				sdc.getSqlDb().update(sqlcn.cn, "DOM_A_STRINGS", CMap.newMap("ELEMENT_ORDER", 1), "ELEMENT='B'");
-				sdc.getSqlDb().update(sqlcn.cn, "DOM_A_STRINGS", CMap.newMap("ELEMENT_ORDER", 0), "ELEMENT='C'");
+				sdc.getSqlDb().update(sqlcn.cn, "DOM_A_STRINGS", CMap.newMap("ELEMENT_ORDER", ComplexFieldHelpers.INITIAL_ORDER_INCREMENT * (1 + 1)), "ELEMENT='B'");
+				sdc.getSqlDb().update(sqlcn.cn, "DOM_A_STRINGS", CMap.newMap("ELEMENT_ORDER", ComplexFieldHelpers.INITIAL_ORDER_INCREMENT * (0 + 1)), "ELEMENT='C'");
 				SqlDb.deleteFrom(sqlcn.cn, "DOM_A_STRINGS", "ELEMENT='D'");
 
 				if (dbType == DbType.ORACLE) {
@@ -410,7 +411,7 @@ class LoadAndSaveTest extends TestHelpers {
 				else {
 					sdc.getSqlDb().update(sqlcn.cn, "DOM_A_STRINGS", CMap.newMap("ELEMENT", "E"), "ELEMENT=''");
 				}
-				sdc.getSqlDb().insertInto(sqlcn.cn, "DOM_A_STRINGS", CMap.newSortedMap("A_ID", aa1.getId(), "ELEMENT", "G", "ELEMENT_ORDER", 6));
+				sdc.getSqlDb().insertInto(sqlcn.cn, "DOM_A_STRINGS", CMap.newSortedMap("A_ID", aa1.getId(), "ELEMENT", "G", "ELEMENT_ORDER", ComplexFieldHelpers.INITIAL_ORDER_INCREMENT * (7 + 1)));
 
 				SqlDb.deleteFrom(sqlcn.cn, "DOM_A_DOUBLE_SET", "ELEMENT IS NULL");
 				sdc.getSqlDb().insertInto(sqlcn.cn, "DOM_A_DOUBLE_SET", CMap.newSortedMap("A_ID", aa1.getId(), "ELEMENT", 0.4));
@@ -420,10 +421,10 @@ class LoadAndSaveTest extends TestHelpers {
 				sdc.getSqlDb().insertInto(sqlcn.cn, "DOM_A_BIG_DECIMAL_MAP", CMap.newSortedMap("A_ID", aa1.getId(), "ENTRY_KEY", "f", "ENTRY_VALUE", 6L));
 
 				SqlDb.deleteFrom(sqlcn.cn, "DOM_A_LIST_OF_LISTS", "ELEMENT IS NULL");
-				sdc.getSqlDb().update(sqlcn.cn, "DOM_A_LIST_OF_LISTS", CMap.newMap("ELEMENT", "A,B,C"), "ELEMENT_ORDER=3");
+				sdc.getSqlDb().update(sqlcn.cn, "DOM_A_LIST_OF_LISTS", CMap.newMap("ELEMENT", "A,B,C"), "ELEMENT_ORDER=" + ComplexFieldHelpers.INITIAL_ORDER_INCREMENT * (3 + 1));
 
 				SqlDb.deleteFrom(sqlcn.cn, "DOM_A_LIST_OF_MAPS", "ELEMENT IS NULL");
-				sdc.getSqlDb().update(sqlcn.cn, "DOM_A_LIST_OF_MAPS", CMap.newMap("ELEMENT", "A=2;B=1;C=3"), "ELEMENT_ORDER=3");
+				sdc.getSqlDb().update(sqlcn.cn, "DOM_A_LIST_OF_MAPS", CMap.newMap("ELEMENT", "A=2;B=1;C=3"), "ELEMENT_ORDER=" + ComplexFieldHelpers.INITIAL_ORDER_INCREMENT * (3 + 1));
 
 				SqlDb.deleteFrom(sqlcn.cn, "DOM_A_MAP_OF_LISTS", "ENTRY_KEY=0");
 				sdc.getSqlDb().update(sqlcn.cn, "DOM_A_MAP_OF_LISTS", CMap.newMap("ENTRY_VALUE", "A,B,C"), "ENTRY_KEY=3");
