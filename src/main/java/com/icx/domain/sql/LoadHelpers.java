@@ -161,7 +161,7 @@ public abstract class LoadHelpers extends Common {
 
 						// If # of loaded object records is limited SELECT only entry records for actually loaded object records
 						String whereClauseBase = (!isEmpty(whereClause) ? "(" + whereClause + ") AND " : "");
-						for (String idsList : Helpers.buildIdsListsWithMaxIdCount(loadedRecordMap.keySet(), 1000)) { // Oracle limitation max 1000 elements in lists
+						for (String idsList : Helpers.buildStringLists(loadedRecordMap.keySet(), 1000)) { // Oracle limitation max 1000 elements in lists
 							String idListWhereClause = whereClauseBase + objectTableName + ".ID IN (" + idsList + ")";
 							loadedEntryRecords.addAll(sdc.sqlDb.selectFrom(cn, sde.joinedTableExpression, sde.allColumnNames, idListWhereClause, sde.orderByClause, 0, null));
 						}
@@ -883,7 +883,7 @@ public abstract class LoadHelpers extends Common {
 			Map<Long, SortedMap<String, Object>> collectedRecordMap = new HashMap<>();
 			String tableName = sdc.getSqlRegistry().getTableFor(objectDomainClass).name;
 
-			for (String idsList : Helpers.buildIdsListsWithMaxIdCount(missingObjectIds, 1000)) { // Oracle limitation max 1000 elements in lists
+			for (String idsList : Helpers.buildStringLists(missingObjectIds, 1000)) { // Oracle limitation max 1000 elements in lists
 				collectedRecordMap.putAll(retrieveRecordsFromDatabase(cn, sdc, 0, objectDomainClass, tableName + ".ID IN (" + idsList + ")", null));
 			}
 			loadedMissingRecordsMap.put(objectDomainClass, collectedRecordMap);

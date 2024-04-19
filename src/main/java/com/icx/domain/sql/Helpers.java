@@ -29,45 +29,15 @@ public abstract class Helpers extends Common {
 				.collect(Collectors.toSet());
 	}
 
-	// Build "(<ids>)" lists with at maximum 1000 ids (Oracle limit for # of elements in WHERE IN (...) clause = 1000)
-	static List<String> buildIdsListsWithMaxIdCount(Set<Long> ids, int max) {
+	// Build string lists with a maximum of max elements (Oracle limit for # of elements in WHERE IN (...) clause = 1000)
+	static List<String> buildStringLists(Set<?> elements, int max) {
 
-		List<String> idStringLists = new ArrayList<>();
-		if (ids == null || ids.isEmpty()) {
-			return idStringLists;
+		List<String> stringLists = new ArrayList<>();
+		if (elements == null || elements.isEmpty()) {
+			return stringLists;
 		}
 
 		StringBuilder sb = new StringBuilder();
-		int i = 0;
-		for (long id : ids) {
-
-			if (i % max != 0) {
-				sb.append(",");
-			}
-
-			sb.append(id);
-
-			if (i % max == max - 1) {
-				idStringLists.add(sb.toString());
-				sb.setLength(0);
-			}
-
-			i++;
-		}
-
-		if (sb.length() > 0) {
-			idStringLists.add(sb.toString());
-		}
-
-		return idStringLists;
-	}
-
-	// Build string list of elements for WHERE clause (of DELETE statement)
-	static List<String> buildElementListsWithMaxElementCount(Set<Object> elements, int max) {
-
-		List<String> elementLists = new ArrayList<>();
-		StringBuilder sb = new StringBuilder();
-
 		int i = 0;
 		for (Object element : elements) {
 
@@ -83,18 +53,18 @@ public abstract class Helpers extends Common {
 			}
 
 			if (i % max == max - 1) {
-				elementLists.add(sb.toString());
+				stringLists.add(sb.toString());
 				sb.setLength(0);
 			}
 
 			i++;
 		}
 
-		if (!sb.isEmpty()) {
-			elementLists.add(sb.toString());
+		if (sb.length() > 0) {
+			stringLists.add(sb.toString());
 		}
 
-		return elementLists;
+		return stringLists;
 	}
 
 }
