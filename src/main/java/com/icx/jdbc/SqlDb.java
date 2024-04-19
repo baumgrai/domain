@@ -366,37 +366,71 @@ public class SqlDb extends Common {
 		return fieldType;
 	}
 
+	// Column info class
+	private static class ColumnInfo {
+
+		String columnName = null;
+		String uppercaseColumnLabel = null;
+		int columnType = -1;
+		String tableName = "<unknown>";
+		Class<?> fieldType = null;
+	}
+
+	// Try to determine table name and type of associated field for all columns
+	private ColumnInfo[] getColumnInfos(ResultSetMetaData rsmd, List<String> orderedColumnNames) throws SQLException {
+
+		ColumnInfo[] columnInfos = new ColumnInfo[rsmd.getColumnCount()];
+		for (int c = 1; c <= rsmd.getColumnCount(); c++) {
+
+			ColumnInfo columnInfo = new ColumnInfo();
+			columnInfos[c - 1] = columnInfo;
+
+			columnInfo.tableName = "<unknown>";
+			columnInfo.columnName = rsmd.getColumnName(c);
+			columnInfo.uppercaseColumnLabel = rsmd.getColumnLabel(c).toUpperCase();
+			columnInfo.columnType = rsmd.getColumnType(c);
+			columnInfo.fieldType = null;
+
+			// Try to determine type of associated field from registered table column by qualified column name
+			SqlDbTable table = null;
+			if (orderedColumnNames != null && orderedColumnNames.size() >= c) {
+
+				if (orderedColumnNames.get(c - 1).contains(".")) {
+					table = getTableFromQualifiedColumnName(orderedColumnNames.get(c - 1));
+					if (table != null) {
+						columnInfo.tableName = table.name;
+						columnInfo.fieldType = getFieldTypeFromQualifiedColumnName(table, orderedColumnNames.get(c - 1));
+					}
+				}
+				else if (log.isDebugEnabled()) {
+					log.debug("SQL: Table name and field type of column '{}' could not be determined because column names are not prefixed by table name ({}).", rsmd.getColumnName(c),
+							orderedColumnNames);
+				}
+			}
+			else {
+				log.warn("SQL: Field type of column '{}' could not be determined because column name list {} does not contain appropriate entry!", rsmd.getColumnName(c), orderedColumnNames);
+			}
+		}
+
+		return columnInfos;
+	}
+
 	// Retrieve column values for one row from result set of SELECT statement
 	@SuppressWarnings({ "unchecked", "rawtypes" })
-	private SortedMap<String, Object> retrieveRecord(ResultSet rs, ResultSetMetaData rsmd, List<String> qualifiedColumnNames) throws SQLException {
+	private static SortedMap<String, Object> retrieveRecord(ResultSet rs, ColumnInfo[] columnInfos) throws SQLException {
 
 		SortedMap<String, Object> resultRecord = new TreeMap<>();
 
 		// Retrieve all values for one result record - JDBC indexes start by 1
-		for (int c = 1; c <= rsmd.getColumnCount(); c++) {
+		for (int c = 1; c <= columnInfos.length; c++) {
 
-			String tableName = "<unknown>";
-			String columnName = rsmd.getColumnName(c);
-			Class<?> fieldType = null;
+			String tableName = columnInfos[c - 1].tableName;
+			String columnName = columnInfos[c - 1].columnName;
+			int columnType = columnInfos[c - 1].columnType;
+			Class<?> fieldType = columnInfos[c - 1].fieldType;
 			Object columnValue = null;
-			try {
-				// Try to determine type of associated field from registered table column by qualified column name
-				SqlDbTable table = null;
-				if (qualifiedColumnNames != null && qualifiedColumnNames.size() >= c && qualifiedColumnNames.get(c - 1).contains(".")) {
-					table = getTableFromQualifiedColumnName(qualifiedColumnNames.get(c - 1));
-					if (table != null) {
-						tableName = table.name;
-						fieldType = getFieldTypeFromQualifiedColumnName(table, qualifiedColumnNames.get(c - 1));
-					}
-				}
-				else if (qualifiedColumnNames == null || qualifiedColumnNames.size() < c) {
-					log.warn("SQL: Field type of column '{}' could not be determined because column name list {} does not contain appropriate entry!", columnName, qualifiedColumnNames);
-				}
-				else if (log.isDebugEnabled()) {
-					log.debug("SQL: Table name and field type of column '{}' could not be determined because column names are not prefixed by table name ({}).", columnName, qualifiedColumnNames);
-				}
 
-				int columnType = rsmd.getColumnType(c);
+			try {
 				if (fieldType == null) { // No field type specified
 
 					// Retrieve date/time column values as Java 8 date/time objects and other column values based on column type
@@ -493,7 +527,7 @@ public class SqlDb extends Common {
 				}
 
 				// Put column value retrieved into result map
-				resultRecord.put(rsmd.getColumnLabel(c).toUpperCase(), columnValue);
+				resultRecord.put(columnInfos[c - 1].uppercaseColumnLabel, columnValue);
 			}
 			catch (IllegalArgumentException iaex) { // Thrown if enum field does not accept column content
 
@@ -587,9 +621,12 @@ public class SqlDb extends Common {
 				ResultSetMetaData rsmd = rs.getMetaData();
 				if (rsmd != null) {
 
+					// Get basic column information from metadata and try to determine table name and type of associated field for all columns
+					ColumnInfo[] columnInfos = getColumnInfos(rsmd, orderedColumnNames);
+
 					// Retrieve results from result set
 					while (rs.next()) {
-						resultRecords.add(retrieveRecord(rs, rsmd, orderedColumnNames));
+						resultRecords.add(retrieveRecord(rs, columnInfos));
 					}
 
 					SqlDbHelpers.logResultRecordsOnDebugLevel(rsmd, sql, resultRecords);
@@ -863,10 +900,6 @@ public class SqlDb extends Common {
 		}
 
 		String preparedStatementString = sqlBuilder.toString();
-
-		if (log.isTraceEnabled()) {
-			log.trace("SQL: {}", preparedStatementString);
-		}
 
 		try (PreparedStatement pst = cn.prepareStatement(preparedStatementString)) {
 
