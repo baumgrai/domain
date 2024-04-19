@@ -316,7 +316,7 @@ public class Java2SqlHelpers extends SqlDbHelpers {
 
 			// Create element column - do not support collections or maps as elements of array! - and order column
 			entryTable.addStandardColumn(Const.ELEMENT_COL, field.getType().getComponentType());
-			entryTable.addStandardColumn(Const.ORDER_COL, Integer.class);
+			entryTable.addStandardColumn(Const.ORDER_COL, Long.class);
 		}
 		else if (Collection.class.isAssignableFrom(field.getType())) { // Collection field
 
@@ -345,7 +345,8 @@ public class Java2SqlHelpers extends SqlDbHelpers {
 
 			// Add add order column for element lists (or if type is unknown)
 			if (List.class.isAssignableFrom(field.getType()) || currentCollectionTypeString.equalsIgnoreCase("list") || currentCollectionTypeString.equalsIgnoreCase("both")) {
-				entryTable.addStandardColumn(Const.ORDER_COL, Integer.class);
+				Column orderColumn = entryTable.addStandardColumn(Const.ORDER_COL, Long.class);
+				entryTable.addUniqueConstraintFor(mainTableRefColumn, orderColumn);
 			}
 		}
 		else if (Map.class.isAssignableFrom(field.getType())) { // Map field
