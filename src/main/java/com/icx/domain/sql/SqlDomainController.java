@@ -315,7 +315,7 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 		// Collect field changes (because object record was removed here all field/value pairs will be found) and re-generate object record from field/value pairs of all inherited domain classes
 		SortedMap<String, Object> objectRecord = new TreeMap<>();
 		for (Class<? extends SqlDomainObject> domainClass : getRegistry().getDomainClassesFor(obj.getClass())) {
-			Map<Field, Object> fieldChangesMap = SaveHelpers.getFieldChangesForDomainClass(getSqlRegistry(), obj, objectRecord, domainClass);
+			Map<Field, Object> fieldChangesMap = SaveHelpers.getFieldChangesForDomainClass(this, obj, objectRecord, domainClass);
 			objectRecord.putAll(SaveHelpers.fieldChangesMap2ColumnValueMap(this, fieldChangesMap, obj));
 		}
 
@@ -818,18 +818,16 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 			// Save object
 			boolean wasChanged = SaveHelpers.save(cn, this, obj, new ArrayList<>());
 
-			if (log.isDebugEnabled()) {
-				if (wasChanged) {
-					log.debug("SDC: Saved {}", obj.name());
-				}
-				else if (log.isTraceEnabled()) {
-					log.trace("SDC: {} is up-to-date", obj.name());
-				}
-			}
-
 			// COMMIT whole save transaction if any INSERT or UPDATE statement was performed
 			if (wasChanged) {
 				SqlConnection.commit(cn);
+
+				if (log.isDebugEnabled()) {
+					log.debug("SDC: Saved {}", obj.name());
+				}
+			}
+			else if (!log.isTraceEnabled()) {
+				log.trace("SDC: {} is up-to-date", obj.name());
 			}
 
 			return wasChanged;

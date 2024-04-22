@@ -12,7 +12,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.icx.common.AESCrypt;
 import com.icx.domain.DomainObject;
+import com.icx.domain.sql.Annotations.Crypt;
 import com.icx.jdbc.SqlDbException;
 
 /**
@@ -56,6 +58,39 @@ public abstract class SqlDomainObject extends DomainObject {
 	 */
 	public SqlDomainController sdc() {
 		return (SqlDomainController) getDc();
+	}
+
+	// -------------------------------------------------------------------------
+	// Encrypted field values
+	// -------------------------------------------------------------------------
+
+	// Get encrypted field value for 'secret' fields
+	@Override
+	public Object getFieldValue(Field field) {
+
+		Object fieldValue = super.getFieldValue(field);
+
+		if (field.isAnnotationPresent(Crypt.class) && field.getType() == String.class && fieldValue != null) { // Column value is encrypted
+
+			if (!isEmpty(sdc().cryptPassword)) {
+				try {
+					return AESCrypt.encrypt((String) fieldValue, sdc().cryptPassword, sdc().cryptSalt);
+				}
+				catch (Exception ex) {
+					log.error("SDC: Encryption of value of field {} failed for '{}' by {}", field.getName(), this, ex);
+					setFieldError(field, "Value could not be encrypted on writing to database!" + ex);
+				}
+			}
+			else {
+				log.warn("SCD: Value of field '{}' cannot be encrypted because 'cryptPassword' is not configured in 'domain.properties'", field.getName());
+				setFieldError(field, "Value could not be encrypted on writing to database! Missing 'cryptPassword' property in 'domain.properties'");
+			}
+
+			return null;
+		}
+		else {
+			return fieldValue;
+		}
 	}
 
 	// -------------------------------------------------------------------------

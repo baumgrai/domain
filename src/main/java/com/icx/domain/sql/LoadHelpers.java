@@ -5,7 +5,6 @@ import java.io.IOException;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.ParameterizedType;
-import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
@@ -429,85 +428,6 @@ public abstract class LoadHelpers extends Common {
 		}
 	}
 
-	// Get file path length from binary coded file entry
-	private static int getPathLength(byte[] entryBytes) {
-
-		if (entryBytes == null) {
-			return -1;
-		}
-
-		int pathLength = 0x100 * entryBytes[0] + entryBytes[1];
-
-		if (log.isTraceEnabled()) {
-			log.trace("SDC: File path length: {}", pathLength);
-		}
-
-		return pathLength;
-	}
-
-	// Get empty file object from binary coded file entry
-	private static File getFile(byte[] entryBytes, int pathLength) {
-
-		if (entryBytes == null) {
-			return null;
-		}
-
-		int b = 2;
-		byte[] pathBytes = new byte[pathLength];
-		for (; b < pathLength + 2; b++) {
-			pathBytes[b - 2] = entryBytes[b];
-		}
-
-		String filePathName = new String(pathBytes, StandardCharsets.UTF_8);
-
-		if (log.isDebugEnabled()) {
-			log.debug("SDC: File path: '{}'", filePathName);
-		}
-
-		return new File(filePathName);
-	}
-
-	// Get binary file content from binary coded file entry
-	private static byte[] getFileContent(byte[] entryBytes, int pathLength) {
-
-		if (entryBytes == null) {
-			return new byte[0];
-		}
-
-		int b = 2 + pathLength;
-		byte[] contentBytes = new byte[entryBytes.length - pathLength - 2];
-		for (; b < entryBytes.length; b++) {
-			contentBytes[b - pathLength - 2] = entryBytes[b];
-		}
-
-		if (log.isDebugEnabled()) {
-			log.debug("SDC: File content length: {}", contentBytes.length);
-		}
-
-		return contentBytes;
-	}
-
-	// Rebuild file object from binary coded file entry
-	private static File rebuildFile(byte[] entryBytes) throws IOException {
-
-		if (entryBytes == null || entryBytes.length == 0) {
-			log.warn("SDC: File entry is null or empty!");
-			return null;
-		}
-
-		int pathLength = getPathLength(entryBytes);
-		if (pathLength < 1 || pathLength > 1024) {
-			log.warn("SDC: File entry is invalid! (length of file path is not in the range of 1-1024) - set file to null!");
-			return null;
-		}
-		File file = getFile(entryBytes, pathLength);
-		byte[] contentBytes = getFileContent(entryBytes, pathLength);
-
-		CFile.writeBinary(file, contentBytes);
-
-		return file;
-	}
-
 	// Assign changed data in record from database to corresponding fields of domain object - check for unsaved changes before, which will then be discarded
 	@SuppressWarnings("unchecked")
 	private static boolean assignDataToDomainObjectAndCheckReferentialIntegrity(SqlDomainController sdc, SqlDomainObject obj, boolean isNew, SortedMap<String, Object> databaseChangesMap,
@@ -606,12 +526,12 @@ public abstract class LoadHelpers extends Common {
 
 					byte[] fileEntryBytes = (byte[]) fieldValueFromDatabase;
 					try {
-						fieldValue = rebuildFile(fileEntryBytes);
+						fieldValue = Helpers.rebuildFile(fileEntryBytes);
 					}
 					catch (IOException ioex) { // Thrown if file got from file entry could not be written
 
-						int pathLength = getPathLength(fileEntryBytes);
-						File file = getFile(fileEntryBytes, pathLength);
+						int pathLength = Helpers.getPathLength(fileEntryBytes);
+						File file = Helpers.getFile(fileEntryBytes, pathLength);
 
 						log.warn("SDC: File '{}' retrieved from column '{}.{}' could not be written to original directory! ({}). Try to write file to current directory: '{}'", file, tableName,
 								columnName, ioex.getMessage(), CFile.getCurrentDir());
@@ -619,7 +539,7 @@ public abstract class LoadHelpers extends Common {
 						if (file != null) {
 							file = new File(file.getName());
 							try {
-								CFile.writeBinary(file, getFileContent(fileEntryBytes, pathLength));
+								CFile.writeBinary(file, Helpers.getFileContent(fileEntryBytes, pathLength));
 								log.info("SDC: Successfully wrote '{}'", file);
 								fieldValue = file;
 							}
@@ -754,8 +674,8 @@ public abstract class LoadHelpers extends Common {
 						Object oldValue = objectRecord.get(col);
 						Object newValue = loadedRecord.get(col);
 
-						// Add column/value entry to changes map if current and loaded values differ - ignore last modified column; consider only logical changes
-						if (!objectsEqual(col, Const.LAST_MODIFIED_COL) && !logicallyEqual(oldValue, newValue)) {
+						// Add column/value entry to changes map if current and loaded values differ - ignore last modified column and consider only logical changes
+						if (!Const.LAST_MODIFIED_COL.equals(col) && !logicallyEqual(oldValue, newValue)) {
 							databaseChangesMap.put(col, newValue);
 						}
 					}

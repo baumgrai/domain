@@ -1,10 +1,8 @@
 package com.icx.domain.sql;
 
 import java.io.File;
-import java.io.IOException;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
-import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
@@ -26,8 +24,6 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.icx.common.AESCrypt;
-import com.icx.common.CFile;
 import com.icx.common.CList;
 import com.icx.common.CLog;
 import com.icx.common.CMap;
@@ -35,7 +31,6 @@ import com.icx.common.CReflection;
 import com.icx.common.Common;
 import com.icx.domain.DomainObject;
 import com.icx.domain.Registry;
-import com.icx.domain.sql.Annotations.Crypt;
 import com.icx.jdbc.SqlDbException;
 import com.icx.jdbc.SqlDbTable;
 import com.icx.jdbc.SqlDbTable.SqlDbColumn;
@@ -55,7 +50,9 @@ public abstract class SaveHelpers extends Common {
 
 	// Collect changed fields in respect to object record or all fields if object is still not stored for one of the object's domain classes
 	// Note: Collected field values in changes map are NOT converted to column values here
-	static Map<Field, Object> getFieldChangesForDomainClass(SqlRegistry sqlRegistry, SqlDomainObject object, SortedMap<String, Object> objectRecord, Class<? extends SqlDomainObject> domainClass) {
+	static Map<Field, Object> getFieldChangesForDomainClass(SqlDomainController sdc, SqlDomainObject object, SortedMap<String, Object> objectRecord, Class<? extends SqlDomainObject> domainClass) {
+
+		SqlRegistry sqlRegistry = sdc.getSqlRegistry();
 
 		// Try to find object record
 		Map<Field, Object> fieldChangesMap = new HashMap<>();
@@ -69,6 +66,7 @@ public abstract class SaveHelpers extends Common {
 		else {
 			// Data fields
 			for (Field dataField : sqlRegistry.getDataFields(domainClass)) {
+
 				Object fieldValue = object.getFieldValue(dataField);
 				Object columnValue = objectRecord.get(sqlRegistry.getColumnFor(dataField).name);
 
@@ -79,6 +77,7 @@ public abstract class SaveHelpers extends Common {
 
 			// Reference fields
 			for (Field refField : sqlRegistry.getReferenceFields(domainClass)) {
+
 				SqlDomainObject parentObject = (SqlDomainObject) object.getFieldValue(refField);
 				Long refObjIdFromField = (parentObject != null ? parentObject.getId() : null);
 				Number refObjIdFromColumnNumber = (Number) objectRecord.get(sqlRegistry.getColumnFor(refField).name);
@@ -124,44 +123,6 @@ public abstract class SaveHelpers extends Common {
 		return fieldChangesMap;
 	}
 
-	// Build up byte array containing file path and file content . If file cannot be read store only file path in database and set file content to an error message.
-	public static byte[] buildFileByteEntry(File file, String columnName) {
-
-		if (file == null) {
-			log.warn("SDC: File to store is null");
-			return new byte[0];
-		}
-
-		byte[] pathBytes = file.getAbsolutePath().getBytes(StandardCharsets.UTF_8);
-		byte[] contentBytes;
-		try {
-			contentBytes = CFile.readBinary(file);
-		}
-		catch (IOException ioex) {
-			log.warn("SDC: File '{}' cannot be read! Therefore column '{}' will be set to file path name but file itself contains an error message - {}", file, columnName, ioex.getMessage());
-			contentBytes = "File did not exist or could not be read on storing to database!".getBytes(StandardCharsets.UTF_8);
-		}
-		byte[] entryBytes = new byte[2 + pathBytes.length + contentBytes.length];
-
-		entryBytes[0] = (byte) (pathBytes.length / 0x100);
-		entryBytes[1] = (byte) (pathBytes.length % 0x100);
-
-		int b = 2;
-		for (; b < pathBytes.length + 2; b++) {
-			entryBytes[b] = pathBytes[b - 2];
-		}
-
-		for (; b < contentBytes.length + pathBytes.length + 2; b++) {
-			entryBytes[b] = contentBytes[b - pathBytes.length - 2];
-		}
-
-		if (log.isDebugEnabled()) {
-			log.debug("SDC: Store file '{}' containing {} bytes", file, contentBytes.length);
-		}
-
-		return entryBytes;
-	}
-
 	// Build column value map for SQL INSERT or UPDATE from field changes map - consider only fields where columns are associated with - ignore table related fields
 	// Note: Type conversion to column values will be done here
 	static SortedMap<String, Object> fieldChangesMap2ColumnValueMap(SqlDomainController sdc, Map<Field, Object> fieldChangesMap, SqlDomainObject obj /* used only on error */) {
@@ -189,23 +150,7 @@ public abstract class SaveHelpers extends Common {
 				Object fieldValue = fieldChangesMap.get(field);
 
 				// Assign field value
-				if (field.isAnnotationPresent(Crypt.class) && field.getType() == String.class && fieldValue != null) {
-
-					if (!isEmpty(sdc.cryptPassword)) {
-						try {
-							columnValue = AESCrypt.encrypt((String) fieldValue, sdc.cryptPassword, sdc.cryptSalt);
-						}
-						catch (Exception ex) {
-							log.error("SDC: Encryption of value of field {} failed for '{}' by {}", field.getName(), obj, ex);
-							obj.setFieldError(field, "Value could not be encrypted on writing to database!" + ex);
-						}
-					}
-					else {
-						log.warn("SCD: Value of field '{}' cannot be encrypted because 'cryptPassword' is not configured in 'domain.properties'", field.getName());
-						obj.setFieldError(field, "Value could not be encrypted on writing to database! Missing 'cryptPassword' property in 'domain.properties'");
-					}
-				}
-				else if (fieldValue instanceof String && ((String) fieldValue).length() > column.maxlen) { // Truncate if string field exceeds text column size
+				if (fieldValue instanceof String && ((String) fieldValue).length() > column.maxlen) { // Truncate if string field exceeds text column size
 
 					log.warn("SDC: Value '{}' exceeds maximum size {} of column '{}' for object {}! Truncate before saving object...", CLog.forSecretLogging(field, fieldValue), column.maxlen,
 							column.name, obj.name());
@@ -214,7 +159,7 @@ public abstract class SaveHelpers extends Common {
 					columnValue = ((String) fieldValue).substring(0, column.maxlen);
 				}
 				else if (fieldValue instanceof File) {
-					columnValue = buildFileByteEntry((File) fieldValue, column.name);
+					columnValue = Helpers.buildFileByteEntry((File) fieldValue, column.name);
 				}
 				else {
 					columnValue = fieldValue;
@@ -265,7 +210,7 @@ public abstract class SaveHelpers extends Common {
 				// DELETE, INSERT and UPDATE entry records representing list on changes in list
 				List<?> oldList = (List<?>) objectRecord.computeIfAbsent(entryTableName, m -> new ArrayList<>());
 				List<?> newList = (List<?>) newComplexValue;
-				ComplexFieldHelpers.updateEntriesForList(oldList, newList, sdc, cn, entryTableName, refIdColumnName, object);
+				ComplexFieldHelpers.updateEntriesForList(oldList, newList, sdc, cn, entryTableName, refIdColumnName, object.getId(), complexField);
 
 				// Update object record by new list
 				objectRecord.put(entryTableName, new ArrayList<>(newList));
@@ -274,7 +219,7 @@ public abstract class SaveHelpers extends Common {
 
 				// DELETE, INSERT and/or UPDATE entry records representing array on changes of array
 				Object newArray = newComplexValue;
-				int length = ComplexFieldHelpers.updateEntriesForArray(newArray, sdc, cn, entryTableName, refIdColumnName, object);
+				int length = ComplexFieldHelpers.updateEntriesForArray(newArray, sdc, cn, entryTableName, refIdColumnName, object.getId());
 
 				// Update object record by new array
 				Object recordArray = Array.newInstance(complexField.getType().getComponentType(), length);
@@ -507,10 +452,12 @@ public abstract class SaveHelpers extends Common {
 			collectedParentObjectMap.putAll(storeOrCollectUnstoredParentObjects(cn, sdc, obj, domainClass, objectsToCheckForCircularReference));
 
 			// Get field changes for domain class
-			Map<Field, Object> fieldChangesForDomainClassMap = getFieldChangesForDomainClass(sdc.getSqlRegistry(), obj, objectRecord, domainClass);
+			Map<Field, Object> fieldChangesForDomainClassMap = getFieldChangesForDomainClass(sdc, obj, objectRecord, domainClass);
 			if (!fieldChangesForDomainClassMap.isEmpty()) {
 				wasChanged = true;
 			}
+
+			log.trace("SDC: Field changes detected: {}", fieldChangesForDomainClassMap);
 
 			// Build column value map for INSERT or UPDATE - ignore changes of complex fields which are not associated with a column (but with an 'entry' table)
 			SortedMap<String, Object> columnValueMap = fieldChangesMap2ColumnValueMap(sdc, fieldChangesForDomainClassMap, obj);
@@ -592,7 +539,8 @@ public abstract class SaveHelpers extends Common {
 			}
 
 			// Update local object record by changes of data and reference fields
-			// Note: Object record contains field values as they are. Necessary conversion for storing in database will be made in SqlDb::assigneValue() and will not be reflected in object record.
+			// Note: Object record contains field values as they are (but in encrypted form if they are 'secret' values). Necessary conversion for storing values in database will be made in
+			// SqlDb::assigneValue() and will not be reflected in object record.
 			objectRecord.putAll(columnValueMap);
 
 			// Handle table related fields (collections and maps): Delete old entry records, update changed map entries and insert new entries
