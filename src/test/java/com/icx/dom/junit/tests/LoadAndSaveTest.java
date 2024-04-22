@@ -1035,6 +1035,7 @@ class LoadAndSaveTest extends TestHelpers {
 				aa.save();
 			}
 
+			sdc.unregisterOnlyForTest(aa);
 			sdc.loadOnly(AA.class, "DOM_A.I=42", 1);
 			for (int i = 0; i <= 40; i++) {
 				assertEquals("" + i, aa.strings.get(i));
@@ -1042,6 +1043,7 @@ class LoadAndSaveTest extends TestHelpers {
 
 			aa.strings = new ArrayList<>(aa.strings.reversed());
 			aa.save();
+			sdc.unregisterOnlyForTest(aa);
 			sdc.loadOnly(AA.class, "DOM_A.I=42", 1);
 			for (int i = 0; i <= 40; i++) {
 				assertEquals("" + (40 - i), aa.strings.get(i));
@@ -1054,6 +1056,7 @@ class LoadAndSaveTest extends TestHelpers {
 				aa.save();
 			}
 
+			sdc.unregisterOnlyForTest(aa);
 			sdc.loadOnly(AA.class, "DOM_A.I=42", 1);
 			assertEquals("0", aa.strings.get(0));
 			for (int i = 0; i <= 40; i++) {
