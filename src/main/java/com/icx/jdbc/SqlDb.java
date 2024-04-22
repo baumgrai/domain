@@ -458,8 +458,15 @@ public class SqlDb extends Common {
 						String string = rs.getObject(c, String.class);
 						columnValue = (!isEmpty(string) ? string.charAt(0) : null);
 					}
-					else if (fieldType == Boolean.class || fieldType == boolean.class) {
+					else if (fieldType == boolean.class) {
 						columnValue = Boolean.valueOf(rs.getObject(c, String.class));
+					}
+					else if (fieldType == Boolean.class) {
+
+						String booleanString = rs.getObject(c, String.class);
+						if (booleanString != null) {
+							columnValue = Boolean.valueOf(booleanString);
+						}
 					}
 					else if (Enum.class.isAssignableFrom(fieldType)) {
 
