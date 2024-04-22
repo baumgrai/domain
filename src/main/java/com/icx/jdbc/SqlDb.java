@@ -1061,10 +1061,6 @@ public class SqlDb extends Common {
 		}
 
 		String preparedStatementString = sqlBuilder.toString();
-		if (log.isTraceEnabled()) {
-			log.trace("SQL: {}", preparedStatementString);
-		}
-
 		try (PreparedStatement pst = cn.prepareStatement(preparedStatementString)) {
 
 			// Assign values to prepared statement
@@ -1134,11 +1130,11 @@ public class SqlDb extends Common {
 
 		String preparedStatementString = sqlBuilder.toString();
 
-		if (log.isDebugEnabled()) {
-			log.debug("SQL: {}", preparedStatementString);
-		}
-
 		try (PreparedStatement pst = cn.prepareStatement(preparedStatementString)) {
+
+			if (log.isDebugEnabled()) {
+				log.debug("SQL: {}", preparedStatementString);
+			}
 
 			// Execute DELETE statement
 			pst.execute();
