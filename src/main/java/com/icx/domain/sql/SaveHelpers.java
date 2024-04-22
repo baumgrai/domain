@@ -56,7 +56,7 @@ public abstract class SaveHelpers extends Common {
 
 		// Try to find object record
 		Map<Field, Object> fieldChangesMap = new HashMap<>();
-		if (objectRecord == null) {
+		if (CMap.isEmpty(objectRecord)) {
 
 			// New object: add { field , field value } entry to changes map for all registered fields (there is no conversion necessary here - field values will be collected as they are)
 			for (Field field : sqlRegistry.getRegisteredFields(domainClass)) {
