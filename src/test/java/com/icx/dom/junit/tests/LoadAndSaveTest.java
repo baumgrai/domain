@@ -53,7 +53,7 @@ import com.icx.dom.junit.domain.sub.X;
 import com.icx.dom.junit.domain.sub.Y;
 import com.icx.dom.junit.domain.sub.Z;
 import com.icx.domain.sql.ComplexFieldHelpers;
-import com.icx.domain.sql.SaveHelpers;
+import com.icx.domain.sql.Helpers;
 import com.icx.domain.sql.SqlDomainController;
 import com.icx.domain.sql.SqlDomainObject;
 import com.icx.jdbc.ConnectionPool;
@@ -399,7 +399,7 @@ class LoadAndSaveTest extends TestHelpers {
 				File file = new File("bike1.jpg");
 				file.delete(); // Forces putting an error message in file content in entry
 				sdc.getSqlDb().update(sqlcn.cn, "DOM_A",
-						CMap.newMap("I", 2, "DOM_LONGTEXT", "äöüßÄÖÜ".toCharArray(), "DOM_FILE", SaveHelpers.buildFileByteEntry(file, "DOM_FILE"), "DOM_TYPE", "B", "O_ID", null), "S='S'");
+						CMap.newMap("I", 2, "DOM_LONGTEXT", "äöüßÄÖÜ".toCharArray(), "DOM_FILE", Helpers.buildFileByteEntry(file, "DOM_FILE"), "DOM_TYPE", "B", "O_ID", null), "S='S'");
 
 				sdc.getSqlDb().update(sqlcn.cn, "DOM_A_STRINGS", CMap.newMap("ELEMENT_ORDER", ComplexFieldHelpers.INITIAL_ORDER_INCREMENT * (1 + 1)), "ELEMENT='B'");
 				sdc.getSqlDb().update(sqlcn.cn, "DOM_A_STRINGS", CMap.newMap("ELEMENT_ORDER", ComplexFieldHelpers.INITIAL_ORDER_INCREMENT * (0 + 1)), "ELEMENT='C'");
@@ -1016,12 +1016,75 @@ class LoadAndSaveTest extends TestHelpers {
 	@SuppressWarnings("static-method")
 	@Test
 	@Order(11)
+	void persistingComplexObjects() throws Throwable {
+
+		try {
+			cleanup();
+
+			log.info("\tTEST 11: persistingComplexObjects()");
+
+			AA aa = sdc.createAndSave(AA.class, a -> {
+				a.i = 42;
+				a.strings = new ArrayList<>();
+				a.stringArray = null;
+				a.pwd = null;
+			});
+
+			for (int i = 40; i >= 0; i--) {
+				aa.strings.add(0, "" + i);
+				aa.save();
+			}
+
+			sdc.loadOnly(AA.class, "DOM_A.I=42", 1);
+			for (int i = 0; i <= 40; i++) {
+				assertEquals("" + i, aa.strings.get(i));
+			}
+
+			aa.strings = new ArrayList<>(aa.strings.reversed());
+			aa.save();
+			sdc.loadOnly(AA.class, "DOM_A.I=42", 1);
+			for (int i = 0; i <= 40; i++) {
+				assertEquals("" + (40 - i), aa.strings.get(i));
+			}
+			aa.strings = new ArrayList<>(aa.strings.reversed());
+			aa.save();
+
+			for (int i = 40; i >= 0; i--) {
+				aa.strings.add(1, "0." + i);
+				aa.save();
+			}
+
+			sdc.loadOnly(AA.class, "DOM_A.I=42", 1);
+			assertEquals("0", aa.strings.get(0));
+			for (int i = 0; i <= 40; i++) {
+				assertEquals("0." + i, aa.strings.get(i + 1));
+			}
+			for (int i = 41; i <= 80; i++) {
+				assertEquals("" + (i - 40), aa.strings.get(i + 1));
+			}
+
+			log.info("{}", aa.strings);
+
+			aa.delete();
+		}
+		catch (AssertionFailedError failed) {
+			throw failed;
+		}
+		catch (Throwable ex) {
+			log.error(Common.exceptionStackToString(ex));
+			throw ex;
+		}
+	}
+
+	@SuppressWarnings("static-method")
+	@Test
+	@Order(12)
 	void errorCases() throws Throwable {
 
 		try {
 			cleanup();
 
-			log.info("\tTEST 11: errorCases()");
+			log.info("\tTEST 12: errorCases()");
 
 			AA aa1 = sdc.create(AA.class, a -> a.setS("aa1"));
 
