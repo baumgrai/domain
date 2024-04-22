@@ -2,6 +2,7 @@ package com.icx.domain.sql;
 
 import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
@@ -28,6 +29,7 @@ import org.slf4j.LoggerFactory;
 
 import com.icx.common.CCollection;
 import com.icx.common.CList;
+import com.icx.common.CLog;
 import com.icx.common.CMap;
 import com.icx.common.CReflection;
 import com.icx.common.Common;
@@ -481,9 +483,30 @@ public abstract class ComplexFieldHelpers extends Common {
 		return orderNumbersOfElementsToRemove;
 	}
 
+	// Exception to internally signal that persistence entries have to be rebuild from scratch because any new element cannot be inserted at its index position due to density of oder numbers
+	@SuppressWarnings("serial")
+	private static class DenseOrderNumbersException extends Exception {
+
+		int index = -1;
+		Object o = null;
+
+		public DenseOrderNumbersException(
+				Object o,
+				int index) {
+
+			this.index = index;
+			this.o = o;
+		}
+
+		@Override
+		public String toString() {
+			return "Object: " + o + ", index: " + index;
+		}
+	}
+
 	// Generate new order numbers for elements to insert and collect common elements in new order
-	// TODO: Handle case where order numbers are dense and no further number can be inserted between two consecutive numbers
-	private static Map<Long, Object> assignNewOrderNumbersToElementsToInsert(List<?> oldList, List<?> newList, List<Long> orderNumbers, List<Object> commonElementsInNewOrder) {
+	private static Map<Long, Object> assignNewOrderNumbersToElementsToInsert(List<?> oldList, List<?> newList, List<Long> orderNumbers, List<Object> commonElementsInNewOrder)
+			throws DenseOrderNumbersException {
 
 		// Collect indexes of elements to insert - from lowest to highest index
 		List<Object> oldListClone = new ArrayList<>(oldList);
@@ -507,10 +530,24 @@ public abstract class ComplexFieldHelpers extends Common {
 			// Generate new order number for element to insert
 			Long orderNumberForIndex = -1L;
 			if (index == 0) { // Half of first order number
-				orderNumberForIndex = orderNumbers.get(0) / 2;
+
+				if (orderNumbers.get(0) == 1) { // Order numbers are dense at first index -> new element cannot be inserted before first element without changing order number of first element
+					throw new DenseOrderNumbersException(newList.get(index), index);
+				}
+				else {
+					orderNumberForIndex = orderNumbers.get(0) / 2;
+				}
 			}
-			else if (index < orderNumbers.size()) { // Arithmetic mean of surrounding order numbers
-				orderNumberForIndex = (orderNumbers.get(index - 1) + orderNumbers.get(index)) / 2;
+			else if (index < orderNumbers.size()) {
+
+				long orderNumberOfPrecedingElement = orderNumbers.get(index - 1);
+				long orderNumberOfNextElement = orderNumbers.get(index);
+				if (orderNumberOfNextElement == orderNumberOfPrecedingElement + 1) { // Order numbers are dense at index where new element is to insert -> new element cannot be inserted
+					throw new DenseOrderNumbersException(newList.get(index), index);
+				}
+				else {
+					orderNumberForIndex = (orderNumberOfPrecedingElement + orderNumberOfNextElement) / 2; // Arithmetic mean of surrounding order numbers
+				}
 			}
 			else { // Last order number plus initial order number increment
 				orderNumberForIndex = orderNumbers.get(orderNumbers.size() - 1) + INITIAL_ORDER_INCREMENT;
@@ -600,7 +637,7 @@ public abstract class ComplexFieldHelpers extends Common {
 	}
 
 	// Collect list change information
-	private static ListChangeInfo collectListChangeInfos(List<?> oldList, List<?> newList, List<Long> orderedOrderNumbers) {
+	private static ListChangeInfo collectListChangeInfos(List<?> oldList, List<?> newList, List<Long> orderedOrderNumbers) throws DenseOrderNumbersException {
 
 		ListChangeInfo listChangeInfo = new ListChangeInfo();
 
@@ -608,7 +645,7 @@ public abstract class ComplexFieldHelpers extends Common {
 		List<Object> commonElementsInOldOrder = new ArrayList<>();
 		listChangeInfo.orderNumbersOfElementsToRemove = collectOrderNumbersOfElementsToRemove(oldList, newList, orderedOrderNumbers, commonElementsInOldOrder);
 
-		// Store order numbers of common elements in old order (order numbers of removed elements are removed from original oder number list)
+		// Store order numbers of common elements in old order (order numbers of removed elements are removed from original order number list)
 		List<Long> orderNumbersOfCommonElementsInOldOrder = new ArrayList<>(orderedOrderNumbers);
 
 		// Collect indexes of new elements, build their order numbers and insert these order numbers in list of ordered order numbers. Also collect common elements in new order.
@@ -622,81 +659,14 @@ public abstract class ComplexFieldHelpers extends Common {
 		return listChangeInfo;
 	}
 
-	// Generate order numbers for elements of list - make large gaps between consecutive order numbers to allow insertion of elements without changing order numbers of existing elements each time
-	private static List<Long> generateOrderNumbers(List<?> list) {
-
-		List<Long> orderNumbers = new ArrayList<>();
-		long orderNumber = INITIAL_ORDER_INCREMENT;
-		for (int o = 0; o < list.size(); o++, orderNumber += INITIAL_ORDER_INCREMENT) {
-			orderNumbers.add(orderNumber);
-		}
-
-		return orderNumbers;
-	}
-
-	public static void main(String[] args) {
-
-		// Old list
-
-		List<String> oldList = CList.newList("a", "b", "b", "c", "d");
-		List<Long> orderedOrderNumbers = generateOrderNumbers(oldList);
-
-		SortedMap<Long, String> oldListPersistenceMap = new TreeMap<>();
-		for (int o = 0; o < oldList.size(); o++) {
-			oldListPersistenceMap.put(orderedOrderNumbers.get(o), oldList.get(o));
-		}
-		oldList = new ArrayList<>(oldListPersistenceMap.values());
-		System.out.println(oldList);
-		System.out.println(oldListPersistenceMap);
-
-		// New list
-
-		List<String> newList = CList.newList("f", "b", "a", "e", "c", "g");
-		System.out.println(newList);
-
-		// Collect change infos
-
-		ListChangeInfo listChangeInfo = collectListChangeInfos(oldList, newList, orderedOrderNumbers);
-		System.out.println(listChangeInfo);
-
-		// Build new persistence map
-
-		SortedMap<Long, String> newListPersistenceMap = new TreeMap<>(oldListPersistenceMap);
-		for (Long orderNumber : listChangeInfo.orderNumbersOfElementsToRemove) {
-			newListPersistenceMap.remove(orderNumber);
-		}
-		System.out.println(newListPersistenceMap);
-		for (Entry<Long, Object> entry : listChangeInfo.elementsToInsertByNewOrderNumberMap.entrySet()) {
-			newListPersistenceMap.put(entry.getKey(), (String) entry.getValue());
-		}
-		System.out.println(newListPersistenceMap);
-		for (List<Long> cycle : listChangeInfo.orderNumberPermutationCyclesOfCommonElements) {
-
-			int index = 0;
-			long firstOrderNumber = cycle.get(index);
-			String element = oldListPersistenceMap.get(firstOrderNumber);
-			newListPersistenceMap.put(0L, element);
-
-			while (index < cycle.size() - 1) {
-				long orderNumber = cycle.get(++index);
-				newListPersistenceMap.put(orderNumber, element);
-				element = oldListPersistenceMap.get(orderNumber);
-			}
-
-			newListPersistenceMap.remove(0L);
-			newListPersistenceMap.put(firstOrderNumber, element);
-		}
-		System.out.println(newListPersistenceMap);
-
-		// Rebuild new list
-
-		List<Object> rebuiltNewList = new ArrayList<>(newListPersistenceMap.values());
-		System.out.println(rebuiltNewList);
-	}
-
 	// DELETE, INSERT and UPDATE entry records representing list on changes in list
-	static void updateEntriesForList(List<?> oldList, List<?> newList, SqlDomainController sdc, Connection cn, String entryTableName, String refIdColumnName, SqlDomainObject object)
-			throws SQLException, SqlDbException {
+	static void updateEntriesForList(List<?> oldList, List<?> newList, SqlDomainController sdc, Connection cn, String entryTableName, String refIdColumnName, long objectId,
+			Field listField /* for logging only */) throws SQLException, SqlDbException {
+
+		// If both lists are equal nothing is to do
+		if (objectsEqual(oldList, newList)) {
+			return;
+		}
 
 		if (log.isTraceEnabled()) {
 			log.trace("SDC: Old list: {}", oldList);
@@ -704,68 +674,87 @@ public abstract class ComplexFieldHelpers extends Common {
 		}
 
 		// Handle cases if one of the lists is empty or lists have disjoint elements
-		boolean wasDone = false;
-		if (!CList.isEmpty(oldList) && (CList.isEmpty(newList) || Collections.disjoint(oldList, newList))) {
+		boolean haveListsElementsInCommon = true;
+		if (!CList.isEmpty(oldList) && (CList.isEmpty(newList) || Collections.disjoint(oldList, newList))) { // New list is empty or old and new list have no elements in common
+
+			// Remove all existing entries (which represent old list)
 			// DELETE FROM <entry table> WHERE <object reference column>=<objectid>
-			SqlDb.deleteFrom(cn, entryTableName, refIdColumnName + "=" + object.getId());
-			wasDone = true;
+			SqlDb.deleteFrom(cn, entryTableName, refIdColumnName + "=" + objectId);
+			haveListsElementsInCommon = false;
 		}
 
-		if (!CList.isEmpty(newList) && (CList.isEmpty(oldList) || Collections.disjoint(oldList, newList))) {
+		if (!CList.isEmpty(newList) && (CList.isEmpty(oldList) || Collections.disjoint(oldList, newList))) { // Old list is empty or old and new list have no elements in common
+
+			// Insert all new entries (which represent new list)
 			// (batch) INSERT INTO <entry table> (<object reference column>, ELEMENT, ELEMENT_ORDER) VALUES (<objectid>, <list element>, <order>)
-			sdc.sqlDb.insertInto(cn, entryTableName, collection2EntryRecords(refIdColumnName, object.getId(), newList));
-			wasDone = true;
+			sdc.sqlDb.insertInto(cn, entryTableName, collection2EntryRecords(refIdColumnName, objectId, newList));
+			haveListsElementsInCommon = false;
 		}
 
-		// Handle case if there are common elements in both lists
-		if (!wasDone) {
+		// Handle case if lists have elements in common
+		if (haveListsElementsInCommon) {
 
 			// Get (ordered) list of order numbers of currently persisted (old) list
-			// TODO: Store order number list locally
 			String qualifiedOrderColumnName = entryTableName + "." + Const.ORDER_COL;
-			List<Long> orderedOrderNumbers = sdc.sqlDb.selectFrom(cn, entryTableName, qualifiedOrderColumnName, null, Const.ORDER_COL, -1, null).stream()
+			List<Long> orderedOrderNumbers = sdc.sqlDb.selectFrom(cn, entryTableName, qualifiedOrderColumnName, refIdColumnName + "=" + objectId, Const.ORDER_COL, -1, null).stream()
 					.map(r -> ((Number) r.get(Const.ORDER_COL)).longValue()).collect(Collectors.toList());
 
-			// Collect infos to update persisted list incrementally
-			ListChangeInfo listChangeInfo = collectListChangeInfos(oldList, newList, orderedOrderNumbers);
+			try {
+				// Collect infos to update persisted list incrementally
+				ListChangeInfo listChangeInfo = collectListChangeInfos(oldList, newList, orderedOrderNumbers);
 
-			// Delete elements not contained in new list anymore
-			// DELETE FROM <entry table> WHERE <object reference column>=<objectid> AND ELEMENT_ORDER IN <orders of elements to remove>
-			for (String tmpOrderNumberStringList : Helpers.buildStringLists(listChangeInfo.orderNumbersOfElementsToRemove, 1000)) {
-				SqlDb.deleteFrom(cn, entryTableName, refIdColumnName + "=" + object.getId() + " AND " + Const.ORDER_COL + " IN (" + tmpOrderNumberStringList + ")");
-			}
-
-			// Build entry records for persistence of new elements
-			List<SortedMap<String, Object>> entryRecordsToInsert = new ArrayList<>();
-			for (Entry<Long, Object> entry : listChangeInfo.elementsToInsertByNewOrderNumberMap.entrySet()) {
-				SortedMap<String, Object> entryRecord = new TreeMap<>();
-				entryRecord.put(refIdColumnName, object.getId());
-				entryRecord.put(Const.ORDER_COL, entry.getKey());
-				entryRecord.put(Const.ELEMENT_COL, element2ColumnValue(entry.getValue()));
-				entryRecordsToInsert.add(entryRecord);
-			}
-
-			// Insert entry records for new elements
-			// (batch) INSERT INTO <entry table> (<object reference column>, ELEMENT, ELEMENT_ORDER) VALUES (<objectid>, <list element>, <order>)
-			sdc.sqlDb.insertInto(cn, entryTableName, entryRecordsToInsert);
-
-			// Update order numbers (shift cyclicly) of common elements in both lists
-			// UPDATE <entry table> SET ELEMENT_ORDER=<new order number> WHERE <object reference column>=<objectid> AND ELEMENT_ORDER=<old order number>
-			for (List<Long> cycle : listChangeInfo.orderNumberPermutationCyclesOfCommonElements) {
-				sdc.sqlDb.update(cn, entryTableName, CMap.newMap(Const.ORDER_COL, 0L), refIdColumnName + "=" + object.getId() + " AND " + Const.ORDER_COL + "=" + cycle.get(cycle.size() - 1));
-				for (int index = cycle.size() - 2; index >= 0; index--) {
-					sdc.sqlDb.update(cn, entryTableName, CMap.newMap(Const.ORDER_COL, cycle.get(index + 1)),
-							refIdColumnName + "=" + object.getId() + " AND " + Const.ORDER_COL + "=" + cycle.get(index));
+				// Delete elements not contained in new list anymore
+				// DELETE FROM <entry table> WHERE <object reference column>=<objectid> AND ELEMENT_ORDER IN <orders of elements to remove>
+				for (String tmpOrderNumberStringList : Helpers.buildStringLists(listChangeInfo.orderNumbersOfElementsToRemove, 1000)) {
+					SqlDb.deleteFrom(cn, entryTableName, refIdColumnName + "=" + objectId + " AND " + Const.ORDER_COL + " IN (" + tmpOrderNumberStringList + ")");
 				}
-				sdc.sqlDb.update(cn, entryTableName, CMap.newMap(Const.ORDER_COL, cycle.get(0)), refIdColumnName + "=" + object.getId() + " AND " + Const.ORDER_COL + "=0");
+
+				// Build entry records for persistence of new elements
+				List<SortedMap<String, Object>> entryRecordsToInsert = new ArrayList<>();
+				for (Entry<Long, Object> entry : listChangeInfo.elementsToInsertByNewOrderNumberMap.entrySet()) {
+
+					SortedMap<String, Object> entryRecord = new TreeMap<>();
+					entryRecord.put(refIdColumnName, objectId);
+					entryRecord.put(Const.ORDER_COL, entry.getKey());
+					entryRecord.put(Const.ELEMENT_COL, element2ColumnValue(entry.getValue()));
+
+					entryRecordsToInsert.add(entryRecord);
+				}
+
+				// Insert entry records for new elements
+				// (batch) INSERT INTO <entry table> (<object reference column>, ELEMENT, ELEMENT_ORDER) VALUES (<objectid>, <list element>, <order>)
+				sdc.sqlDb.insertInto(cn, entryTableName, entryRecordsToInsert);
+
+				// Update order numbers (shift cyclicly) of common elements in both lists
+				// UPDATE <entry table> SET ELEMENT_ORDER=<new order number> WHERE <object reference column>=<objectid> AND ELEMENT_ORDER=<old order number>
+				for (List<Long> cycle : listChangeInfo.orderNumberPermutationCyclesOfCommonElements) {
+
+					sdc.sqlDb.update(cn, entryTableName, CMap.newMap(Const.ORDER_COL, 0L), refIdColumnName + "=" + objectId + " AND " + Const.ORDER_COL + "=" + cycle.get(cycle.size() - 1));
+
+					for (int index = cycle.size() - 2; index >= 0; index--) {
+						sdc.sqlDb.update(cn, entryTableName, CMap.newMap(Const.ORDER_COL, cycle.get(index + 1)), refIdColumnName + "=" + objectId + " AND " + Const.ORDER_COL + "=" + cycle.get(index));
+					}
+
+					sdc.sqlDb.update(cn, entryTableName, CMap.newMap(Const.ORDER_COL, cycle.get(0)), refIdColumnName + "=" + objectId + " AND " + Const.ORDER_COL + "=0");
+				}
+			}
+			catch (DenseOrderNumbersException e) { // Any new element cannot be inserted because order numbers are dense at inserting index!
+
+				log.info("SDC: Indexes are dense! Cannot directly insert object {} into list '{}' at index {}. Persist list again from scratch.", CLog.forSecretLogging(listField, e.o),
+						listField.getName(), e.index);
+
+				// Remove all existing entries (which represent old list) and insert all new entries (which represent new list)
+				// DELETE FROM <entry table> WHERE <object reference column>=<objectid>
+				SqlDb.deleteFrom(cn, entryTableName, refIdColumnName + "=" + objectId);
+				// (batch) INSERT INTO <entry table> (<object reference column>, ELEMENT, ELEMENT_ORDER) VALUES (<objectid>, <list element>, <order>)
+				sdc.sqlDb.insertInto(cn, entryTableName, collection2EntryRecords(refIdColumnName, objectId, newList));
 			}
 		}
 	}
 
 	// DELETE, INSERT and/or UPDATE entry records representing array on changes of array
 	// TODO: Optimize algorithm like for lists
-	static int updateEntriesForArray(Object newArray, SqlDomainController sdc, Connection cn, String entryTableName, String refIdColumnName, SqlDomainObject object)
-			throws SQLException, SqlDbException {
+	static int updateEntriesForArray(Object newArray, SqlDomainController sdc, Connection cn, String entryTableName, String refIdColumnName, long objectId) throws SQLException, SqlDbException {
 
 		int length = Array.getLength(newArray);
 		List<Object> listOfArrayElements = new ArrayList<>();
@@ -774,11 +763,92 @@ public abstract class ComplexFieldHelpers extends Common {
 		}
 
 		// DELETE FROM <entry table> WHERE <object reference column>=<objectid>
-		SqlDb.deleteFrom(cn, entryTableName, refIdColumnName + "=" + object.getId());
+		SqlDb.deleteFrom(cn, entryTableName, refIdColumnName + "=" + objectId);
 		// (batch) INSERT INTO <entry table> (<object reference column>, ELEMENT, ELEMENT_ORDER) VALUES (<objectid>, <array element>, <order>)
-		sdc.sqlDb.insertInto(cn, entryTableName, collection2EntryRecords(refIdColumnName, object.getId(), listOfArrayElements));
+		sdc.sqlDb.insertInto(cn, entryTableName, collection2EntryRecords(refIdColumnName, objectId, listOfArrayElements));
 
 		return length;
 	}
+
+	// -------------------
+	// Test...
+	// -------------------
+
+	// // Generate order numbers for elements of list - make large gaps between consecutive order numbers to allow insertion of elements without changing order numbers of existing elements each time
+	// private static List<Long> generateOrderNumbers(List<?> list) {
+	//
+	// List<Long> orderNumbers = new ArrayList<>();
+	// long orderNumber = INITIAL_ORDER_INCREMENT;
+	// for (int o = 0; o < list.size(); o++, orderNumber += INITIAL_ORDER_INCREMENT) {
+	// orderNumbers.add(orderNumber);
+	// }
+	//
+	// return orderNumbers;
+	// }
+	//
+	// public static void main(String[] args) {
+	//
+	// // Old list
+	//
+	// List<String> oldList = CList.newList("a", "b", "b", "c", "d");
+	// List<Long> orderedOrderNumbers = generateOrderNumbers(oldList);
+	//
+	// SortedMap<Long, String> oldListPersistenceMap = new TreeMap<>();
+	// for (int o = 0; o < oldList.size(); o++) {
+	// oldListPersistenceMap.put(orderedOrderNumbers.get(o), oldList.get(o));
+	// }
+	// oldList = new ArrayList<>(oldListPersistenceMap.values());
+	// System.out.println(oldList);
+	// System.out.println(oldListPersistenceMap);
+	//
+	// // New list
+	//
+	// List<String> newList = CList.newList("f", "b", "a", "e", "c", "g");
+	// System.out.println(newList);
+	//
+	// // Collect change infos
+	//
+	// ListChangeInfo listChangeInfo;
+	// try {
+	// listChangeInfo = collectListChangeInfos(oldList, newList, orderedOrderNumbers);
+	// System.out.println(listChangeInfo);
+	//
+	// // Build new persistence map
+	//
+	// SortedMap<Long, String> newListPersistenceMap = new TreeMap<>(oldListPersistenceMap);
+	// for (Long orderNumber : listChangeInfo.orderNumbersOfElementsToRemove) {
+	// newListPersistenceMap.remove(orderNumber);
+	// }
+	// System.out.println(newListPersistenceMap);
+	// for (Entry<Long, Object> entry : listChangeInfo.elementsToInsertByNewOrderNumberMap.entrySet()) {
+	// newListPersistenceMap.put(entry.getKey(), (String) entry.getValue());
+	// }
+	// System.out.println(newListPersistenceMap);
+	// for (List<Long> cycle : listChangeInfo.orderNumberPermutationCyclesOfCommonElements) {
+	//
+	// int index = 0;
+	// long firstOrderNumber = cycle.get(index);
+	// String element = oldListPersistenceMap.get(firstOrderNumber);
+	// newListPersistenceMap.put(0L, element);
+	//
+	// while (index < cycle.size() - 1) {
+	// long orderNumber = cycle.get(++index);
+	// newListPersistenceMap.put(orderNumber, element);
+	// element = oldListPersistenceMap.get(orderNumber);
+	// }
+	//
+	// newListPersistenceMap.remove(0L);
+	// newListPersistenceMap.put(firstOrderNumber, element);
+	// }
+	// System.out.println(newListPersistenceMap);
+	//
+	// // Rebuild new list
+	//
+	// List<Object> rebuiltNewList = new ArrayList<>(newListPersistenceMap.values());
+	// System.out.println(rebuiltNewList);
+	// }
+	// catch (DenseOrderNumbersException e) {
+	// }
+	// }
 
 }
