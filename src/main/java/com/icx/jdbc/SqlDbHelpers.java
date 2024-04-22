@@ -137,9 +137,6 @@ public abstract class SqlDbHelpers extends Common {
 		else if (type == Double.class) {
 			return Types.DOUBLE;
 		}
-		else if (type == java.sql.Timestamp.class) {
-			return Types.TIMESTAMP;
-		}
 		else if (type == byte[].class) {
 			return Types.BINARY;
 		}
@@ -148,6 +145,15 @@ public abstract class SqlDbHelpers extends Common {
 		}
 		else if (java.sql.Clob.class.isAssignableFrom(type)) {
 			return Types.CLOB;
+		}
+		else if (type == LocalDateTime.class || type == java.sql.Timestamp.class || type == oracle.sql.TIMESTAMP.class) {
+			return Types.TIMESTAMP;
+		}
+		else if (type == LocalDate.class || type == java.sql.Date.class) {
+			return Types.DATE;
+		}
+		else if (type == LocalTime.class || type == java.sql.Time.class) {
+			return Types.TIME;
 		}
 		else {
 			return Types.OTHER;
