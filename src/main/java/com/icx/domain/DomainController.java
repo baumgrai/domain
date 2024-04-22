@@ -1,5 +1,6 @@
 package com.icx.domain;
 
+import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
@@ -29,8 +30,8 @@ import org.slf4j.LoggerFactory;
 import com.icx.common.CRandom;
 import com.icx.common.CReflection;
 import com.icx.common.Common;
-import com.icx.domain.sql.SqlDomainController;
 import com.icx.domain.sql.Annotations.Accumulation;
+import com.icx.domain.sql.SqlDomainController;
 
 /**
  * Manages domain object store.
@@ -322,7 +323,8 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 			registry.getReferenceFields(domainClass).stream().filter(f -> registry.getAccumulationFieldForReferenceField(f) != null).forEach(f -> obj.refForAccuShadowMap.put(f, null));
 
 			// Initialize registered collection/map fields if not already done
-			registry.getComplexFields(domainClass).stream().filter(f -> obj.getFieldValue(f) == null).forEach(f -> obj.setFieldValue(f, CReflection.newComplexObject(f.getType())));
+			registry.getComplexFields(domainClass).stream().filter(f -> obj.getFieldValue(f) == null)
+					.forEach(f -> obj.setFieldValue(f, f.getType().isArray() ? Array.newInstance(f.getType().getComponentType(), 0) : CReflection.newComplexObject(f.getType())));
 
 			// Initialize own accumulation fields
 			registry.getAccumulationFields(domainClass).stream().filter(f -> obj.getFieldValue(f) == null).forEach(f -> obj.setFieldValue(f, ConcurrentHashMap.newKeySet()));
@@ -357,7 +359,6 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 		if (log.isTraceEnabled()) {
 			log.trace("DC: Registered: {}", obj.name());
 		}
-
 		return true;
 	}
 
