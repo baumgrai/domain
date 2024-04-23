@@ -191,11 +191,13 @@ public abstract class LoadHelpers extends Common {
 						log.debug("SDC: Ignore loaded entry records for objects {} where main record was not loaded before!", missingObjectNames);
 					}
 
-					// Build collection or map from entry records and add it to loaded object record with entry table name as key
+					// Build array, collection or map from entry records and add it to loaded object record with entry table name as key
 					// (perform table entries -> collection/map conversion here and not later during assignment of values to objects)
 					String entryTableName = sdc.getSqlRegistry().getEntryTableFor(complexField).name;
-					if (complexField.getType().isArray()) {
+
+					if (complexField.getType().isArray()) { // Array
 						for (long objectId : entryRecordsByObjectIdMap.keySet()) {
+
 							Object array = Array.newInstance(complexField.getType().getComponentType(), entryRecordsByObjectIdMap.get(objectId).size());
 							int r = 0;
 							for (SortedMap<String, Object> entryRecord : entryRecordsByObjectIdMap.get(objectId)) {
@@ -205,8 +207,9 @@ public abstract class LoadHelpers extends Common {
 							loadedRecordMap.get(objectId).put(entryTableName, array);
 						}
 					}
-					else {
+					else { // Collection or map
 						ParameterizedType genericFieldType = ((ParameterizedType) complexField.getGenericType());
+
 						if (Collection.class.isAssignableFrom(complexField.getType())) { // Collection
 							for (long objectId : entryRecordsByObjectIdMap.keySet()) {
 								loadedRecordMap.get(objectId).put(entryTableName, ComplexFieldHelpers.entryRecords2Collection(genericFieldType, entryRecordsByObjectIdMap.get(objectId)));
@@ -671,6 +674,7 @@ public abstract class LoadHelpers extends Common {
 					// Collect changes (we assume that differences between object and database values found here can only be caused by changes in database made by another domain controller instance)
 					SortedMap<String, Object> objectRecord = sdc.recordMap.get(objectDomainClass).get(id); // Current object record
 					for (String col : loadedRecord.keySet()) {
+
 						Object oldValue = objectRecord.get(col);
 						Object newValue = loadedRecord.get(col);
 
