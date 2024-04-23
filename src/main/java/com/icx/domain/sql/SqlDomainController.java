@@ -791,6 +791,11 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	 * <p>
 	 * If (any) domain class of this object has array, collection or map fields, INSERT and UPDATE statements will also be performed on 'entry' tables associated with these fields.
 	 * <p>
+	 * On saving an object one assumes that this object was not meanwhile changed in database (by another controller instance). If in doubt allocate object before saving using
+	 * {@link #allocateObjectExclusively(SqlDomainObject, Class, Consumer)} which reloads object from database and allows secure saving. Values of simple data and reference fields override values in
+	 * database without any check on saving. For lists, set and array and map fields new value will be checked against value stored in local object record before removing, inserting or updating
+	 * database entries which represent these complex fields. This may lead to unpredictable results on saving complex fields if they were changed and saved by another instance before!
+	 * <p>
 	 * On SQL exception this exception and the field error(s) recognized will be assigned to the object. In this case object is marked as invalid and will not be found using
 	 * {@link SqlDomainController#allValid(Class)}. If object was already saved, UPDATE's will afterwards be tried for every field/column separately to keep impact of failure small. For non-updatable
 	 * fields original content is restored to ensure data consistency between object and database representation.
