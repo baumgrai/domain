@@ -694,13 +694,17 @@ public abstract class ComplexFieldHelpers extends Common {
 		// Handle case if lists have elements in common
 		if (haveListsElementsInCommon) {
 
-			// Get (ordered) list of order numbers of currently persisted (old) list
-			String qualifiedOrderColumnName = entryTableName + "." + Const.ORDER_COL;
-			List<Long> orderedOrderNumbers = sdc.sqlDb.selectFrom(cn, entryTableName, qualifiedOrderColumnName, refIdColumnName + "=" + objectId, Const.ORDER_COL, -1, null).stream()
-					.map(r -> ((Number) r.get(Const.ORDER_COL)).longValue()).collect(Collectors.toList());
+			List<Long> orderedOrderNumbers = new ArrayList<>();
+			if (!oldList.isEmpty()) {
+
+				// Get (ordered) list of order numbers of currently persisted (old) list
+				String qualifiedOrderColumnName = entryTableName + "." + Const.ORDER_COL;
+				orderedOrderNumbers = sdc.sqlDb.selectFrom(cn, entryTableName, qualifiedOrderColumnName, refIdColumnName + "=" + objectId, Const.ORDER_COL, -1, null).stream()
+						.map(r -> ((Number) r.get(Const.ORDER_COL)).longValue()).collect(Collectors.toList());
+			}
 
 			try {
-				// Collect infos to update persisted list incrementally
+				// Collect infos to update persisted list incrementally and build list of order numbers for entry records of new list
 				ListChangeInfo listChangeInfo = collectListChangeInfos(oldList, newList, orderedOrderNumbers);
 
 				// Delete elements not contained in new list anymore
