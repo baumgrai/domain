@@ -120,7 +120,7 @@ public abstract class Java2Sql extends SqlDbHelpers {
 		}
 		else {
 			// For extended domain classes add foreign key constraint to reference ID of superclass record to reflect inheritance relation
-			idColumn.addFkConstraint(com.icx.domain.sql.tools.FkConstraint.ConstraintType.INHERITANCE, registry.getCastedSuperclass(domainClass));
+			idColumn.addFkConstraintForObjectId(com.icx.domain.sql.tools.FkConstraint.ConstraintType.INHERITANCE, registry.getCastedSuperclass(domainClass));
 		}
 
 		// Generate column definitions and foreign key constraints for registered fields of domain class - include dropped fields here because 'registerAlsoDroppedFields' is true for Java2Sql
@@ -168,7 +168,7 @@ public abstract class Java2Sql extends SqlDbHelpers {
 					}
 
 					// Add FOREIGN KEY constraint for reference field if field type is a domain class
-					com.icx.domain.sql.tools.FkConstraint fkConstraint = column.addFkConstraint(com.icx.domain.sql.tools.FkConstraint.ConstraintType.REFERENCE,
+					com.icx.domain.sql.tools.FkConstraint fkConstraint = column.addFkConstraintForObjectId(com.icx.domain.sql.tools.FkConstraint.ConstraintType.REFERENCE,
 							registry.getCastedReferencedDomainClass(field));
 
 					// Determine if ON DELETE CASCADE shall be set on foreign key constraint - do this if it is explicitly specified in column annotation or if class uses 'data horizon' mechanism
@@ -261,7 +261,7 @@ public abstract class Java2Sql extends SqlDbHelpers {
 					if (registry.isReferenceField(field)) { // Reference field
 
 						// Add FOREIGN KEY constraint for reference field if field type is a domain class
-						com.icx.domain.sql.tools.FkConstraint fkConstraint = column.addFkConstraint(com.icx.domain.sql.tools.FkConstraint.ConstraintType.REFERENCE,
+						com.icx.domain.sql.tools.FkConstraint fkConstraint = column.addFkConstraintForObjectId(com.icx.domain.sql.tools.FkConstraint.ConstraintType.REFERENCE,
 								registry.getCastedReferencedDomainClass(field));
 
 						// Determine if ON DELETE CASCADE shall be set on foreign key constraint
@@ -349,7 +349,7 @@ public abstract class Java2Sql extends SqlDbHelpers {
 					// Drop column (and foreign key constraint if exists) for removed field
 					com.icx.domain.sql.tools.Column column = table.addColumnForRegisteredField(field);
 					if (registry.isReferenceField(field)) {
-						script.append(column.addFkConstraint(com.icx.domain.sql.tools.FkConstraint.ConstraintType.REFERENCE, registry.getCastedReferencedDomainClass(field))
+						script.append(column.addFkConstraintForObjectId(com.icx.domain.sql.tools.FkConstraint.ConstraintType.REFERENCE, registry.getCastedReferencedDomainClass(field))
 								.alterTableDropForeignKeyStatement());
 					}
 

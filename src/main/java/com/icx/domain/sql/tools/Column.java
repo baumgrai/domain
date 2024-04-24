@@ -14,6 +14,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.icx.domain.sql.Annotations;
+import com.icx.domain.sql.Const;
 import com.icx.domain.sql.SqlDomainObject;
 import com.icx.domain.sql.SqlRegistry;
 import com.icx.domain.sql.Annotations.StoreAsString;
@@ -23,8 +24,8 @@ import com.icx.jdbc.SqlDb.DbType;
 /**
  * Modeling a table column in context of {@link Java2Sql} tool.
  * <p>
- * Class, methods and fields are 'public' only for formal reasons. Java2Sql class can be copied and must be runnable in any application 'domain' package to generate SQL scripts for application's domain
- * classes.
+ * Class, methods and fields are 'public' only for formal reasons. Java2Sql class can be copied and must be runnable in any application 'domain' package to generate SQL scripts for application's
+ * domain classes.
  * 
  * @author baumgrai
  */
@@ -179,8 +180,8 @@ public class Column {
 		return ("ALTER TABLE " + table.name + " DROP COLUMN " + name + ";\n");
 	}
 
-	public FkConstraint addFkConstraint(ConstraintType type, Class<? extends SqlDomainObject> referencedDomainClass) {
-		return new FkConstraint(this, type, SqlRegistry.buildTableName(referencedDomainClass, table.dbType));
+	public FkConstraint addFkConstraintForObjectId(ConstraintType type, Class<? extends SqlDomainObject> referencedDomainClass) {
+		return new FkConstraint(this, type, SqlRegistry.buildTableName(referencedDomainClass, table.dbType), Const.ID_COL);
 	}
 
 }

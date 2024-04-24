@@ -309,7 +309,7 @@ public class Java2SqlHelpers extends SqlDbHelpers {
 		// Create main table reference column and associated foreign key constraint
 		Column mainTableRefColumn = entryTable.addStandardColumn(SqlRegistry.buildMainTableRefColumnName(field, dbType), Long.class);
 		mainTableRefColumn.notNull = true;
-		mainTableRefColumn.addFkConstraint(ConstraintType.MAIN_TABLE, registry.getCastedDeclaringDomainClass(field));
+		mainTableRefColumn.addFkConstraintForObjectId(ConstraintType.MAIN_TABLE, registry.getCastedDeclaringDomainClass(field));
 
 		// Create entry columns
 		if (field.getType().isArray()) {
