@@ -541,7 +541,7 @@ public abstract class ComplexFieldHelpers extends Common {
 				long orderNumberOfElement = orderNumbersOfCommonElementsInOldOrder.get(startIndex);
 				int newIndex = orderNumbersOfCommonElementsInNewOrder.indexOf(orderNumberOfElement);
 
-				if (!objectsEqual(newIndex, startIndex)) { // TODO: Clarity (index comparison) vs. performance (order number comparison)?
+				if (!objectsEqual(newIndex, startIndex)) {
 
 					// Start new permutation cycle with order number of element with start index
 					List<Long> permutationCycle = new ArrayList<>();
