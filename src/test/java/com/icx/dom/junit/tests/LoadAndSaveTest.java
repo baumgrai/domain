@@ -1051,6 +1051,22 @@ class LoadAndSaveTest extends TestHelpers {
 			aa.strings = new ArrayList<>(aa.strings.reversed());
 			aa.save();
 
+			log.info("{}", aa.strings);
+
+			aa.strings.add(0, "0");
+			aa.strings.add(21, "0");
+			aa.strings.add(43, "0");
+			aa.save();
+			sdc.unregisterOnlyForTest(aa);
+			sdc.loadOnly(AA.class, "DOM_A.I=42", 1);
+			assertEquals("0", aa.strings.get(0));
+			assertEquals("0", aa.strings.get(21));
+			assertEquals("0", aa.strings.get(43));
+			aa.strings.remove(43);
+			aa.strings.remove(21);
+			aa.strings.remove(1);
+			aa.save();
+
 			for (int i = 40; i >= 0; i--) {
 				aa.strings.add(1, "0." + i);
 				aa.save();
