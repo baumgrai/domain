@@ -58,15 +58,37 @@ public abstract class SaveHelpers extends Common {
 		Map<Field, Object> fieldChangesMap = new HashMap<>();
 		if (CMap.isEmpty(objectRecord)) {
 
-			// New object: add { field , field value } entry to changes map for all registered fields (there is no conversion necessary here - field values will be collected as they are)
-			for (Field field : sqlRegistry.getRegisteredFields(domainClass)) {
+			// New object: add { field , field value } entry to changes map for all data and reference fields (there is no conversion necessary here - field values will be collected as they are)
+			for (Field field : sqlRegistry.getDataAndReferenceFields(domainClass)) {
 				fieldChangesMap.put(field, object.getFieldValue(field));
+			}
+
+			// Add { field, complex field value } entry to changes map for all complex fields where any entry exists in array, collection or map
+			for (Field complexField : sqlRegistry.getComplexFields(domainClass)) {
+
+				if (complexField.getType().isArray()) { // Array
+					Object fieldArray = object.getFieldValue(complexField);
+					if (!logicallyEqual(fieldArray, null)) {
+						fieldChangesMap.put(complexField, fieldArray);
+					}
+				}
+				else if (Collection.class.isAssignableFrom(complexField.getType())) { // Collection
+					Collection<?> fieldCollection = (Collection<?>) object.getFieldValue(complexField);
+					if (!logicallyEqual(fieldCollection, null)) {
+						fieldChangesMap.put(complexField, fieldCollection);
+					}
+				}
+				else { // Map
+					Map<?, ?> fieldMap = (Map<?, ?>) object.getFieldValue(complexField);
+					if (!logicallyEqual(fieldMap, null)) {
+						fieldChangesMap.put(complexField, fieldMap);
+					}
+				}
 			}
 		}
 		else {
 			// Data fields
 			for (Field dataField : sqlRegistry.getDataFields(domainClass)) {
-
 				Object fieldValue = object.getFieldValue(dataField);
 				Object columnValue = objectRecord.get(sqlRegistry.getColumnFor(dataField).name);
 
@@ -92,12 +114,11 @@ public abstract class SaveHelpers extends Common {
 			for (Field complexField : sqlRegistry.getComplexFields(domainClass)) {
 				SqlDbTable entryTable = sqlRegistry.getEntryTableFor(complexField);
 
-				if (complexField.getType().isArray()) {
-
+				if (complexField.getType().isArray()) { // Array
 					Object fieldArray = object.getFieldValue(complexField);
 					Object columnArray = objectRecord.get(entryTable.name);
 
-					if (!objectsEqual(fieldArray, columnArray)) {
+					if (!logicallyEqual(fieldArray, columnArray)) {
 						fieldChangesMap.put(complexField, fieldArray);
 					}
 				}
@@ -105,7 +126,7 @@ public abstract class SaveHelpers extends Common {
 					Collection<?> fieldCollection = (Collection<?>) object.getFieldValue(complexField);
 					Collection<?> columnCollection = (Collection<?>) objectRecord.get(entryTable.name);
 
-					if (!objectsEqual(fieldCollection, columnCollection)) {
+					if (!logicallyEqual(fieldCollection, columnCollection)) {
 						fieldChangesMap.put(complexField, fieldCollection);
 					}
 				}
@@ -113,7 +134,7 @@ public abstract class SaveHelpers extends Common {
 					Map<?, ?> fieldMap = (Map<?, ?>) object.getFieldValue(complexField);
 					Map<?, ?> columnMap = (Map<?, ?>) objectRecord.get(entryTable.name);
 
-					if (!objectsEqual(fieldMap, columnMap)) {
+					if (!logicallyEqual(fieldMap, columnMap)) {
 						fieldChangesMap.put(complexField, fieldMap);
 					}
 				}
@@ -457,12 +478,13 @@ public abstract class SaveHelpers extends Common {
 				wasChanged = true;
 			}
 
-			log.trace("SDC: Field changes detected: {}", fieldChangesForDomainClassMap);
-
 			// Build column value map for INSERT or UPDATE - ignore changes of complex fields which are not associated with a column (but with an 'entry' table)
 			SortedMap<String, Object> columnValueMap = fieldChangesMap2ColumnValueMap(sdc, fieldChangesForDomainClassMap, obj);
 
 			if (!obj.isStored) { // INSERT
+
+				// TODO: Do not display secret field in trace log!
+				log.trace("SDC: Field/value map of new object for domain class {}: {}", domainClass.getSimpleName(), fieldChangesForDomainClassMap);
 
 				// Add standard columns
 				columnValueMap.put(Const.ID_COL, obj.getId());
@@ -507,6 +529,8 @@ public abstract class SaveHelpers extends Common {
 				}
 			}
 			else { // UPDATE
+					// TODO: Do not display secret field in trace log!
+				log.trace("SDC: Field changes detected for domain class {}: {}", domainClass.getSimpleName(), fieldChangesForDomainClassMap);
 
 				// Update 'last modified' field (of bottom domain class) if any changes where detected
 				if (sdc.getRegistry().isBaseDomainClass(domainClass) && wasChanged) {
