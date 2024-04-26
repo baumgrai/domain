@@ -19,9 +19,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.SortedMap;
-import java.util.SortedSet;
 import java.util.TreeMap;
-import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
@@ -29,7 +27,6 @@ import org.slf4j.LoggerFactory;
 
 import com.icx.common.CCollection;
 import com.icx.common.CList;
-import com.icx.common.CLog;
 import com.icx.common.CMap;
 import com.icx.common.CReflection;
 import com.icx.common.Common;
@@ -456,256 +453,184 @@ public abstract class ComplexFieldHelpers extends Common {
 	// Update entry tables for lists (and arrays)
 	// -------------------------------------------------------------------------
 
-	// Get order numbers of elements to remove from list and collect common elements in old order
-	private static Set<Long> collectOrderNumbersOfElementsToRemove(List<?> oldList, List<?> newList, List<Long> orderNumbers, List<Object> commonElementsInOldOrder) {
+	// Information to change persistence records for changed list with minimal effort
+	static class ListChangeInfo {
 
-		// Collect indexes of elements to remove from highest to lowest index (to avoid shifting indexes on removing order numbers) - care for doublets
-		List<Object> newListClone = new ArrayList<>(newList);
-		List<Integer> indexesOfElementsToRemoveInReverseOrder = new ArrayList<>();
-		for (int o = oldList.size() - 1; o >= 0; o--) {
-			Object element = oldList.get(o);
+		// Members
+		List<Long> orderNumbers = null;
 
-			if (!newListClone.contains(element)) {
-				indexesOfElementsToRemoveInReverseOrder.add(o);
+		Set<Long> orderNumbersOfElementsToRemove = new HashSet<>();
+		SortedMap<Long, Object> elementToInsertByOrderNumberMap = new TreeMap<>();
+
+		List<Long> orderNumbersOfCommonElementsInOldOrder = new ArrayList<>();
+		List<Long> orderNumbersOfCommonElementsInNewOrder = new ArrayList<>();
+		List<List<Long>> orderNumberPermutationCyclesOfCommonElements = new ArrayList<>();
+
+		private static long buildNewOrderNumber(List<Long> orderNumbers, int indexOfNewElement) throws DenseOrderNumbersException {
+
+			if (indexOfNewElement == orderNumbers.size()) {
+				return orderNumbers.get(orderNumbers.size() - 1) + INITIAL_ORDER_INCREMENT; // Last order number plus initial order number increment
 			}
 			else {
-				newListClone.remove(element);
-				commonElementsInOldOrder.add(0, element);
+				long orderNumberOfPrecedingElement = (indexOfNewElement == 0 ? 0 : orderNumbers.get(indexOfNewElement - 1));
+				long currentOrderNumberAtIndex = orderNumbers.get(indexOfNewElement);
+
+				if (currentOrderNumberAtIndex == orderNumberOfPrecedingElement + 1) { // Order numbers are dense at index where new element is to insert -> new element cannot be inserted
+					throw new DenseOrderNumbersException(indexOfNewElement);
+				}
+				else {
+					return (orderNumberOfPrecedingElement + currentOrderNumberAtIndex) / 2; // Arithmetic mean of surrounding order numbers
+				}
 			}
 		}
 
-		// Build list of order numbers of elements to remove and update order number list accordingly - from highest to lowest index
-		Set<Long> orderNumbersOfElementsToRemove = new HashSet<>();
-		for (int index : indexesOfElementsToRemoveInReverseOrder) {
-			orderNumbersOfElementsToRemove.add(orderNumbers.remove(index));
+		// Constructor
+		public ListChangeInfo(
+				List<?> oldList,
+				List<?> newList,
+				List<Long> oldOrderNumbers) throws DenseOrderNumbersException {
+
+			if (oldList.size() != oldOrderNumbers.size()) {
+				throw new IllegalArgumentException("List of order numbers has not the same size as existing list of elements: (" + oldOrderNumbers.size() + "/" + oldList.size() + ")");
+			}
+
+			this.orderNumbers = new ArrayList<>(oldOrderNumbers);
+
+			// Collect indexes of elements to remove and collect common elements - care for doublets and their order
+			List<Object> newListClone = new ArrayList<>(newList);
+			for (int o = 0; o < oldList.size(); o++) {
+				Object element = oldList.get(o);
+
+				if (newListClone.contains(element)) {
+					newListClone.remove(element);
+					orderNumbersOfCommonElementsInOldOrder.add(oldOrderNumbers.get(o));
+				}
+				else {
+					orderNumbersOfElementsToRemove.add(orderNumbers.get(o));
+				}
+			}
+			orderNumbers.removeAll(orderNumbersOfElementsToRemove);
+
+			// Collect indexes of elements to insert and collect common elements in possibly changed order
+			List<Object> oldListClone = new ArrayList<>(oldList);
+			for (int n = 0; n < newList.size(); n++) {
+				Object element = newList.get(n);
+
+				if (oldListClone.contains(element)) {
+					int o = oldListClone.indexOf(element);
+					oldListClone.set(o, new Object());
+					long orderNumber = oldOrderNumbers.get(o);
+					orderNumbersOfCommonElementsInNewOrder.add(orderNumber);
+					orderNumbers.set(n, orderNumber);
+				}
+				else {
+					long newOrderNumberAtIndex = buildNewOrderNumber(orderNumbers, n);
+					elementToInsertByOrderNumberMap.put(newOrderNumberAtIndex, element);
+					orderNumbers.add(n, newOrderNumberAtIndex);
+				}
+			}
+
+			// Collect index mapping for elements which were only shifted in list (common in both lists)
+			Set<Integer> usedIndexes = new HashSet<>();
+			int startIndex = 0;
+
+			// Find all permutation cycles of element order
+			do {
+				usedIndexes.add(startIndex);
+
+				long orderNumberOfElement = orderNumbersOfCommonElementsInOldOrder.get(startIndex);
+				int newIndex = orderNumbersOfCommonElementsInNewOrder.indexOf(orderNumberOfElement);
+
+				if (!objectsEqual(newIndex, startIndex)) { // TODO: Clarity (index comparison) vs. performance (order number comparison)?
+
+					// Start new permutation cycle with order number of element with start index
+					List<Long> permutationCycle = new ArrayList<>();
+					orderNumberPermutationCyclesOfCommonElements.add(permutationCycle);
+					permutationCycle.add(orderNumberOfElement);
+
+					// Complete permutation cycle
+					do {
+						// Add order number of element with new index to permutation cycle and continue building permutation cycle with element having new index
+						orderNumberOfElement = orderNumbersOfCommonElementsInOldOrder.get(newIndex);
+						permutationCycle.add(orderNumberOfElement);
+						usedIndexes.add(newIndex);
+						newIndex = orderNumbersOfCommonElementsInNewOrder.indexOf(orderNumberOfElement);
+
+					} while (newIndex != startIndex);
+				}
+
+				// Find start index for next permutation cycle (index not contained in any of the already built permutation cycles)
+				startIndex++;
+				while (usedIndexes.contains(startIndex)) {
+					startIndex++;
+				}
+
+			} while (startIndex < orderNumbersOfCommonElementsInOldOrder.size());
 		}
 
-		return orderNumbersOfElementsToRemove;
+		@Override
+		public String toString() {
+			return "\t" + orderNumbersOfElementsToRemove + "\n\t" + elementToInsertByOrderNumberMap + "\n\t" + orderNumberPermutationCyclesOfCommonElements;
+		}
 	}
+
+	// public static void main(String[] args) throws DenseOrderNumbersException {
+	// new ListChangeInfo(CList.newList(0, 0), CList.newList(0), CList.newList(1L, 2L));
+	// }
 
 	// Exception to internally signal that persistence entries have to be rebuild from scratch because any new element cannot be inserted at its index position due to density of oder numbers
 	@SuppressWarnings("serial")
 	private static class DenseOrderNumbersException extends Exception {
 
-		int index = -1;
-		Object o = null;
+		final int index;
 
-		public DenseOrderNumbersException(
-				Object o,
+		DenseOrderNumbersException(
 				int index) {
 
 			this.index = index;
-			this.o = o;
 		}
 
 		@Override
 		public String toString() {
-			return "Object: " + o + ", index: " + index;
+			return "Index: " + index;
 		}
-	}
-
-	// Generate new order numbers for elements to insert and collect common elements in new order
-	private static Map<Long, Object> assignNewOrderNumbersToElementsToInsert(List<?> oldList, List<?> newList, List<Long> orderNumbers, List<Object> commonElementsInNewOrder)
-			throws DenseOrderNumbersException {
-
-		// Collect indexes of elements to insert - from lowest to highest index
-		List<Object> oldListClone = new ArrayList<>(oldList);
-		SortedSet<Integer> indexesOfElementsToInsert = new TreeSet<>();
-		for (int n = 0; n < newList.size(); n++) {
-			Object element = newList.get(n);
-
-			if (!oldListClone.contains(element)) {
-				indexesOfElementsToInsert.add(n);
-			}
-			else {
-				oldListClone.remove(element);
-				commonElementsInNewOrder.add(element);
-			}
-		}
-
-		// Build map of new order numbers and elements to insert and update order number list accordingly
-		Map<Long, Object> elementsToInsertByOrderNumberMap = new HashMap<>();
-		for (int index : indexesOfElementsToInsert) {
-
-			// Generate new order number for element to insert
-			Long orderNumberForIndex = -1L;
-			if (index == 0) { // Half of first order number
-
-				if (orderNumbers.get(0) == 1) { // Order numbers are dense at first index -> new element cannot be inserted before first element without changing order number of first element
-					throw new DenseOrderNumbersException(newList.get(index), index);
-				}
-				else {
-					orderNumberForIndex = orderNumbers.get(0) / 2;
-				}
-			}
-			else if (index < orderNumbers.size()) {
-
-				long orderNumberOfPrecedingElement = orderNumbers.get(index - 1);
-				long orderNumberOfNextElement = orderNumbers.get(index);
-				if (orderNumberOfNextElement == orderNumberOfPrecedingElement + 1) { // Order numbers are dense at index where new element is to insert -> new element cannot be inserted
-					throw new DenseOrderNumbersException(newList.get(index), index);
-				}
-				else {
-					orderNumberForIndex = (orderNumberOfPrecedingElement + orderNumberOfNextElement) / 2; // Arithmetic mean of surrounding order numbers
-				}
-			}
-			else { // Last order number plus initial order number increment
-				orderNumberForIndex = orderNumbers.get(orderNumbers.size() - 1) + INITIAL_ORDER_INCREMENT;
-			}
-
-			// Add order number/element entry and adapt order number list
-			elementsToInsertByOrderNumberMap.put(orderNumberForIndex, newList.get(index));
-			orderNumbers.add(index, orderNumberForIndex);
-		}
-
-		return elementsToInsertByOrderNumberMap;
-	}
-
-	// Get index of object in list caring for doublets (replace object in list for found index by unknown object to avoid finding same index again for object doublet)
-	private static int retrieveIndexOfObject(List<Object> list, Object object) {
-
-		int index = list.indexOf(object);
-		list.remove(index);
-		list.add(index, new Object());
-
-		return index;
-	}
-
-	// Build lists of order numbers of circularly permuted common elements (ignoring identical permutation)
-	private static List<List<Long>> getOrderNumberPermutationCyclesOfCommonElements(List<Object> commonElementsInOldOrder, List<Object> commonElementsInNewOrder, List<Long> orderNumbersInOldOrder) {
-
-		List<List<Long>> orderPermutationCycles = new ArrayList<>();
-		List<Integer> usedIndexes = new ArrayList<>();
-		int startIndex = 0;
-		int oldIndex = 0;
-		int newIndex = 0;
-
-		// Find all permutation cycles of element order
-		while (startIndex < commonElementsInOldOrder.size()) {
-
-			// Start new permutation cycle with order number of element with start index
-			List<Long> orderPermutationCycle = new ArrayList<>();
-			orderPermutationCycles.add(orderPermutationCycle);
-			orderPermutationCycle.add(orderNumbersInOldOrder.get(startIndex));
-			usedIndexes.add(startIndex);
-
-			// Complete permutation cycle
-			oldIndex = startIndex;
-			do {
-				// Retrieve new index of element having given index
-				Object element = commonElementsInOldOrder.get(oldIndex);
-				newIndex = retrieveIndexOfObject(commonElementsInNewOrder, element);
-
-				if (newIndex != startIndex) {
-
-					// Add order number of element with new index to permutation cycle and continue building permutation cycle with element having new index
-					orderPermutationCycle.add(orderNumbersInOldOrder.get(newIndex));
-					usedIndexes.add(newIndex);
-					oldIndex = newIndex;
-				}
-			} while (newIndex != startIndex);
-
-			// Find start index for next permutation cycle (index not contained in any of the already built permutation cycles)
-			startIndex++;
-			while (startIndex < commonElementsInOldOrder.size() && usedIndexes.contains(startIndex)) {
-				startIndex++;
-			}
-		}
-
-		// Remove one-elemet cycles (identical positions of elements in new and old list)
-		Iterator<List<Long>> it = orderPermutationCycles.iterator();
-		while (it.hasNext()) {
-			if (it.next().size() == 1) {
-				it.remove();
-			}
-		}
-
-		return orderPermutationCycles;
-	}
-
-	// Information to change persistence records for changed list with minimal effort
-	static class ListChangeInfo {
-
-		Set<Long> orderNumbersOfElementsToRemove = new HashSet<>();
-		Map<Long, Object> elementsToInsertByNewOrderNumberMap = new HashMap<>();
-		List<List<Long>> orderNumberPermutationCyclesOfCommonElements = new ArrayList<>();
-
-		@Override
-		public String toString() {
-			return "\t" + orderNumbersOfElementsToRemove + "\n\t" + elementsToInsertByNewOrderNumberMap + "\n\t" + orderNumberPermutationCyclesOfCommonElements;
-		}
-	}
-
-	// Collect list change information
-	private static ListChangeInfo collectListChangeInfos(List<?> oldList, List<?> newList, List<Long> orderedOrderNumbers) throws DenseOrderNumbersException {
-
-		ListChangeInfo listChangeInfo = new ListChangeInfo();
-
-		// Collect order numbers of elements not contained in new list anymore and collect common elements in old order
-		List<Object> commonElementsInOldOrder = new ArrayList<>();
-		listChangeInfo.orderNumbersOfElementsToRemove = collectOrderNumbersOfElementsToRemove(oldList, newList, orderedOrderNumbers, commonElementsInOldOrder);
-
-		// Store order numbers of common elements in old order (order numbers of removed elements are removed from original order number list)
-		List<Long> orderNumbersOfCommonElementsInOldOrder = new ArrayList<>(orderedOrderNumbers);
-
-		// Collect indexes of new elements, build their order numbers and insert these order numbers in list of ordered order numbers. Also collect common elements in new order.
-		List<Object> commonElementsInNewOrder = new ArrayList<>();
-		listChangeInfo.elementsToInsertByNewOrderNumberMap = assignNewOrderNumbersToElementsToInsert(oldList, newList, orderedOrderNumbers, commonElementsInNewOrder);
-
-		// Collect order number mapping for elements which were only shifted in list
-		listChangeInfo.orderNumberPermutationCyclesOfCommonElements = getOrderNumberPermutationCyclesOfCommonElements(commonElementsInOldOrder, commonElementsInNewOrder,
-				orderNumbersOfCommonElementsInOldOrder);
-
-		return listChangeInfo;
 	}
 
 	// DELETE, INSERT and UPDATE entry records representing list on changes in list
 	static void updateEntriesForList(List<?> oldList, List<?> newList, SqlDomainController sdc, Connection cn, String entryTableName, String refIdColumnName, long objectId,
 			Field listField /* for logging only */) throws SQLException, SqlDbException {
 
-		// If both lists are equal nothing is to do
-		if (objectsEqual(oldList, newList)) {
-			return;
-		}
-
 		if (log.isTraceEnabled()) {
 			log.trace("SDC: Old list: {}", oldList);
 			log.trace("SDC: New list: {}", newList);
 		}
 
-		// Handle cases if one of the lists is empty or lists have disjoint elements
-		boolean haveListsElementsInCommon = true;
-		if (!CList.isEmpty(oldList) && (CList.isEmpty(newList) || Collections.disjoint(oldList, newList))) { // New list is empty or old and new list have no elements in common
-
-			// Remove all existing entries (which represent old list)
-			// DELETE FROM <entry table> WHERE <object reference column>=<objectid>
-			SqlDb.deleteFrom(cn, entryTableName, refIdColumnName + "=" + objectId);
-			haveListsElementsInCommon = false;
+		if (objectsEqual(oldList, newList)) {
+			;
 		}
+		else if (Collections.disjoint(oldList, newList)) { // Lists have no elements in common
 
-		if (!CList.isEmpty(newList) && (CList.isEmpty(oldList) || Collections.disjoint(oldList, newList))) { // Old list is empty or old and new list have no elements in common
-
-			// Insert all new entries (which represent new list)
-			// (batch) INSERT INTO <entry table> (<object reference column>, ELEMENT, ELEMENT_ORDER) VALUES (<objectid>, <list element>, <order>)
-			sdc.sqlDb.insertInto(cn, entryTableName, collection2EntryRecords(refIdColumnName, objectId, newList));
-			haveListsElementsInCommon = false;
-		}
-
-		// Handle case if lists have elements in common
-		if (haveListsElementsInCommon) {
-
-			List<Long> orderedOrderNumbers = new ArrayList<>();
-			if (!oldList.isEmpty()) {
-
-				// Get (ordered) list of order numbers of currently persisted (old) list
-				String qualifiedOrderColumnName = entryTableName + "." + Const.ORDER_COL;
-				orderedOrderNumbers = sdc.sqlDb.selectFrom(cn, entryTableName, qualifiedOrderColumnName, refIdColumnName + "=" + objectId, Const.ORDER_COL, -1, null).stream()
-						.map(r -> ((Number) r.get(Const.ORDER_COL)).longValue()).collect(Collectors.toList());
+			if (!CList.isEmpty(oldList)) {
+				SqlDb.deleteFrom(cn, entryTableName, refIdColumnName + "=" + objectId);
 			}
 
+			if (!CList.isEmpty(newList)) {
+				sdc.sqlDb.insertInto(cn, entryTableName, collection2EntryRecords(refIdColumnName, objectId, newList));
+			}
+		}
+		else { // Lists have any elements in common
 			try {
+				// Get (ordered) list of order numbers of currently persisted (old) list
+				// TODO: Remove SELECT statement here - cache order number list for list field
+				List<Long> orderedOrderNumbers = new ArrayList<>();
+				if (!oldList.isEmpty()) {
+					List<String> qualifiedOrderColumnNames = CList.newList(entryTableName + "." + Const.ELEMENT_COL, entryTableName + "." + Const.ORDER_COL);
+					orderedOrderNumbers = sdc.sqlDb.selectFrom(cn, entryTableName, qualifiedOrderColumnNames, refIdColumnName + "=" + objectId, Const.ORDER_COL, -1, null).stream()
+							.map(r -> ((Number) r.get(Const.ORDER_COL)).longValue()).collect(Collectors.toList());
+				}
+
 				// Collect infos to update persisted list incrementally and build list of order numbers for entry records of new list
-				ListChangeInfo listChangeInfo = collectListChangeInfos(oldList, newList, orderedOrderNumbers);
+				ListChangeInfo listChangeInfo = new ListChangeInfo(oldList, newList, orderedOrderNumbers);
 
 				// Delete elements not contained in new list anymore
 				// DELETE FROM <entry table> WHERE <object reference column>=<objectid> AND ELEMENT_ORDER IN <orders of elements to remove>
@@ -715,7 +640,7 @@ public abstract class ComplexFieldHelpers extends Common {
 
 				// Build entry records for persistence of new elements
 				List<SortedMap<String, Object>> entryRecordsToInsert = new ArrayList<>();
-				for (Entry<Long, Object> entry : listChangeInfo.elementsToInsertByNewOrderNumberMap.entrySet()) {
+				for (Entry<Long, Object> entry : listChangeInfo.elementToInsertByOrderNumberMap.entrySet()) {
 
 					SortedMap<String, Object> entryRecord = new TreeMap<>();
 					entryRecord.put(refIdColumnName, objectId);
@@ -726,11 +651,9 @@ public abstract class ComplexFieldHelpers extends Common {
 				}
 
 				// Insert entry records for new elements
-				// (batch) INSERT INTO <entry table> (<object reference column>, ELEMENT, ELEMENT_ORDER) VALUES (<objectid>, <list element>, <order>)
 				sdc.sqlDb.insertInto(cn, entryTableName, entryRecordsToInsert);
 
 				// Update order numbers (shift cyclicly) of common elements in both lists
-				// UPDATE <entry table> SET ELEMENT_ORDER=<new order number> WHERE <object reference column>=<objectid> AND ELEMENT_ORDER=<old order number>
 				for (List<Long> cycle : listChangeInfo.orderNumberPermutationCyclesOfCommonElements) {
 
 					sdc.sqlDb.update(cn, entryTableName, CMap.newMap(Const.ORDER_COL, 0L), refIdColumnName + "=" + objectId + " AND " + Const.ORDER_COL + "=" + cycle.get(cycle.size() - 1));
@@ -744,13 +667,10 @@ public abstract class ComplexFieldHelpers extends Common {
 			}
 			catch (DenseOrderNumbersException e) { // Any new element cannot be inserted because order numbers are dense at inserting index!
 
-				log.info("SDC: Indexes are dense! Cannot directly insert object {} into list '{}' at index {}. Persist list again from scratch.", CLog.forSecretLogging(listField, e.o),
-						listField.getName(), e.index);
+				log.info("SDC: List order numbers are dense at index {}! Cannot directly persist changed list '{}'. Persist list again from scratch.", e.index, listField.getName());
 
 				// Remove all existing entries (which represent old list) and insert all new entries (which represent new list)
-				// DELETE FROM <entry table> WHERE <object reference column>=<objectid>
 				SqlDb.deleteFrom(cn, entryTableName, refIdColumnName + "=" + objectId);
-				// (batch) INSERT INTO <entry table> (<object reference column>, ELEMENT, ELEMENT_ORDER) VALUES (<objectid>, <list element>, <order>)
 				sdc.sqlDb.insertInto(cn, entryTableName, collection2EntryRecords(refIdColumnName, objectId, newList));
 			}
 		}
