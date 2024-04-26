@@ -2,6 +2,7 @@ package com.icx.common;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.lang.reflect.Array;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
@@ -164,6 +165,9 @@ public abstract class Common {
 			return true;
 		}
 		else if (o1 instanceof Map && ((Map<?, ?>) o1).isEmpty() && o2 == null || o1 == null && o2 instanceof Map && ((Map<?, ?>) o2).isEmpty()) {
+			return true;
+		}
+		else if (o1 != null && o1.getClass().isArray() && Array.getLength(o1) == 0 && o2 == null || o1 == null && o2.getClass().isArray() && Array.getLength(o2) == 0) {
 			return true;
 		}
 		else if (o1 instanceof Number && o2 instanceof Number) {
