@@ -483,8 +483,8 @@ public abstract class SaveHelpers extends Common {
 
 			if (!obj.isStored) { // INSERT
 
-				// TODO: Do not display secret field in trace log!
-				log.trace("SDC: Field/value map of new object for domain class {}: {}", domainClass.getSimpleName(), fieldChangesForDomainClassMap);
+				// Do not display secret field in trace log!
+				// log.trace("SDC: Field/value map of new object for domain class {}: {}", domainClass.getSimpleName(), fieldChangesForDomainClassMap);
 
 				// Add standard columns
 				columnValueMap.put(Const.ID_COL, obj.getId());
@@ -529,8 +529,8 @@ public abstract class SaveHelpers extends Common {
 				}
 			}
 			else { // UPDATE
-					// TODO: Do not display secret field in trace log!
-				log.trace("SDC: Field changes detected for domain class {}: {}", domainClass.getSimpleName(), fieldChangesForDomainClassMap);
+					// Do not display secret field in trace log!
+					// log.trace("SDC: Field changes detected for domain class {}: {}", domainClass.getSimpleName(), fieldChangesForDomainClassMap);
 
 				// Update 'last modified' field (of bottom domain class) if any changes where detected
 				if (sdc.getRegistry().isBaseDomainClass(domainClass) && wasChanged) {
