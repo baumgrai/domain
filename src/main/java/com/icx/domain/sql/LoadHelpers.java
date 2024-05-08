@@ -212,10 +212,20 @@ public abstract class LoadHelpers extends Common {
 
 						if (Collection.class.isAssignableFrom(complexField.getType())) { // Collection
 							for (long objectId : entryRecordsByObjectIdMap.keySet()) {
-								loadedRecordMap.get(objectId).put(entryTableName, ComplexFieldHelpers.entryRecords2Collection(genericFieldType, entryRecordsByObjectIdMap.get(objectId)));
+
+								// Build representation of collection in object record
+								List<SortedMap<String, Object>> entryRecords = entryRecordsByObjectIdMap.get(objectId);
+								loadedRecordMap.get(objectId).put(entryTableName, ComplexFieldHelpers.entryRecords2Collection(genericFieldType, entryRecords));
+
+								// Update list field order number cache
+								if (List.class.isAssignableFrom(complexField.getType())) {
+									sdc.setOrderedListOrderNumbers(entryTableName, objectId,
+											entryRecords.stream().map(r -> ((Number) r.get(Const.ORDER_COL)).longValue()).collect(Collectors.toList()));
+								}
 							}
 						}
 						else { // Map
+								// Build representation of map in object records
 							for (long objectId : entryRecordsByObjectIdMap.keySet()) {
 								loadedRecordMap.get(objectId).put(entryTableName, ComplexFieldHelpers.entryRecords2Map(genericFieldType, entryRecordsByObjectIdMap.get(objectId)));
 							}

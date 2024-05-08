@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -83,8 +84,19 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	String cryptSalt = null;
 
 	// Record map: map of object records by object domain class by object id
-	// Note: Objects of domain classes which are derived from other domain classes however have only object record with column content of all tables for derived classes
+	// Note: Objects of domain classes which are derived from other domain classes however have only one object record with column content of all tables for derived classes
 	Map<Class<? extends SqlDomainObject>, Map<Long, SortedMap<String, Object>>> recordMap = null;
+
+	// TODO: List field order cache
+	Map<String, Map<Long, List<Long>>> listOrderCacheMap = new HashMap<>();
+
+	List<Long> getOrderedListOrderNumbers(String entryTableName, long objectId) {
+		return listOrderCacheMap.computeIfAbsent(entryTableName, m -> new HashMap<>()).computeIfAbsent(objectId, m -> new ArrayList<>());
+	}
+
+	void setOrderedListOrderNumbers(String entryTableName, long objectId, List<Long> orderedOrderNumbers) {
+		listOrderCacheMap.computeIfAbsent(entryTableName, m -> new HashMap<>()).put(objectId, orderedOrderNumbers);
+	}
 
 	// -------------------------------------------------------------------------
 	// Constructor & basics

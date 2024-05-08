@@ -457,7 +457,7 @@ public abstract class ComplexFieldHelpers extends Common {
 	static class ListChangeInfo {
 
 		// Members
-		List<Long> orderNumbers = null;
+		List<Long> orderedOrderNumbers = null;
 
 		Set<Long> orderNumbersOfElementsToRemove = new HashSet<>();
 		SortedMap<Long, Object> elementToInsertByOrderNumberMap = new TreeMap<>();
@@ -488,13 +488,13 @@ public abstract class ComplexFieldHelpers extends Common {
 		public ListChangeInfo(
 				List<?> oldList,
 				List<?> newList,
-				List<Long> oldOrderNumbers) throws DenseOrderNumbersException {
+				List<Long> oldOrderedOrderNumbers) throws DenseOrderNumbersException {
 
-			if (oldList.size() != oldOrderNumbers.size()) {
-				throw new IllegalArgumentException("List of order numbers has not the same size as existing list of elements: (" + oldOrderNumbers.size() + "/" + oldList.size() + ")");
+			if (oldList.size() != oldOrderedOrderNumbers.size()) {
+				throw new IllegalArgumentException("List of order numbers has not the same size as existing list of elements: (" + oldOrderedOrderNumbers.size() + "/" + oldList.size() + ")");
 			}
 
-			this.orderNumbers = new ArrayList<>(oldOrderNumbers);
+			this.orderedOrderNumbers = new ArrayList<>(oldOrderedOrderNumbers);
 
 			// Collect indexes of elements to remove and collect common elements - care for doublets and their order
 			List<Object> newListClone = new ArrayList<>(newList);
@@ -503,13 +503,13 @@ public abstract class ComplexFieldHelpers extends Common {
 
 				if (newListClone.contains(element)) {
 					newListClone.remove(element);
-					orderNumbersOfCommonElementsInOldOrder.add(oldOrderNumbers.get(o));
+					orderNumbersOfCommonElementsInOldOrder.add(oldOrderedOrderNumbers.get(o));
 				}
 				else {
-					orderNumbersOfElementsToRemove.add(orderNumbers.get(o));
+					orderNumbersOfElementsToRemove.add(orderedOrderNumbers.get(o));
 				}
 			}
-			orderNumbers.removeAll(orderNumbersOfElementsToRemove);
+			orderedOrderNumbers.removeAll(orderNumbersOfElementsToRemove);
 
 			// Collect indexes of elements to insert and collect common elements in possibly changed order
 			List<Object> oldListClone = new ArrayList<>(oldList);
@@ -518,15 +518,15 @@ public abstract class ComplexFieldHelpers extends Common {
 
 				if (oldListClone.contains(element)) {
 					int o = oldListClone.indexOf(element);
-					oldListClone.set(o, new Object());
-					long orderNumber = oldOrderNumbers.get(o);
+					oldListClone.set(o, new Object()); // Replace element by non-findable object
+					long orderNumber = oldOrderedOrderNumbers.get(o);
 					orderNumbersOfCommonElementsInNewOrder.add(orderNumber);
-					orderNumbers.set(n, orderNumber);
+					// orderNumbers.set(n, orderNumber);
 				}
 				else {
-					long newOrderNumberAtIndex = buildNewOrderNumber(orderNumbers, n);
+					long newOrderNumberAtIndex = buildNewOrderNumber(orderedOrderNumbers, n);
 					elementToInsertByOrderNumberMap.put(newOrderNumberAtIndex, element);
-					orderNumbers.add(n, newOrderNumberAtIndex);
+					orderedOrderNumbers.add(n, newOrderNumberAtIndex);
 				}
 			}
 
@@ -611,26 +611,39 @@ public abstract class ComplexFieldHelpers extends Common {
 		else if (Collections.disjoint(oldList, newList)) { // Lists have no elements in common
 
 			if (!CList.isEmpty(oldList)) {
+
+				// Remove all entry records for list elements of old list (which are not contained in new list)
 				SqlDb.deleteFrom(cn, entryTableName, refIdColumnName + "=" + objectId);
+
+				// Reset order number cache
+				sdc.setOrderedListOrderNumbers(entryTableName, objectId, new ArrayList<>());
 			}
 
 			if (!CList.isEmpty(newList)) {
-				sdc.sqlDb.insertInto(cn, entryTableName, collection2EntryRecords(refIdColumnName, objectId, newList));
+
+				// Insert entry records for all list elements of new list (which were not contained in old list)
+				List<SortedMap<String, Object>> entryRecords = collection2EntryRecords(refIdColumnName, objectId, newList);
+				sdc.sqlDb.insertInto(cn, entryTableName, entryRecords);
+
+				// Update order number cache for new built list
+				sdc.setOrderedListOrderNumbers(entryTableName, objectId, entryRecords.stream().map(r -> ((Number) r.get(Const.ORDER_COL)).longValue()).collect(Collectors.toList()));
 			}
 		}
 		else { // Lists have any elements in common
 			try {
-				// Get (ordered) list of order numbers of currently persisted (old) list
-				// TODO: Remove SELECT statement here - cache order number list for list field
-				List<Long> orderedOrderNumbers = new ArrayList<>();
-				if (!oldList.isEmpty()) {
-					List<String> qualifiedOrderColumnNames = CList.newList(entryTableName + "." + Const.ELEMENT_COL, entryTableName + "." + Const.ORDER_COL);
-					orderedOrderNumbers = sdc.sqlDb.selectFrom(cn, entryTableName, qualifiedOrderColumnNames, refIdColumnName + "=" + objectId, Const.ORDER_COL, -1, null).stream()
-							.map(r -> ((Number) r.get(Const.ORDER_COL)).longValue()).collect(Collectors.toList());
-				}
+				// Get (ordered) list of order numbers of currently persisted (old) list - SELECT from database if not already cached
+				List<Long> orderedOrderNumbers = sdc.getOrderedListOrderNumbers(entryTableName, objectId);
+				// if (!oldList.isEmpty() && orderedOrderNumbers.isEmpty()) {
+				// List<String> columnNames = CList.newList(entryTableName + "." + Const.ELEMENT_COL, entryTableName + "." + Const.ORDER_COL);
+				// orderedOrderNumbers = sdc.sqlDb.selectFrom(cn, entryTableName, columnNames, refIdColumnName + "=" + objectId, Const.ORDER_COL, -1, null).stream()
+				// .map(r -> ((Number) r.get(Const.ORDER_COL)).longValue()).collect(Collectors.toList());
+				// }
 
 				// Collect infos to update persisted list incrementally and build list of order numbers for entry records of new list
 				ListChangeInfo listChangeInfo = new ListChangeInfo(oldList, newList, orderedOrderNumbers);
+
+				// Update order number cache for this list
+				sdc.setOrderedListOrderNumbers(entryTableName, objectId, listChangeInfo.orderedOrderNumbers);
 
 				// Delete elements not contained in new list anymore
 				// DELETE FROM <entry table> WHERE <object reference column>=<objectid> AND ELEMENT_ORDER IN <orders of elements to remove>
@@ -671,7 +684,11 @@ public abstract class ComplexFieldHelpers extends Common {
 
 				// Remove all existing entries (which represent old list) and insert all new entries (which represent new list)
 				SqlDb.deleteFrom(cn, entryTableName, refIdColumnName + "=" + objectId);
-				sdc.sqlDb.insertInto(cn, entryTableName, collection2EntryRecords(refIdColumnName, objectId, newList));
+				List<SortedMap<String, Object>> entryRecords = collection2EntryRecords(refIdColumnName, objectId, newList);
+				sdc.sqlDb.insertInto(cn, entryTableName, entryRecords);
+
+				// Update order number cache for new built list
+				sdc.setOrderedListOrderNumbers(entryTableName, objectId, entryRecords.stream().map(r -> ((Number) r.get(Const.ORDER_COL)).longValue()).collect(Collectors.toList()));
 			}
 		}
 	}
