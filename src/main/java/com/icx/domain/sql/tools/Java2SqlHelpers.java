@@ -385,7 +385,7 @@ public class Java2SqlHelpers extends SqlDbHelpers {
 		return (!CList.isEmpty(entryTable.uniqueConstraints) ? entryTable.uniqueConstraints.get(0) : null);
 	}
 
-	// Get UNIQUE constraint for elements for later dropping (if type of collection type changed from Set to List)
+	// Get UNIQUE constraint for element order (list fields)
 	public static Column getElementOrderColumn(Table entryTable) {
 		return (entryTable.columns.size() > 2 ? entryTable.columns.get(2) : null);
 	}
