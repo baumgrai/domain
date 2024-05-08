@@ -61,7 +61,7 @@ public class UniqueConstraint {
 
 		String constraintName = "UNIQUE_" + table.name.substring(SqlRegistry.TABLE_PREFIX.length());
 		for (String columnName : columnNames) {
-			constraintName += (table.dbType.isMySql() ? "$" : "#") + Common.behindLast(columnName, "_");
+			constraintName += (table.dbType.isMySql() ? "$" : "#") + columnName;
 		}
 
 		return SqlDbHelpers.identifier(constraintName, table.dbType);
