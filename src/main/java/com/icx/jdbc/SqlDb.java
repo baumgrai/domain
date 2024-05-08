@@ -1264,6 +1264,18 @@ public class SqlDb extends Common {
 				if (!tableExist) {
 					throw new SqlDbException("Table '" + tableName + "' does not exist in database!");
 				}
+				else {
+					String catalog = rs.getString("TABLE_CAT");
+					String scheme = rs.getString("TABLE_SCHEM");
+					log.info("SQL: Table '{}{}' (type '{}') found!", ((catalog == null ? "" : catalog + ".") + (scheme == null ? "" : scheme + ".")).toUpperCase(),
+							rs.getString("TABLE_NAME").toUpperCase(), rs.getString("TABLE_TYPE"));
+					while (rs.next()) {
+						catalog = rs.getString("TABLE_CAT");
+						scheme = rs.getString("TABLE_SCHEM");
+						log.warn("SQL: Additional table '{}{}' (type '{}') found for table name '{}'!", ((catalog == null ? "" : catalog + ".") + (scheme == null ? "" : scheme + ".")).toUpperCase(),
+								rs.getString("TABLE_NAME").toUpperCase(), rs.getString("TABLE_TYPE"), tableName);
+					}
+				}
 			}
 
 			// Retrieve primary key meta data
@@ -1363,7 +1375,7 @@ public class SqlDb extends Common {
 				}
 
 				// Retrieve unique constraints
-				try (ResultSet rs = dbmd.getIndexInfo(null, schemaName, tableName, true, true)) {
+				try (ResultSet rs = dbmd.getIndexInfo(null, schemaName, tableName, true, false)) {
 
 					while (rs.next()) {
 
@@ -1373,6 +1385,11 @@ public class SqlDb extends Common {
 						}
 
 						String columnName = rs.getString("COLUMN_NAME");
+
+						String catalog = rs.getString("TABLE_CAT");
+						String scheme = rs.getString("TABLE_SCHEM");
+						log.trace("SQL: Unique constraint info for '{}': column: '{}{}.{}'", indexName, ((catalog == null ? "" : catalog + ".") + (scheme == null ? "" : scheme + ".")).toUpperCase(),
+								rs.getString("TABLE_NAME").toUpperCase(), columnName.toUpperCase());
 
 						// Check if UNIQUE constraint with this name already exist (containing another column) and create new constraint if not
 						SqlDbUniqueConstraint constraint = table.findUniqueConstraintByName(indexName);
