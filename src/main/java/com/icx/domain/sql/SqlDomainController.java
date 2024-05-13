@@ -87,7 +87,7 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	// Note: Objects of domain classes which are derived from other domain classes however have only one object record with column content of all tables for derived classes
 	Map<Class<? extends SqlDomainObject>, Map<Long, SortedMap<String, Object>>> recordMap = null;
 
-	// TODO: List field order cache
+	// List field order cache
 	Map<String, Map<Long, List<Long>>> listOrderCacheMap = new HashMap<>();
 
 	List<Long> getOrderedListOrderNumbers(String entryTableName, long objectId) {
