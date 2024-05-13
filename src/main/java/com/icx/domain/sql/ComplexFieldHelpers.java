@@ -645,13 +645,13 @@ public abstract class ComplexFieldHelpers extends Common {
 				// Update order number cache for this list
 				sdc.setOrderedListOrderNumbers(entryTableName, objectId, listChangeInfo.orderedOrderNumbers);
 
-				// Delete elements not contained in new list anymore
+				// Delete entry records for elements not contained in new list anymore
 				// DELETE FROM <entry table> WHERE <object reference column>=<objectid> AND ELEMENT_ORDER IN <orders of elements to remove>
 				for (String tmpOrderNumberStringList : Helpers.buildStringLists(listChangeInfo.orderNumbersOfElementsToRemove, 1000)) {
 					SqlDb.deleteFrom(cn, entryTableName, refIdColumnName + "=" + objectId + " AND " + Const.ORDER_COL + " IN (" + tmpOrderNumberStringList + ")");
 				}
 
-				// Build entry records for persistence of new elements
+				// Build and insert entry records for of new elements
 				List<SortedMap<String, Object>> entryRecordsToInsert = new ArrayList<>();
 				for (Entry<Long, Object> entry : listChangeInfo.elementToInsertByOrderNumberMap.entrySet()) {
 
@@ -663,18 +663,15 @@ public abstract class ComplexFieldHelpers extends Common {
 					entryRecordsToInsert.add(entryRecord);
 				}
 
-				// Insert entry records for new elements
 				sdc.sqlDb.insertInto(cn, entryTableName, entryRecordsToInsert);
 
-				// Update order numbers (shift cyclicly) of common elements in both lists
+				// Update order numbers (shift cyclicly) of permutated common elements
 				for (List<Long> cycle : listChangeInfo.orderNumberPermutationCyclesOfCommonElements) {
 
 					sdc.sqlDb.update(cn, entryTableName, CMap.newMap(Const.ORDER_COL, 0L), refIdColumnName + "=" + objectId + " AND " + Const.ORDER_COL + "=" + cycle.get(cycle.size() - 1));
-
 					for (int index = cycle.size() - 2; index >= 0; index--) {
 						sdc.sqlDb.update(cn, entryTableName, CMap.newMap(Const.ORDER_COL, cycle.get(index + 1)), refIdColumnName + "=" + objectId + " AND " + Const.ORDER_COL + "=" + cycle.get(index));
 					}
-
 					sdc.sqlDb.update(cn, entryTableName, CMap.newMap(Const.ORDER_COL, cycle.get(0)), refIdColumnName + "=" + objectId + " AND " + Const.ORDER_COL + "=0");
 				}
 			}
@@ -687,7 +684,7 @@ public abstract class ComplexFieldHelpers extends Common {
 				List<SortedMap<String, Object>> entryRecords = collection2EntryRecords(refIdColumnName, objectId, newList);
 				sdc.sqlDb.insertInto(cn, entryTableName, entryRecords);
 
-				// Update order number cache for new built list
+				// Update order number cache for newly built list
 				sdc.setOrderedListOrderNumbers(entryTableName, objectId, entryRecords.stream().map(r -> ((Number) r.get(Const.ORDER_COL)).longValue()).collect(Collectors.toList()));
 			}
 		}
