@@ -1267,7 +1267,7 @@ public class SqlDb extends Common {
 				else {
 					String catalog = rs.getString("TABLE_CAT");
 					String scheme = rs.getString("TABLE_SCHEM");
-					log.info("SQL: Table '{}{}' (type '{}') found!", ((catalog == null ? "" : catalog + ".") + (scheme == null ? "" : scheme + ".")).toUpperCase(),
+					log.info("SQL: Table '{}{}' (type '{}') found", ((catalog == null ? "" : catalog + ".") + (scheme == null ? "" : scheme + ".")).toUpperCase(),
 							rs.getString("TABLE_NAME").toUpperCase(), rs.getString("TABLE_TYPE"));
 					while (rs.next()) {
 						catalog = rs.getString("TABLE_CAT");
