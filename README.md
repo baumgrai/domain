@@ -37,7 +37,7 @@ In your application:
 
 **How data is persisted?**
 - every 'domain' class has a corresponding table in the persistence database. Inherited domain classes have their own tables.
-- fields of type `String`, `Char`, `Short`, `Integer`, `Long`, `Double` (and appropriate primitive types), `Enum`, `BigInteger`, `BigDecimal`, `LocalDate`, `LocalTime`, `LocalDateTime`, `Date`, `byte[]`, `char[]`, `File` correspond to columns of appropriate type in the persistence table
+- fields of type `String`, `Char`, `Short`, `Integer`, `Long`, `Double` (and appropriate primitive types), `Enum`, `BigInteger`, `BigDecimal`, `LocalDate`, `LocalTime`, `LocalDateTime`, `Date`, `byte[]`, `char[]`, `File` correspond to columns of appropriate type in the persistence tables
 - fields of any other type - for which a string conversion provider must be defined - correspond to text columns in the persistence table
 - lists, sets, arrays and maps correspond to separate 'entry' tables
 
