@@ -40,9 +40,25 @@ import com.icx.jdbc.SqlDbTable.SqlDbColumn;
  * 
  * @author baumgrai
  */
-public abstract class SaveHelpers extends Common {
+public class Saver extends Common {
 
-	static final Logger log = LoggerFactory.getLogger(SaveHelpers.class);
+	static final Logger log = LoggerFactory.getLogger(Saver.class);
+
+	// -------------------------------------------------------------------------
+	// Members & constructor
+	// -------------------------------------------------------------------------
+
+	public SqlDomainController sdc = null;
+
+	public Connection cn = null;
+
+	public Saver(
+			SqlDomainController sdc,
+			Connection cn) {
+
+		this.sdc = sdc;
+		this.cn = cn;
+	}
 
 	// -------------------------------------------------------------------------
 	// Helpers
@@ -194,8 +210,7 @@ public abstract class SaveHelpers extends Common {
 	}
 
 	// DELETE, UPDATE or/and INSERT entry records reflecting table related collection or map fields (complex fields) and update object record - ignore column related fields here
-	private static void updateEntryTable(Connection cn, SqlDomainController sdc, Field complexField, Object newComplexValue, SortedMap<String, Object> objectRecord, SqlDomainObject object)
-			throws SqlDbException, SQLException {
+	private void updateEntryTable(Field complexField, Object newComplexValue, SortedMap<String, Object> objectRecord, SqlDomainObject object) throws SqlDbException, SQLException {
 
 		// Consider complex, table related fields...
 		String entryTableName = sdc.getSqlRegistry().getEntryTableFor(complexField).name;
@@ -263,8 +278,8 @@ public abstract class SaveHelpers extends Common {
 	// to store them after saving this object. This is necessary to avoid database exception on INSERT records with non-existing references in foreign key columns.
 	// Note: If reference is nullable, parent object may also reference this object directly or indirectly (circular reference). In this case an infinite loop would occur on saving parent object
 	// before saving object. Therefore nullable references will temporarily reset to allow saving child object, and parent objects will be saved after saving child object with restoring references.
-	private static Map<Field, SqlDomainObject> storeOrCollectUnstoredParentObjects(Connection cn, SqlDomainController sdc, SqlDomainObject obj, Class<? extends SqlDomainObject> domainClass,
-			List<SqlDomainObject> objectsToCheckForCircularReference) throws SQLException, SqlDbException {
+	private Map<Field, SqlDomainObject> storeOrCollectUnstoredParentObjects(SqlDomainObject obj, Class<? extends SqlDomainObject> domainClass, List<SqlDomainObject> objectsToCheckForCircularReference)
+			throws SQLException, SqlDbException {
 
 		// For all reference fields of (derived) domain class...
 		int stackSize = objectsToCheckForCircularReference.size();
@@ -299,7 +314,7 @@ public abstract class SaveHelpers extends Common {
 					log.debug("SDC: {}Store parent object", CLog.tabs(stackSize));
 				}
 				try {
-					save(cn, sdc, parentObject, objectsToCheckForCircularReference);
+					save(parentObject, objectsToCheckForCircularReference);
 				}
 				catch (SQLException sqlex) {
 					log.error("SDC: {}INSERT failed! Object {} cannot be saved because parent object {} could not be stored!", CLog.tabs(stackSize), obj.name(), DomainObject.name(parentObject));
@@ -319,8 +334,8 @@ public abstract class SaveHelpers extends Common {
 	}
 
 	// Store collected parent (parent) objects (on nullable references) after saving this (child) object and restore (UPDATE) references in database
-	private static SortedMap<String, Object> storeCollectedParentObjectsAndRestoreReferences(Connection cn, SqlDomainController sdc, SqlDomainObject obj,
-			Map<Field, SqlDomainObject> collectedParentObjectMap, List<SqlDomainObject> objectsToCheckForCircularReference) throws SqlDbException {
+	private SortedMap<String, Object> storeCollectedParentObjectsAndRestoreReferences(SqlDomainObject obj, Map<Field, SqlDomainObject> collectedParentObjectMap,
+			List<SqlDomainObject> objectsToCheckForCircularReference) throws SqlDbException {
 
 		int stackSize = objectsToCheckForCircularReference.size();
 		SortedMap<String, Object> restoredReferencesCVMap = new TreeMap<>();
@@ -342,7 +357,7 @@ public abstract class SaveHelpers extends Common {
 					log.debug("SDC: {}Store parent object {} after saving this object {}", CLog.tabs(stackSize), DomainObject.name(parentObject), obj.name());
 				}
 				try {
-					save(cn, sdc, parentObject, objectsToCheckForCircularReference);
+					save(parentObject, objectsToCheckForCircularReference);
 				}
 				catch (SQLException sqlex) {
 					log.error("SDC: {}INSERT failed! Unsaved parent object {} of object to save {} cannot not be saved!", CLog.tabs(stackSize), DomainObject.name(parentObject), obj.name());
@@ -375,7 +390,7 @@ public abstract class SaveHelpers extends Common {
 	}
 
 	// Try to UPDATE every field of domain object separately after 'normal' UPDATE containing all changed fields failed
-	private static void tryAnalyticUpdate(Connection cn, SqlDomainController sdc, SqlDomainObject obj, SqlDbTable table, SortedMap<String, Object> columnValueMap) throws SqlDbException {
+	private void tryAnalyticUpdate(SqlDomainObject obj, SqlDbTable table, SortedMap<String, Object> columnValueMap) throws SqlDbException {
 
 		SortedMap<String, Object> oneCVMap = new TreeMap<>();
 		obj.currentException = null;
@@ -422,7 +437,7 @@ public abstract class SaveHelpers extends Common {
 	// -------------------------------------------------------------------------
 
 	// Save object in one transaction to database
-	static boolean save(Connection cn, SqlDomainController sdc, SqlDomainObject obj, List<SqlDomainObject> objectsToCheckForCircularReference) throws SQLException, SqlDbException {
+	boolean save(SqlDomainObject obj, List<SqlDomainObject> objectsToCheckForCircularReference) throws SQLException, SqlDbException {
 
 		// Register object in object store before (initial) saving if not already done
 		int stackSize = objectsToCheckForCircularReference.size();
@@ -470,7 +485,7 @@ public abstract class SaveHelpers extends Common {
 			SqlDbTable table = sdc.getSqlRegistry().getTableFor(domainClass);
 
 			// Save un-stored parent objects (on non nullable reference) or reset parent/child reference and collect parent objects here to save them after saving this object (on nullable reference)
-			collectedParentObjectMap.putAll(storeOrCollectUnstoredParentObjects(cn, sdc, obj, domainClass, objectsToCheckForCircularReference));
+			collectedParentObjectMap.putAll(storeOrCollectUnstoredParentObjects(obj, domainClass, objectsToCheckForCircularReference));
 
 			// Get field changes for domain class
 			Map<Field, Object> fieldChangesForDomainClassMap = getFieldChangesForDomainClass(sdc, obj, objectRecord, domainClass);
@@ -557,7 +572,7 @@ public abstract class SaveHelpers extends Common {
 								sqlex.getClass().getSimpleName(), sqlex.getMessage(), obj.name());
 
 						// On error try to UPDATE columns separately - so all but one (or more) columns can actually be updated
-						tryAnalyticUpdate(cn, sdc, obj, table, columnValueMap);
+						tryAnalyticUpdate(obj, table, columnValueMap);
 					}
 				}
 			}
@@ -569,7 +584,7 @@ public abstract class SaveHelpers extends Common {
 
 			// Handle table related fields (collections and maps): Delete old entry records, update changed map entries and insert new entries
 			for (Field complexField : fieldChangesForDomainClassMap.keySet().stream().filter(f -> sdc.getRegistry().isComplexField(f)).collect(Collectors.toList())) {
-				updateEntryTable(cn, sdc, complexField, fieldChangesForDomainClassMap.get(complexField), objectRecord, obj);
+				updateEntryTable(complexField, fieldChangesForDomainClassMap.get(complexField), objectRecord, obj);
 			}
 		}
 
@@ -580,7 +595,7 @@ public abstract class SaveHelpers extends Common {
 
 		// Save collected parent objects (on nullable foreign key columns) after saving this object and restore (UPDATE) references in database
 		if (!collectedParentObjectMap.isEmpty()) {
-			objectRecord.putAll(storeCollectedParentObjectsAndRestoreReferences(cn, sdc, obj, collectedParentObjectMap, objectsToCheckForCircularReference));
+			objectRecord.putAll(storeCollectedParentObjectsAndRestoreReferences(obj, collectedParentObjectMap, objectsToCheckForCircularReference));
 		}
 
 		return wasChanged;

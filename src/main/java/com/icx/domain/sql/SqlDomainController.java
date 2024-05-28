@@ -34,8 +34,8 @@ import com.icx.domain.DomainException;
 import com.icx.domain.DomainObject;
 import com.icx.domain.sql.Annotations.StoreAsString;
 import com.icx.domain.sql.Annotations.UseDataHorizon;
-import com.icx.domain.sql.LoadHelpers.IntermediateLoadResult;
-import com.icx.domain.sql.LoadHelpers.UnresolvedReference;
+import com.icx.domain.sql.Loader.IntermediateLoadResult;
+import com.icx.domain.sql.Loader.UnresolvedReference;
 import com.icx.domain.sql.tools.Java2Sql;
 import com.icx.jdbc.ConfigException;
 import com.icx.jdbc.ConnectionPool;
@@ -97,6 +97,21 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 	void setOrderedListOrderNumbers(String entryTableName, long objectId, List<Long> orderedOrderNumbers) {
 		listOrderCacheMap.computeIfAbsent(entryTableName, m -> new HashMap<>()).put(objectId, orderedOrderNumbers);
 	}
+
+	/**
+	 * Informative: counter for successfully exclusively accessed objects since startup.
+	 */
+	public long successfulExclusiveAccessCount = 0L;
+
+	/**
+	 * Informative: counter for exclusive access collisions caused by concurrent access tries of same domain controller instance since startup.
+	 */
+	public long inUseBySameInstanceAccessCount = 0L;
+
+	/**
+	 * Informative: counter for exclusive access collisions caused by concurrent access tries of different domain controller instances since startup.
+	 */
+	public long inUseByDifferentInstanceAccessCount = 0L;
 
 	// -------------------------------------------------------------------------
 	// Constructor & basics
@@ -327,8 +342,8 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 		// Collect field changes (because object record was removed here all field/value pairs will be found) and re-generate object record from field/value pairs of all inherited domain classes
 		SortedMap<String, Object> objectRecord = new TreeMap<>();
 		for (Class<? extends SqlDomainObject> domainClass : getRegistry().getDomainClassesFor(obj.getClass())) {
-			Map<Field, Object> fieldChangesMap = SaveHelpers.getFieldChangesForDomainClass(this, obj, objectRecord, domainClass);
-			objectRecord.putAll(SaveHelpers.fieldChangesMap2ColumnValueMap(this, fieldChangesMap, obj));
+			Map<Field, Object> fieldChangesMap = Saver.getFieldChangesForDomainClass(this, obj, objectRecord, domainClass);
+			objectRecord.putAll(Saver.fieldChangesMap2ColumnValueMap(this, fieldChangesMap, obj));
 		}
 
 		// Re-insert object record
@@ -385,8 +400,11 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 			// Initially load object records using given select-supplier
 			Map<Class<? extends SqlDomainObject>, Map<Long, SortedMap<String, Object>>> loadedRecordsMap = select.apply(sqlcn.cn);
 
+			// Create loader object containing domain controller and SQL connection
+			Loader loader = new Loader(this, sqlcn.cn);
+
 			// Instantiate newly loaded objects, assign changed data and references to objects, collect initially unresolved references
-			IntermediateLoadResult intermediateLoadResult = LoadHelpers.buildObjectsFromLoadedRecords(this, loadedRecordsMap);
+			IntermediateLoadResult intermediateLoadResult = loader.buildObjectsFromLoadedRecords(loadedRecordsMap);
 
 			// Determine if database changes were detected (ignoring unsaved local object changes) and collect loaded objects and objects where references were changed in initial load cycle
 			LoadResult loadResult = new LoadResult();
@@ -408,13 +426,13 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 				}
 
 				// Load and instantiate missing objects of unresolved references
-				missingRecordsMap = LoadHelpers.loadMissingObjects(sqlcn.cn, this, intermediateLoadResult.unresolvedReferences);
+				missingRecordsMap = loader.loadMissingObjects(intermediateLoadResult.unresolvedReferences);
 
 				// Store current unresolved references to later resolve them after all missing objects were initiated and initialized
 				currentUnresolvedReferences = new ArrayList<>(intermediateLoadResult.unresolvedReferences);
 
 				// Instantiate and initialize missed objects, store current unresolved references and determine further unresolved references
-				intermediateLoadResult = LoadHelpers.buildObjectsFromLoadedRecords(this, missingRecordsMap);
+				intermediateLoadResult = loader.buildObjectsFromLoadedRecords(missingRecordsMap);
 
 				// Determine if database changes were detected in subsequent load cycle and further collect loaded objects and objects where references were changed
 				loadResult.hasChanges |= intermediateLoadResult.hasChanges;
@@ -422,7 +440,7 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 				objectsWhereReferencesChanged.addAll(intermediateLoadResult.objectsWhereReferencesChanged);
 
 				// Resolve current unresolved references after missing objects were instantiated and initialized
-				LoadHelpers.resolveUnresolvedReferences(this, currentUnresolvedReferences);
+				loader.resolveUnresolvedReferences(currentUnresolvedReferences);
 			}
 
 			// Update accumulations of all objects which are referenced by any of the objects where references changed
@@ -474,7 +492,7 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 		}
 
 		// Load all objects from database - override unsaved local object changes by changes in database on contradiction, assign field warning(s) to such objects in this case
-		LoadResult loadResult = loadAssuringReferentialIntegrity(cn -> LoadHelpers.selectAll(cn, this, objectDomainClassesToExclude));
+		LoadResult loadResult = loadAssuringReferentialIntegrity(cn -> new Loader(this, cn).selectAll(objectDomainClassesToExclude));
 
 		// Unregister existing objects which were not loaded from database again (deleted in database by another instance or fell out of data horizon) and which are not referenced by any object
 		for (SqlDomainObject obj : findAll(o -> !loadResult.loadedObjects.contains(o) && !isReferenced(o))) {
@@ -533,7 +551,7 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 					(!isEmpty(whereClause) ? " WHERE " + whereClause.toUpperCase() : ""));
 		}
 
-		LoadResult loadResult = loadAssuringReferentialIntegrity(cn -> LoadHelpers.select(cn, this, objectDomainClass, whereClause, maxCount));
+		LoadResult loadResult = loadAssuringReferentialIntegrity(cn -> new Loader(this, cn).select(objectDomainClass, whereClause, maxCount));
 
 		return loadResult.loadedObjects;
 	}
@@ -574,7 +592,7 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 			log.debug("SDC: Load {} from database", obj.name());
 		}
 
-		LoadResult loadResult = loadAssuringReferentialIntegrity(cn -> LoadHelpers.selectObjectRecord(cn, this, obj));
+		LoadResult loadResult = loadAssuringReferentialIntegrity(cn -> new Loader(this, cn).selectObjectRecord(obj));
 
 		return loadResult.hasChanges;
 	}
@@ -629,7 +647,7 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 		}
 
 		// Load objects related to given object domain class
-		LoadResult loadResult = loadAssuringReferentialIntegrity(cn -> LoadHelpers.selectExclusively(cn, this, objectDomainClass, inProgressClass, whereClause, maxCount));
+		LoadResult loadResult = loadAssuringReferentialIntegrity(cn -> new Loader(this, cn).selectExclusively(objectDomainClass, inProgressClass, whereClause, maxCount));
 
 		// Filter objects of object domain class itself (because loaded objects may contain referenced objects of other domain classes too)
 		Set<S> allocatedObjects = new HashSet<>(loadResult.loadedObjects.stream().filter(o -> o.getClass().equals(objectDomainClass)).map(o -> (S) o).collect(Collectors.toSet()));
@@ -833,7 +851,7 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 
 		try {
 			// Save object
-			boolean wasChanged = SaveHelpers.save(cn, this, obj, new ArrayList<>());
+			boolean wasChanged = new Saver(this, cn).save(obj, new ArrayList<>());
 
 			// COMMIT whole save transaction if any INSERT or UPDATE statement was performed
 			if (wasChanged) {
@@ -1015,7 +1033,7 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 			}
 
 			// Delete object and children
-			DeleteHelpers.deleteRecursiveFromDatabase(cn, this, obj, unregisteredObjects, null, 0);
+			new Deleter(this, cn).deleteRecursiveFromDatabase(obj, unregisteredObjects, null, 0);
 
 			if (log.isDebugEnabled()) {
 				log.debug("SDC: Deleted {}", obj.name());

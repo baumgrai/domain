@@ -23,13 +23,26 @@ import com.icx.jdbc.SqlDbException;
  * 
  * @author baumgrai
  */
-public class DeleteHelpers extends Common {
+public class Deleter extends Common {
 
-	static final Logger log = LoggerFactory.getLogger(DeleteHelpers.class);
+	static final Logger log = LoggerFactory.getLogger(Deleter.class);
+
+	// Members & constructor
+
+	public SqlDomainController sdc = null;
+
+	public Connection cn = null;
+
+	public Deleter(
+			SqlDomainController sdc,
+			Connection cn) {
+
+		this.sdc = sdc;
+		this.cn = cn;
+	}
 
 	// Check if any of objects to check has a reference to this object - which indicates a circular reference in calling context
-	private static void checkForAndResetCircularReferences(Connection cn, SqlDomainController sdc, SqlDomainObject objectToDelete, List<SqlDomainObject> objectsToCheck, int stackSize)
-			throws SQLException, SqlDbException {
+	private void checkForAndResetCircularReferences(SqlDomainObject objectToDelete, List<SqlDomainObject> objectsToCheck, int stackSize) throws SQLException, SqlDbException {
 
 		for (SqlDomainObject objectToCheck : objectsToCheck) {
 
@@ -57,7 +70,7 @@ public class DeleteHelpers extends Common {
 	}
 
 	// DELETE object records from database
-	private static void deleteFromDatabase(Connection cn, SqlDomainController sdc, SqlDomainObject obj) throws SQLException, SqlDbException {
+	private void deleteFromDatabase(SqlDomainObject obj) throws SQLException, SqlDbException {
 
 		// Delete records belonging to this object: object records for domain class(es) and potentially existing entry records
 		for (Class<? extends SqlDomainObject> domainClass : CList.reverse(sdc.getRegistry().getDomainClassesFor(obj.getClass()))) {
@@ -73,8 +86,7 @@ public class DeleteHelpers extends Common {
 	}
 
 	// Delete object and all of its children from database
-	static void deleteRecursiveFromDatabase(Connection cn, SqlDomainController sdc, SqlDomainObject obj, List<SqlDomainObject> unregisteredObjects, List<SqlDomainObject> objectsToCheck, int stackSize)
-			throws SQLException, SqlDbException {
+	void deleteRecursiveFromDatabase(SqlDomainObject obj, List<SqlDomainObject> unregisteredObjects, List<SqlDomainObject> objectsToCheck, int stackSize) throws SQLException, SqlDbException {
 
 		if (objectsToCheck == null) {
 			objectsToCheck = new ArrayList<>();
@@ -90,13 +102,13 @@ public class DeleteHelpers extends Common {
 
 		// Delete children
 		for (SqlDomainObject child : sdc.getDirectChildren(obj)) {
-			deleteRecursiveFromDatabase(cn, sdc, child, unregisteredObjects, objectsToCheck, stackSize + 1);
+			deleteRecursiveFromDatabase(child, unregisteredObjects, objectsToCheck, stackSize + 1);
 		}
 
 		// Delete object itself from database (if it was already stored)
 		if (obj.isStored) {
-			checkForAndResetCircularReferences(cn, sdc, obj, objectsToCheck, stackSize);
-			deleteFromDatabase(cn, sdc, obj);
+			checkForAndResetCircularReferences(obj, objectsToCheck, stackSize);
+			deleteFromDatabase(obj);
 
 			objectsToCheck.remove(obj); // object was DELETED in database and does not need be checked for circular references anymore
 			if (log.isTraceEnabled()) {
