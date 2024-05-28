@@ -7,7 +7,7 @@ It supports ***Oracle*, *MS/SQL-Server*, *MySQL* / *MariaDB***.
 
 **Usage:**
 
-- let all your *domain* classes to persist extend `SqlDomainObject` class directly or indirectly (inheritance is supported).
+- let all your *domain* classes to persist extend `SqlDomainObject` class (directly or indirectly - inheritance is supported).
 - initially create an `SqlDomainController` object, which connects to the persistence database
 - call `SqlDomainController#synchronize()` to load objects from persistence database
 - create and persist objects using `SqlDomainController#createAndSave()` - or, if you prefer constructors: persist new objects with `SqlDomainController#save()`
