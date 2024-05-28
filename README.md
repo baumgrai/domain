@@ -8,7 +8,7 @@ It supports ***Oracle*, *MS/SQL-Server*, *MySQL* / *MariaDB***.
 **Usage:**
 
 - Let all your *domain* classes to persist extend `SqlDomainObject` class (directly or indirectly - inheritance is supported).
-- Initially create `SqlDomainController` object, which connects to the persistence database, and call `SqlDomainController#synchronize()` to load persisted objects from database.
+- Create `SqlDomainController` object, which connects to the persistence database, and call `SqlDomainController#synchronize()` to initially load persisted objects from database.
 - Create and persist objects using `SqlDomainController#createAndSave()` or persist new and changed objects with `#save()`.
 - On `#createAndSave()` or `#save()` objects will automatically be registered in domain controller's *object store*. Search objects there by predicates using `DomainController#findAll()`, `DomainController#findAny()`, etc.
 - Remove objects from object store and delete associated persistence records from database using `#delete()`.
