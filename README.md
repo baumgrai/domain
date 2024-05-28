@@ -22,7 +22,7 @@ It supports ***Oracle*, *MS/SQL-Server*, *MySQL* / *MariaDB***.
 - representation of **parent child relations** of domain objects (`class Manufacturer {...}`, `class Bike { Manufacturer manufacturer; ...}`) and also of n:m relations (`class A {...}`, `class B {...}`, `class AB { A a; B b; }`)
 - allows **direct access to children** by managed 'accumulation' fields (`class Manufacturer {... @Accumulation Set<Bike> bikes; }`)
 - supports **circular references** on class and object level (`class X { X next; }`, `class A { B b; }`, `class B { C c; }`, `class C { A a; }`)
-- **protection of sensitive data** - encrypt data in database using `@Crypt` annotation and suppress logging sensitive data at any log level using `@Secret` annotation
+- **protection of sensitive data** - encrypt data in database using `@Crypt` annotation and suppress logging of sensitive data at any log level using `@Secret` annotation
 - house keeping - **keep only relevant objects in heap** (which are newer than a configurable time in the past) using `@UseDataHorizon` annotation and `dataHorizonPeriod` property  
 - **selective object loading** - load only a part of the persisted objects from database using `SqlDomainController#loadOnly()`[^1]
 - ensures **referential integrity** - even if not all persisted objects are loaded into object store - parent is loaded if child is loaded
