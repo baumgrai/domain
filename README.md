@@ -7,15 +7,15 @@ It supports ***Oracle*, *MS/SQL-Server*, *MySQL* / *MariaDB***.
 
 **Usage:**
 
-- let all your *domain* classes to persist extend `SqlDomainObject` class (directly or indirectly - inheritance is supported).
-- initially create `SqlDomainController` object, which connects to the persistence database, and call `SqlDomainController#synchronize()` to load persisted objects from database
-- create and persist objects using `SqlDomainController#createAndSave()` - or, if you prefer constructors - persist new objects with `SqlDomainController#save()`
-- on `#createAndSave()` or `#save()` objects will automatically be registered in domain controller's *object store*. You may search objects there by predicates using methods like `DomainController#findAll()`, `DomainController#findAny()`
-- remove objects from object store and delete associated persistence records from database using `#delete()`
+- Let all your *domain* classes to persist extend `SqlDomainObject` class (directly or indirectly - inheritance is supported).
+- Initially create `SqlDomainController` object, which connects to the persistence database, and call `SqlDomainController#synchronize()` to load persisted objects from database.
+- Create and persist objects using `SqlDomainController#createAndSave()` or persist new and changed objects with `#save()`.
+- On `#createAndSave()` or `#save()` objects will automatically be registered in domain controller's *object store*. Search objects there by predicates using `DomainController#findAll()`, `DomainController#findAny()`, etc.
+- Remove objects from object store and delete associated persistence records from database using `#delete()`.
 
 **Generate persistence database:**
-   - let `Java2Sql` tool generate SQL scripts based on your *domain* classes to persist
-   - build the persistence database using these scripts.
+1. Let `Java2Sql` tool generate SQL scripts based on your *domain* classes to persist.
+2. Build the persistence database using these scripts.
 
 **Features:**
 - supports **class inheritance** - there is no restriction regarding inheritance of domain classes (`Bike extends SqlDomainObject`, `RaceBike extends Bike`, `Bianchi extends RaceBike`)
