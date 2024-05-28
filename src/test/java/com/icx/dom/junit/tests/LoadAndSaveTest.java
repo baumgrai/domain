@@ -72,6 +72,7 @@ class LoadAndSaveTest extends TestHelpers {
 
 	// +++ Please set log level to 'trace' in src/main/resources/logback.xml to achieve maximum coverage +++
 	// +++ You may run tests multiple times with 'dbType' set to different database types +++
+	// +++ Note: initialization of MS-SQL database sometimes takes very long time - about 1-2 minutes +++
 	// +++ ---------------------------------------------------------
 	public static DbType dbType = DbType.MYSQL;
 	// +++ ---------------------------------------------------------
