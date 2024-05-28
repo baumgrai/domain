@@ -14,7 +14,7 @@ It supports ***Oracle*, *MS/SQL-Server*, *MySQL* / *MariaDB***.
 - on `#createAndSave()` or `#save()` objects will automatically be registered in domain controller's *object store*. You may search objects there by predicates using methods like `DomainController#findAll()`, `DomainController#findAny()`
 - remove objects from object store and delete associated persistence records from database using `#delete()`
 
-Generate persistence database:
+**Generate persistence database:**
    - let `Java2Sql` tool generate SQL scripts based on your *domain* classes to persist
    - build the persistence database using these scripts.
 
