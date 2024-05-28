@@ -35,10 +35,10 @@ It supports ***Oracle*, *MS/SQL-Server*** and ***MySQL* / *MariaDB***.
 - annotate version information to \*new, *changed* and ~~removed~~ domain classes and fields and let `Java2Sql` tool automatically generate incremental database update scripts 
 
 **How data is persisted?**
-- every *domain* class has a corresponding table in the persistence database (inherited domain classes have their own tables).
-- fields of type `String`, `Char`, `Short`, `Integer`, `Long`, `Double` (and appropriate primitive types), `Enum`, `BigInteger`, `BigDecimal`, `LocalDate`, `LocalTime`, `LocalDateTime`, `Date`, `byte[]`, `char[]`, `File` correspond to columns of appropriate type in the persistence tables
+- every *domain* class - even if inherited - is associated with one database table.
+- `Char`, `Short`, `Integer`, `Long`, `Double` (and primitives), `String`, `Enum`, `BigInteger`, `BigDecimal`, `LocalDate`, `LocalTime`, `LocalDateTime`, `Date`, `byte[]`, `char[]` and `File` fields correspond to columns (of appropriate types) of these persistence tables.
+- list, set, array and map fields correspond to separate *entry* tables, which hold entries and - if necessary - order.
 - fields of any other type - for which a string conversion provider must be defined - correspond to text columns in the persistence table
-- lists, sets, arrays and maps correspond to separate *entry* tables
 
 **Further information:**
 - *domain* runs in Java >=8 environments
