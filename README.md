@@ -28,7 +28,7 @@ It supports ***Oracle*, *MS/SQL-Server*** and ***MySQL* / *MariaDB***.
 - ensures **referential integrity** - even if not all persisted objects are loaded into object store - parent is loaded if child is loaded
 - allows **concurrent access** to persistence database: access persistence database by multiple threads and/or domain controller instances and synchronize concurrency using `SqlDomainController#allocateObjectsExclusively()`[^1][^2]
 
-[^1]: knowledge of SQL and *domain* specific Java <-> SQL naming conversion rules is needed (only) for building WHERE clauses if objects shall be loaded selectively from database or if objects shall be allocated exclusively. Java <-> SQL naming conversion rules are described in Javadoc.
+[^1]: Knowledge of SQL and *domain* specific Java -> SQL naming rules is needed (only) for building WHERE clauses if objects shall be loaded selectively from database or if objects shall be allocated exclusively. Java -> SQL naming rules are described in Javadoc.
 [^2]: If only one domain controller instance operates on your persistence database, it is sufficiant to initially load persisted objects from database (`#synchronize`), and you may save your objects whenever you want (program is master). If multiple domain controller instances operate parallely on one persistence database, objects must be saved immediately after creation or change, and access to objects must be synchronized by allocating objects exclusively before reading and/or changing them (database is master). 
 
 **Version Control:** 
