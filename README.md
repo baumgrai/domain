@@ -44,6 +44,6 @@ It supports ***Oracle*, *MS/SQL-Server*, *MySQL* / *MariaDB***.
 **Further information:**
 - *domain* runs in Java >=8 environments
 - *domain* has a small footprint of about 10k LoC and 200kB jar
-- ***domain* depends only on logging (*slf4j* and *logback*) and database drivers** (no Spring, Guava, Apache, etc. is needed)
+- ***domain* depends only on logging (*slf4j* and *logback*) and specific database drivers** (no Spring, Guava, Apache, etc. is needed)
 - demo applications 'BikeStore' and 'Survey' and unit tests demonstrate usage of features  
 - unit tests cover > 85% of code
