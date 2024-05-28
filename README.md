@@ -19,15 +19,15 @@ In your application:
    - remove objects from object store and delete associated persistence records from database using `#delete()`
 
 **Features:**
-- supports class inheritance - there is no restriction regarding inheritance of domain classes (`Bike extends SqlDomainObject`, `RaceBike extends Bike`, `Bianchi extends RaceBike`)
-- representation of parent child relations of domain objects (`class Manufacturer {...}`, `class Bike { Manufacturer manufacturer; ...}`) and also of n:m relations (`class A {...}`, `class B {...}`, `class AB { A a; B b; }`)
-- allows direct access to object's children by managed 'accumulation' fields (`class Manufacturer {... @Accumulation Set<Bike> bikes; }`)
-- supports circular references on class and object level (`class X { X next; }`, `class A { B b; }`, `class B { C c; }`, `class C { A a; }`)
-- protection of sensitive data - encrypt data in database using `@Crypt` annotation and suppress logging sensitive data at any log level using `@Secret` annotation
-- house keeping - keep only relevant objects (which are newer than a configurable time in the past) in heap using `@UseDataHorizon` annotation and `dataHorizonPeriod` property  
-- selective object loading - load only a part of the persisted objects from database using `SqlDomainController#loadOnly()`[^1]
-- ensures referential integrity - even if not all persisted objects are loaded into object store - parent is loaded if child is loaded
-- allows concurrent access to persistence database - operate with multiple threads and/or domain controller instances on the same persistence database and synchronize concurrent access using `SqlDomainController#allocateObjectsExclusively()`[^1][^2]
+- supports **class inheritance** - there is no restriction regarding inheritance of domain classes (`Bike extends SqlDomainObject`, `RaceBike extends Bike`, `Bianchi extends RaceBike`)
+- representation of **parent child relations** of domain objects (`class Manufacturer {...}`, `class Bike { Manufacturer manufacturer; ...}`) and also of n:m relations (`class A {...}`, `class B {...}`, `class AB { A a; B b; }`)
+- allows direct access to object's children by **managed 'accumulation' fields** (`class Manufacturer {... @Accumulation Set<Bike> bikes; }`)
+- supports **circular references** on class and object level (`class X { X next; }`, `class A { B b; }`, `class B { C c; }`, `class C { A a; }`)
+- **protection of sensitive data** - encrypt data in database using `@Crypt` annotation and suppress logging sensitive data at any log level using `@Secret` annotation
+- house keeping - **keep only relevant objects in heap** (which are newer than a configurable time in the past) using `@UseDataHorizon` annotation and `dataHorizonPeriod` property  
+- **selective object loading** - load only a part of the persisted objects from database using `SqlDomainController#loadOnly()`[^1]
+- ensures **referential integrity** - even if not all persisted objects are loaded into object store - parent is loaded if child is loaded
+- allows **concurrent access** to persistence database - operate with multiple threads and/or domain controller instances on the same persistence database and synchronize concurrent access using `SqlDomainController#allocateObjectsExclusively()`[^1][^2]
 
 [^1]: SQL knowledge and knowledge of *domain* specific Java <-> SQL naming conversion rules is needed only for building WHERE clauses if objects shall be loaded seletively from database or if objects shall be allocated exclusively. Java <-> SQL naming conversion rules are described in Javadoc.
 [^2]: If only one domain controller instance operates on your persistence database at the same time, you can save your objects whenever you want - for performance reasons may be not until your program ends (program is master). If multiple domain controller instances operate parallely on the persistence database, objects must be saved immediately after creation or change and access to objects must be synchronized by allocating objects exclusively before reading and/or changing them (database is master) 
