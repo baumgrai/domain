@@ -7,7 +7,9 @@ It supports ***Oracle*, *MS/SQL-Server*, *MySQL* / *MariaDB***.
 
 **Usage:**
 
-I - Let `Java2Sql` tool generate SQL scripts based on your *domain* classes and - II - build the persistence database using these scripts.
+Generate persistence database:
+    - let `Java2Sql` tool generate SQL scripts based on your *domain* classes
+    - build the persistence database using these scripts.
 
 In your application:
    - let all your *domain* classes to persist extend `SqlDomainObject` class directly or indirectly (inheritance is supported).
