@@ -22,7 +22,6 @@ import com.icx.dom.app.bikestore.domain.bike.Bike.Size;
 import com.icx.dom.app.bikestore.domain.client.Client;
 import com.icx.dom.app.bikestore.domain.client.Client.Region;
 import com.icx.dom.app.bikestore.domain.client.Order;
-import com.icx.domain.sql.LoadHelpers;
 import com.icx.domain.sql.SqlDomainController;
 import com.icx.jdbc.ConnectionPool;
 import com.icx.jdbc.SqlDb;
@@ -197,8 +196,8 @@ public class BikeStoreApp {
 			log.info("Order processing time statistic (# of order processing operations in less than ? ms): {}", Order.orderProcessingDurationMap);
 			log.info("Bike delivery time statistic (# of bike delivery operations in less than ? ms): {}", Order.bikeDeliveryDurationMap);
 			log.info("");
-			log.info("Concurrent access denied because of use by another thread of same controller instance: {}", LoadHelpers.inUseBySameInstanceAccessCount);
-			log.info("Concurrent access denied because of use by another controller instance: {}", LoadHelpers.inUseByDifferentInstanceAccessCount);
+			log.info("Concurrent access denied because of use by another thread of same controller instance: {}", sdc.inUseBySameInstanceAccessCount);
+			log.info("Concurrent access denied because of use by another controller instance: {}", sdc.inUseByDifferentInstanceAccessCount);
 			log.info("Unsuccessful tries allocating bikes to order: {}", Client.unsuccessfulTriesAllocatingBikesToOrderCount);
 			log.info("Successful tries allocating bikes to order: {}", Client.successfulTriesAllocatingBikesToOrderCount);
 		}
