@@ -28,7 +28,7 @@ import com.icx.domain.sql.Annotations.Accumulation;
 import com.icx.domain.sql.Annotations.Removed;
 import com.icx.domain.sql.Annotations.StoreAsString;
 import com.icx.domain.sql.Annotations.UseDataHorizon;
-import com.icx.domain.sql.tools.Java2Sql;
+import com.icx.domain.sql.java2sql.Java2Sql;
 import com.icx.jdbc.SqlDbHelpers;
 
 /**

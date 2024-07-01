@@ -1,4 +1,4 @@
-package com.icx.domain.sql.tools;
+package com.icx.domain.sql.java2sql;
 
 import java.io.File;
 import java.io.IOException;
@@ -35,7 +35,7 @@ import com.icx.jdbc.SqlDbHelpers;
  * {@code Java2Sql} builds SQL scripts for generation of persistence database using 'domain' class definitions in Java source code. Currently database generation scripts for Oracle, MS SQL Server and
  * MySQL are generated.
  * <p>
- * See {@link com.icx.domain.sql.tools} for details of Domain persistence mechanism.
+ * See {@link com.icx.domain.sql.java2sql} for details of Domain persistence mechanism.
  * 
  * @author baumgrai
  */
@@ -58,31 +58,31 @@ public abstract class Java2Sql extends SqlDbHelpers {
 	// ----------------------------------------------------------------------
 
 	// Add all foreign key constraints for given tables to script
-	static void addForeignKeyConstraints(StringBuilder script, List<com.icx.domain.sql.tools.Table> tables) {
+	static void addForeignKeyConstraints(StringBuilder script, List<com.icx.domain.sql.java2sql.Table> tables) {
 
-		for (com.icx.domain.sql.tools.Table table : tables) {
-			for (com.icx.domain.sql.tools.FkConstraint fkConstraint : table.fkConstraints) {
+		for (com.icx.domain.sql.java2sql.Table table : tables) {
+			for (com.icx.domain.sql.java2sql.FkConstraint fkConstraint : table.fkConstraints) {
 				script.append(fkConstraint.alterTableAddForeignKeyStatement());
 			}
 		}
 	}
 
 	// Drop all foreign key constraints for given tables at begin of script
-	static void dropForeignKeyConstraints(StringBuilder script, List<com.icx.domain.sql.tools.Table> tables) {
+	static void dropForeignKeyConstraints(StringBuilder script, List<com.icx.domain.sql.java2sql.Table> tables) {
 
 		script.insert(0, "\n");
-		for (com.icx.domain.sql.tools.Table table : tables) {
-			for (com.icx.domain.sql.tools.FkConstraint fkConstraint : table.fkConstraints) {
+		for (com.icx.domain.sql.java2sql.Table table : tables) {
+			for (com.icx.domain.sql.java2sql.FkConstraint fkConstraint : table.fkConstraints) {
 				script.insert(0, fkConstraint.alterTableDropForeignKeyStatement());
 			}
 		}
 	}
 
 	// Build SQL statements to drop table for given domain class
-	static void dropTables(StringBuilder script, List<com.icx.domain.sql.tools.Table> tables) {
+	static void dropTables(StringBuilder script, List<com.icx.domain.sql.java2sql.Table> tables) {
 
 		script.insert(0, "\n");
-		for (com.icx.domain.sql.tools.Table table : tables) {
+		for (com.icx.domain.sql.java2sql.Table table : tables) {
 			script.insert(0, table.dropScript());
 		}
 	}
@@ -92,44 +92,44 @@ public abstract class Java2Sql extends SqlDbHelpers {
 	// ----------------------------------------------------------------------
 
 	// Build SQL statements to create main table and potentially existing entry tables (for collection and map fields) for given domain class
-	static List<com.icx.domain.sql.tools.Table> createTablesForDomainClass(StringBuilder script, String version, Class<? extends SqlDomainObject> domainClass, DbType dbType) {
+	static List<com.icx.domain.sql.java2sql.Table> createTablesForDomainClass(StringBuilder script, String version, Class<? extends SqlDomainObject> domainClass, DbType dbType) {
 
 		// Initialize table object for domain class
-		com.icx.domain.sql.tools.Table mainTable = new com.icx.domain.sql.tools.Table(domainClass, dbType);
+		com.icx.domain.sql.java2sql.Table mainTable = new com.icx.domain.sql.java2sql.Table(domainClass, dbType);
 
 		log.info("J2S: \t\tCreate table {} for '{}'", mainTable.name, domainClass.getSimpleName());
 
 		// New tables to generate build scripts for - containing this table and potentially containing entry tables for collection or map fields
-		List<com.icx.domain.sql.tools.Table> newTables = new ArrayList<>();
+		List<com.icx.domain.sql.java2sql.Table> newTables = new ArrayList<>();
 		newTables.add(mainTable);
 
 		// Generate column definition for object class name (to know exact object type even on access to inherited record)
-		com.icx.domain.sql.tools.Column domainClassColumn = mainTable.addStandardColumn(Const.DOMAIN_CLASS_COL, String.class);
+		com.icx.domain.sql.java2sql.Column domainClassColumn = mainTable.addStandardColumn(Const.DOMAIN_CLASS_COL, String.class);
 		domainClassColumn.charsize = MAX_CLASSNAME_LENGTH;
 
 		// Generate ID column definition
-		com.icx.domain.sql.tools.Column idColumn = mainTable.addStandardColumn(Const.ID_COL, Long.class);
+		com.icx.domain.sql.java2sql.Column idColumn = mainTable.addStandardColumn(Const.ID_COL, Long.class);
 		idColumn.isPrimaryKey = true;
 
 		// Inheritance
 		if (registry.isBaseDomainClass(domainClass)) {
 
 			// For base domain classes generate LAST_MODIFIED column definition and force building INDEX on this column for performance reasons
-			com.icx.domain.sql.tools.Column lastModifiedColumn = mainTable.addStandardColumn(Const.LAST_MODIFIED_COL, LocalDateTime.class);
+			com.icx.domain.sql.java2sql.Column lastModifiedColumn = mainTable.addStandardColumn(Const.LAST_MODIFIED_COL, LocalDateTime.class);
 			mainTable.addIndexFor(lastModifiedColumn);
 		}
 		else {
 			// For extended domain classes add foreign key constraint to reference ID of superclass record to reflect inheritance relation
-			idColumn.addFkConstraintForObjectId(com.icx.domain.sql.tools.FkConstraint.ConstraintType.INHERITANCE, registry.getCastedSuperclass(domainClass));
+			idColumn.addFkConstraintForObjectId(com.icx.domain.sql.java2sql.FkConstraint.ConstraintType.INHERITANCE, registry.getCastedSuperclass(domainClass));
 		}
 
 		// Generate column definitions and foreign key constraints for registered fields of domain class - include dropped fields here because 'registerAlsoDroppedFields' is true for Java2Sql
 		for (Field field : registry.getRegisteredFields(domainClass)) {
 
-			if (version != null && com.icx.domain.sql.tools.Java2SqlHelpers.getCreatedVersion(field).compareTo(version) > 0) {
+			if (version != null && com.icx.domain.sql.java2sql.Java2SqlHelpers.getCreatedVersion(field).compareTo(version) > 0) {
 				// Table creation in incremental update script: ignore fields created in a newer version
 				log.info("J2S: \t\t\tField '{}' was created in version {} but incremental update script is for version {}", field.getName(),
-						com.icx.domain.sql.tools.Java2SqlHelpers.getCreatedVersion(field), version);
+						com.icx.domain.sql.java2sql.Java2SqlHelpers.getCreatedVersion(field), version);
 				continue; // Incremental scripts: Do not create column for field which is created in a newer version on incremental table creation
 			}
 
@@ -144,11 +144,11 @@ public abstract class Java2Sql extends SqlDbHelpers {
 				}
 
 				// Table related field: create entry table - use field type
-				newTables.add(com.icx.domain.sql.tools.Java2SqlHelpers.buildEntryTable(field, null, dbType));
+				newTables.add(com.icx.domain.sql.java2sql.Java2SqlHelpers.buildEntryTable(field, null, dbType));
 			}
 			else {
 				// Define column from field
-				com.icx.domain.sql.tools.Column column = mainTable.addColumnForRegisteredField(field);
+				com.icx.domain.sql.java2sql.Column column = mainTable.addColumnForRegisteredField(field);
 
 				if (registry.isReferenceField(field)) { // Reference field
 
@@ -168,7 +168,7 @@ public abstract class Java2Sql extends SqlDbHelpers {
 					}
 
 					// Add FOREIGN KEY constraint for reference field if field type is a domain class
-					com.icx.domain.sql.tools.FkConstraint fkConstraint = column.addFkConstraintForObjectId(com.icx.domain.sql.tools.FkConstraint.ConstraintType.REFERENCE,
+					com.icx.domain.sql.java2sql.FkConstraint fkConstraint = column.addFkConstraintForObjectId(com.icx.domain.sql.java2sql.FkConstraint.ConstraintType.REFERENCE,
 							registry.getCastedReferencedDomainClass(field));
 
 					// Determine if ON DELETE CASCADE shall be set on foreign key constraint - do this if it is explicitly specified in column annotation or if class uses 'data horizon' mechanism
@@ -209,7 +209,7 @@ public abstract class Java2Sql extends SqlDbHelpers {
 		}
 
 		// Generate SQL statement
-		for (com.icx.domain.sql.tools.Table newTable : newTables) {
+		for (com.icx.domain.sql.java2sql.Table newTable : newTables) {
 			script.append(newTable.createScript());
 		}
 
@@ -221,28 +221,28 @@ public abstract class Java2Sql extends SqlDbHelpers {
 	// ----------------------------------------------------------------------
 
 	// Build SQL statements to alter main table and create or drop potentially existing entry tables (for collection and map fields) for given domain class for given version
-	static List<com.icx.domain.sql.tools.Table> alterTablesForDomainClass(StringBuilder script, String version, Class<? extends SqlDomainObject> domainClass, DbType dbType) {
+	static List<com.icx.domain.sql.java2sql.Table> alterTablesForDomainClass(StringBuilder script, String version, Class<? extends SqlDomainObject> domainClass, DbType dbType) {
 
 		log.info("J2S:\t\tAlter table for: '{}' for version '{}'", domainClass.getSimpleName(), version);
 
 		// Initialize table object for domain class as anchor for ALTER TABLE statements
-		com.icx.domain.sql.tools.Table table = new com.icx.domain.sql.tools.Table(domainClass, dbType);
+		com.icx.domain.sql.java2sql.Table table = new com.icx.domain.sql.java2sql.Table(domainClass, dbType);
 
 		// Append ALTER TABLE statements for adding, modifying and dropping columns to script - check all relevant fields, not only registered ones
-		List<com.icx.domain.sql.tools.Table> createdEntryTables = new ArrayList<>();
+		List<com.icx.domain.sql.java2sql.Table> createdEntryTables = new ArrayList<>();
 		for (Field field : registry.getRelevantFields(domainClass)) {
 
-			if (com.icx.domain.sql.tools.Java2SqlHelpers.wasCreatedInVersion(field, version)) {
+			if (com.icx.domain.sql.java2sql.Java2SqlHelpers.wasCreatedInVersion(field, version)) {
 
 				// New fields
 
 				// Get attributes to override by information from @Created annotation if specified
-				Map<String, String> createInfoMap = com.icx.domain.sql.tools.Java2SqlHelpers.getCreateInfo(field);
+				Map<String, String> createInfoMap = com.icx.domain.sql.java2sql.Java2SqlHelpers.getCreateInfo(field);
 
 				if (registry.isComplexField(field)) {
 
 					// Build entry table associated to collection/map field - use collection type if specified in create info or field type
-					com.icx.domain.sql.tools.Table entryTable = com.icx.domain.sql.tools.Java2SqlHelpers.buildEntryTable(field, createInfoMap.get(Annotations.COLLECTION_TYPE), dbType);
+					com.icx.domain.sql.java2sql.Table entryTable = com.icx.domain.sql.java2sql.Java2SqlHelpers.buildEntryTable(field, createInfoMap.get(Annotations.COLLECTION_TYPE), dbType);
 					createdEntryTables.add(entryTable);
 
 					// Add create script for entry table
@@ -250,10 +250,10 @@ public abstract class Java2Sql extends SqlDbHelpers {
 				}
 				else {
 					// Column associated to data or reference field
-					com.icx.domain.sql.tools.Column column = table.addColumnForRegisteredField(field);
+					com.icx.domain.sql.java2sql.Column column = table.addColumnForRegisteredField(field);
 
 					// Override column attributes according to values specified in create info
-					com.icx.domain.sql.tools.Java2SqlHelpers.updateColumnAttributes(column, createInfoMap);
+					com.icx.domain.sql.java2sql.Java2SqlHelpers.updateColumnAttributes(column, createInfoMap);
 
 					// Add ALTER TABLE script to create column
 					script.append(column.alterTableAddColumnStatement());
@@ -261,7 +261,7 @@ public abstract class Java2Sql extends SqlDbHelpers {
 					if (registry.isReferenceField(field)) { // Reference field
 
 						// Add FOREIGN KEY constraint for reference field if field type is a domain class
-						com.icx.domain.sql.tools.FkConstraint fkConstraint = column.addFkConstraintForObjectId(com.icx.domain.sql.tools.FkConstraint.ConstraintType.REFERENCE,
+						com.icx.domain.sql.java2sql.FkConstraint fkConstraint = column.addFkConstraintForObjectId(com.icx.domain.sql.java2sql.FkConstraint.ConstraintType.REFERENCE,
 								registry.getCastedReferencedDomainClass(field));
 
 						// Determine if ON DELETE CASCADE shall be set on foreign key constraint
@@ -273,16 +273,16 @@ public abstract class Java2Sql extends SqlDbHelpers {
 
 					// Add UNIQUE constraint if column is specified as unique either in @SqlColumn or in @Created annotation
 					if (column.isUnique) {
-						script.append(new com.icx.domain.sql.tools.UniqueConstraint(table, column).alterTableAddConstraintStatement());
+						script.append(new com.icx.domain.sql.java2sql.UniqueConstraint(table, column).alterTableAddConstraintStatement());
 					}
 				}
 			}
-			else if (com.icx.domain.sql.tools.Java2SqlHelpers.wasChangedInVersion(field, version)) {
+			else if (com.icx.domain.sql.java2sql.Java2SqlHelpers.wasChangedInVersion(field, version)) {
 
 				// Changed fields
 
 				// Get changes from version annotation
-				Map<String, String> changeInfoMap = com.icx.domain.sql.tools.Java2SqlHelpers.getChangeInfo(field, version);
+				Map<String, String> changeInfoMap = com.icx.domain.sql.java2sql.Java2SqlHelpers.getChangeInfo(field, version);
 
 				if (registry.isComplexField(field)) {
 
@@ -293,9 +293,9 @@ public abstract class Java2Sql extends SqlDbHelpers {
 						// Collection type changed: use additional 'order' column for Lists and UNIQUE constraint for elements for Sets
 
 						// Create entry table associated to collection/map field as anchor for subsequent ADD/DROP statements - add both UNIQUE constraint for Set type and 'order' column for List type
-						com.icx.domain.sql.tools.Table entryTable = com.icx.domain.sql.tools.Java2SqlHelpers.buildEntryTable(field, "both", dbType);
-						com.icx.domain.sql.tools.Column orderColumnForList = com.icx.domain.sql.tools.Java2SqlHelpers.getElementOrderColumn(entryTable);
-						com.icx.domain.sql.tools.UniqueConstraint uniqueConstraintForSet = com.icx.domain.sql.tools.Java2SqlHelpers.getUniqueConstraintForElements(entryTable);
+						com.icx.domain.sql.java2sql.Table entryTable = com.icx.domain.sql.java2sql.Java2SqlHelpers.buildEntryTable(field, "both", dbType);
+						com.icx.domain.sql.java2sql.Column orderColumnForList = com.icx.domain.sql.java2sql.Java2SqlHelpers.getElementOrderColumn(entryTable);
+						com.icx.domain.sql.java2sql.UniqueConstraint uniqueConstraintForSet = com.icx.domain.sql.java2sql.Java2SqlHelpers.getUniqueConstraintForElements(entryTable);
 
 						String collectionType = changeInfoMap.get(Annotations.COLLECTION_TYPE);
 						if (collectionType.equalsIgnoreCase("list")) {
@@ -315,10 +315,10 @@ public abstract class Java2Sql extends SqlDbHelpers {
 					// Column related field: MODIFY column according to changes noted in change info map
 
 					// Add modify column statement and retrieve information from @SqlColumn annotation
-					com.icx.domain.sql.tools.Column column = table.addColumnForRegisteredField(field);
+					com.icx.domain.sql.java2sql.Column column = table.addColumnForRegisteredField(field);
 
 					// Retrieve information from @Changed annotation and override information from @SqlColumn annotation if both are given
-					com.icx.domain.sql.tools.Java2SqlHelpers.updateColumnAttributes(column, changeInfoMap);
+					com.icx.domain.sql.java2sql.Java2SqlHelpers.updateColumnAttributes(column, changeInfoMap);
 
 					// Modify column
 					script.append(column.alterTableModifyColumnStatement(dbType));
@@ -328,28 +328,28 @@ public abstract class Java2Sql extends SqlDbHelpers {
 						// Add or drop UNIQUE constraint if unique value specified in changed info differs from value specified in @SqlColumn annotation
 						boolean isUnique = Boolean.parseBoolean(changeInfoMap.get(Annotations.UNIQUE));
 						if (isUnique && !column.isUnique) {
-							script.append(new com.icx.domain.sql.tools.UniqueConstraint(table, column).alterTableAddConstraintStatement());
+							script.append(new com.icx.domain.sql.java2sql.UniqueConstraint(table, column).alterTableAddConstraintStatement());
 						}
 						else if (!isUnique && column.isUnique) {
-							script.append(new com.icx.domain.sql.tools.UniqueConstraint(table, column).alterTableDropConstraintStatement());
+							script.append(new com.icx.domain.sql.java2sql.UniqueConstraint(table, column).alterTableDropConstraintStatement());
 						}
 					}
 				}
 			}
-			else if (com.icx.domain.sql.tools.Java2SqlHelpers.wasRemovedInVersion(field, version)) {
+			else if (com.icx.domain.sql.java2sql.Java2SqlHelpers.wasRemovedInVersion(field, version)) {
 
 				// Removed fields
 
 				if (registry.isComplexField(field)) {
 
 					// Drop entry table for removed field
-					script.append(com.icx.domain.sql.tools.Java2SqlHelpers.buildEntryTable(field, null, dbType).dropScript());
+					script.append(com.icx.domain.sql.java2sql.Java2SqlHelpers.buildEntryTable(field, null, dbType).dropScript());
 				}
 				else {
 					// Drop column (and foreign key constraint if exists) for removed field
-					com.icx.domain.sql.tools.Column column = table.addColumnForRegisteredField(field);
+					com.icx.domain.sql.java2sql.Column column = table.addColumnForRegisteredField(field);
 					if (registry.isReferenceField(field)) {
-						script.append(column.addFkConstraintForObjectId(com.icx.domain.sql.tools.FkConstraint.ConstraintType.REFERENCE, registry.getCastedReferencedDomainClass(field))
+						script.append(column.addFkConstraintForObjectId(com.icx.domain.sql.java2sql.FkConstraint.ConstraintType.REFERENCE, registry.getCastedReferencedDomainClass(field))
 								.alterTableDropForeignKeyStatement());
 					}
 
@@ -380,20 +380,20 @@ public abstract class Java2Sql extends SqlDbHelpers {
 		log.info("J2S:\t\tChange multi column unique constraints and indexes of table '{}' for version '{}'", domainClass.getSimpleName(), version);
 
 		// Initialize table object for domain class as anchor for ALTER TABLE statements
-		com.icx.domain.sql.tools.Table table = new com.icx.domain.sql.tools.Table(domainClass, dbType);
+		com.icx.domain.sql.java2sql.Table table = new com.icx.domain.sql.java2sql.Table(domainClass, dbType);
 
 		// Table changes (UNIQUE constraints and INDEXes)
-		if (com.icx.domain.sql.tools.Java2SqlHelpers.wasChangedInVersion(domainClass, version)) {
+		if (com.icx.domain.sql.java2sql.Java2SqlHelpers.wasChangedInVersion(domainClass, version)) {
 			script.append("\n");
 
 			SqlTable tableAnnotation = domainClass.getAnnotation(SqlTable.class);
-			Map<String, String> tableChangeInfo = com.icx.domain.sql.tools.Java2SqlHelpers.getChangeInfo(domainClass, version);
+			Map<String, String> tableChangeInfo = com.icx.domain.sql.java2sql.Java2SqlHelpers.getChangeInfo(domainClass, version);
 
 			if (tableChangeInfo.containsKey(Annotations.UNIQUE_CONSTRAINTS_TO_DROP)) {
 
 				// Drop UNIQUE constraints defined in table change info
 				for (List<String> fieldNames : getNameLists(tableChangeInfo.get(Annotations.UNIQUE_CONSTRAINTS_TO_DROP))) {
-					script.append(new com.icx.domain.sql.tools.UniqueConstraint(table, fieldNames).alterTableDropConstraintStatement());
+					script.append(new com.icx.domain.sql.java2sql.UniqueConstraint(table, fieldNames).alterTableDropConstraintStatement());
 				}
 			}
 
@@ -401,14 +401,14 @@ public abstract class Java2Sql extends SqlDbHelpers {
 
 				// Create UNIQUE constraints defined in table change info
 				for (List<String> fieldNames : getNameLists(tableChangeInfo.get(Annotations.UNIQUE_CONSTRAINTS))) {
-					script.append(new com.icx.domain.sql.tools.UniqueConstraint(table, fieldNames).alterTableAddConstraintStatement());
+					script.append(new com.icx.domain.sql.java2sql.UniqueConstraint(table, fieldNames).alterTableAddConstraintStatement());
 				}
 			}
 			else if (tableAnnotation != null) {
 
 				// Assume UNIQUE constraints defined in @SqlTable annotation are created in this version and create these UNIQUE constraints
 				for (String fieldNamesString : tableAnnotation.uniqueConstraints()) {
-					script.append(new com.icx.domain.sql.tools.UniqueConstraint(table, Common.stringToList(fieldNamesString)).alterTableAddConstraintStatement());
+					script.append(new com.icx.domain.sql.java2sql.UniqueConstraint(table, Common.stringToList(fieldNamesString)).alterTableAddConstraintStatement());
 				}
 			}
 
@@ -416,7 +416,7 @@ public abstract class Java2Sql extends SqlDbHelpers {
 
 				// Create INDEXes defined in table change info
 				for (List<String> fieldNames : getNameLists(tableChangeInfo.get(Annotations.INDEXES_TO_DROP))) {
-					script.append(new com.icx.domain.sql.tools.Index(table, fieldNames).dropStatement());
+					script.append(new com.icx.domain.sql.java2sql.Index(table, fieldNames).dropStatement());
 				}
 			}
 
@@ -424,14 +424,14 @@ public abstract class Java2Sql extends SqlDbHelpers {
 
 				// Drop INDEXes defined in table change info
 				for (List<String> fieldNames : getNameLists(tableChangeInfo.get(Annotations.INDEXES))) {
-					script.append(new com.icx.domain.sql.tools.Index(table, fieldNames).createStatement());
+					script.append(new com.icx.domain.sql.java2sql.Index(table, fieldNames).createStatement());
 				}
 			}
 			else if (tableAnnotation != null) {
 
 				// Assume INDEXes defined in @SqlTable annotation are created in this version and create these INDEXes
 				for (String fieldNamesString : tableAnnotation.indexes()) {
-					script.append(new com.icx.domain.sql.tools.Index(table, Common.stringToList(fieldNamesString)).createStatement());
+					script.append(new com.icx.domain.sql.java2sql.Index(table, Common.stringToList(fieldNamesString)).createStatement());
 				}
 			}
 		}
@@ -454,7 +454,7 @@ public abstract class Java2Sql extends SqlDbHelpers {
 		StringBuilder createScript = new StringBuilder();
 
 		// Create tables (do before dropping)
-		List<com.icx.domain.sql.tools.Table> createdTables = new ArrayList<>();
+		List<com.icx.domain.sql.java2sql.Table> createdTables = new ArrayList<>();
 		for (Class<? extends SqlDomainObject> domainClass : domainClasses) {
 			createdTables.addAll(createTablesForDomainClass(createScript, null, domainClass, dbType));
 		}
@@ -475,33 +475,33 @@ public abstract class Java2Sql extends SqlDbHelpers {
 		// Version specific DB increment scripts
 
 		// For all versions defined within table or column annotations of all (also deprecated) classes and fields
-		SortedSet<String> versions = com.icx.domain.sql.tools.Java2SqlHelpers.findAllVersions(domainClasses);
+		SortedSet<String> versions = com.icx.domain.sql.java2sql.Java2SqlHelpers.findAllVersions(domainClasses);
 		for (String version : versions) {
 
 			log.info("J2S: Generate incremental SQL scripts for {} and version {}...", dbType, version);
 
 			StringBuilder alterScriptForVersion = new StringBuilder();
-			List<com.icx.domain.sql.tools.Table> createdTablesForVersion = new ArrayList<>();
+			List<com.icx.domain.sql.java2sql.Table> createdTablesForVersion = new ArrayList<>();
 
 			// CREATE, DROP or ALTER tables for version... - consider also removed domain classes
 			for (Class<? extends SqlDomainObject> domainClass : registry.getRelevantDomainClasses()) {
 
-				if (com.icx.domain.sql.tools.Java2SqlHelpers.wasCreatedInVersion(domainClass, version)) {
+				if (com.icx.domain.sql.java2sql.Java2SqlHelpers.wasCreatedInVersion(domainClass, version)) {
 					createdTablesForVersion.addAll(createTablesForDomainClass(alterScriptForVersion, version, domainClass, dbType));
 					alterScriptForVersion.append("\n");
 				}
-				else if (com.icx.domain.sql.tools.Java2SqlHelpers.wasRemovedInVersion(domainClass, version)) {
-					alterScriptForVersion.append(new com.icx.domain.sql.tools.Table(domainClass, dbType).dropScript());
+				else if (com.icx.domain.sql.java2sql.Java2SqlHelpers.wasRemovedInVersion(domainClass, version)) {
+					alterScriptForVersion.append(new com.icx.domain.sql.java2sql.Table(domainClass, dbType).dropScript());
 					alterScriptForVersion.append("\n");
 				}
 				else {
 					// Check version related annotations for all relevant (also removed) fields
-					if (registry.getRelevantFields(domainClass).stream().anyMatch(f -> com.icx.domain.sql.tools.Java2SqlHelpers.isFieldAffected(f, version))) {
+					if (registry.getRelevantFields(domainClass).stream().anyMatch(f -> com.icx.domain.sql.java2sql.Java2SqlHelpers.isFieldAffected(f, version))) {
 						createdTablesForVersion.addAll(alterTablesForDomainClass(alterScriptForVersion, version, domainClass, dbType));
 					}
 
 					// Check if changes on multi column UNIQUE constrains or indexes were made
-					if (com.icx.domain.sql.tools.Java2SqlHelpers.wasChangedInVersion(domainClass, version)) {
+					if (com.icx.domain.sql.java2sql.Java2SqlHelpers.wasChangedInVersion(domainClass, version)) {
 						changeUniqueConstraintsAndIndexesForDomainClass(alterScriptForVersion, version, domainClass, dbType);
 						alterScriptForVersion.append("\n");
 					}

@@ -42,7 +42,7 @@
  * 
  * @author baumgrai
  */
-package com.icx.domain.sql.tools;
+package com.icx.domain.sql.java2sql;
 
 import com.icx.domain.sql.SqlDomainController;
 import com.icx.domain.sql.Annotations.Changed;

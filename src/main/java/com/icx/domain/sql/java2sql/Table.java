@@ -1,4 +1,4 @@
-package com.icx.domain.sql.tools;
+package com.icx.domain.sql.java2sql;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;

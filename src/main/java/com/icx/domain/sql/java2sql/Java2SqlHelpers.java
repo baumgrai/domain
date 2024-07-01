@@ -1,4 +1,4 @@
-package com.icx.domain.sql.tools;
+package com.icx.domain.sql.java2sql;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.ParameterizedType;
@@ -27,7 +27,7 @@ import com.icx.domain.sql.SqlRegistry;
 import com.icx.domain.sql.Annotations.Changed;
 import com.icx.domain.sql.Annotations.Created;
 import com.icx.domain.sql.Annotations.Removed;
-import com.icx.domain.sql.tools.FkConstraint.ConstraintType;
+import com.icx.domain.sql.java2sql.FkConstraint.ConstraintType;
 import com.icx.jdbc.SqlDbHelpers;
 import com.icx.jdbc.SqlDb.DbType;
 

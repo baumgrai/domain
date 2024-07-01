@@ -38,7 +38,7 @@ import com.icx.domain.Registry;
 import com.icx.domain.sql.Const;
 import com.icx.domain.sql.SqlDomainController;
 import com.icx.domain.sql.SqlDomainObject;
-import com.icx.domain.sql.tools.Java2Sql;
+import com.icx.domain.sql.java2sql.Java2Sql;
 import com.icx.jdbc.ConnectionPool;
 import com.icx.jdbc.SqlDbTable;
 import com.icx.jdbc.SqlDbTable.SqlDbColumn;

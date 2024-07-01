@@ -1,4 +1,4 @@
-package com.icx.domain.sql.tools;
+package com.icx.domain.sql.java2sql;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

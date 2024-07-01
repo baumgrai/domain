@@ -36,7 +36,7 @@ import com.icx.domain.sql.Annotations.StoreAsString;
 import com.icx.domain.sql.Annotations.UseDataHorizon;
 import com.icx.domain.sql.Loader.IntermediateLoadResult;
 import com.icx.domain.sql.Loader.UnresolvedReference;
-import com.icx.domain.sql.tools.Java2Sql;
+import com.icx.domain.sql.java2sql.Java2Sql;
 import com.icx.jdbc.ConfigException;
 import com.icx.jdbc.ConnectionPool;
 import com.icx.jdbc.SqlConnection;

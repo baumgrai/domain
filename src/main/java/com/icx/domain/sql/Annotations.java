@@ -5,7 +5,7 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
-import com.icx.domain.sql.tools.Java2Sql;
+import com.icx.domain.sql.java2sql.Java2Sql;
 
 /**
  * Annotations for SQL domain classes and fields for Domain object persistence mechanism.
