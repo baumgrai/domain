@@ -2,7 +2,7 @@
  * Contains {@link Java2Sql} tool and related classes to generate SQL scripts for persistence database (basic information about Domain persistence mechanism including generation of persistence
  * database and description of supported field types is provided here).
  * <p>
- * Java classes for which objects shall be persisted must extend {@code SqlDomainObject} class directly or indirectly. SQL script generation for persistence database bases on these so called 'domain'
+ * Java classes, for which objects shall be persisted, must extend {@code SqlDomainObject} class directly or indirectly. SQL script generation for persistence database bases on these so called 'domain'
  * classes. Domain classes must reside under a specific 'domain' package. This domain package may have an arbitrary sub-package structure containing the domain classes. Package name of domain package
  * may be 'domain' itself, but this is not a must.
  * <p>
@@ -12,7 +12,7 @@
  * {@code Java2Sql} generates three SQL table generation scripts: {@code xxx_ms_sql.sql}, {@code xxx_mysql.sql} and {@code xxx_oracle.sql} in directory {@code sql}, where 'xxx' is the name of the
  * package containing the domain package. Please check logs of SQL script generation for potential errors before executing generated SQL scripts.
  * <p>
- * SQL script generation also supports version control: product versions, in which domain classes or single fields were created, modified or removed, can be defined annotating {@link Created},
+ * SQL script generation also supports version control: product versions, in which domain classes or single fields were created, modified or removed, can be defined by annotating {@link Created},
  * {@link Changed}, {@link Removed} to these fields and classes. {@code Java2Sql} then produces incremental database update scripts for any product version defined in one of these annotations - in
  * addition to the scripts for the whole database.
  * <p>
