@@ -9,7 +9,7 @@ It supports ***Oracle*, *MS/SQL-Server*** and ***MySQL* / *MariaDB***.
 
 - Let all your Java classes to persist extend `SqlDomainObject` class (directly or indirectly - inheritance is supported). 
 - Create `SqlDomainController` object, which connects to the persistence database, and initially load persisted objects using `SqlDomainController#synchronize()`.
-- Create and immediately persist objects using `SqlDomainController#createAndSave()` or persist new and changed objects with `#save()`.
+- Create and immediately persist objects using `SqlDomainController#createAndSave()` or persist new and changed objects by `#save()`.
 - On calling `#createAndSave()` or `#save()` objects will automatically be registered in domain controller's *object store*. Search objects there by predicates using `DomainController#findAll(...)`, `DomainController#findAny(...)`, etc.
 - Remove objects from object store and delete associated persistence records from database using `#delete()`.
 
