@@ -166,7 +166,7 @@ class LoadAndSaveTest extends TestHelpers {
 	// Next 3 test belong together - no cleanup meanwhile
 	//
 
-	private final static int CHAR_ARRAY_SIZE = 0x800000; // Maximum with MariaDB standard configuration
+	private final static int CHAR_ARRAY_SIZE = 0x100000; // Maximum value which works for all database standard configurations (also MySQL with 'max_allowed_packet=4M')
 
 	@SuppressWarnings("static-method")
 	@Test
