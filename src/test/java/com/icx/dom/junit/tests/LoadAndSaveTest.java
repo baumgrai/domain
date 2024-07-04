@@ -19,6 +19,7 @@ import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -1042,14 +1043,14 @@ class LoadAndSaveTest extends TestHelpers {
 				assertEquals("" + i, aa.strings.get(i));
 			}
 
-			aa.strings = new ArrayList<>(aa.strings.reversed());
+			Collections.reverse(aa.strings);
 			aa.save();
 			sdc.unregisterOnlyForTest(aa);
 			sdc.loadOnly(AA.class, "DOM_A.I=42", 1);
 			for (int i = 0; i <= 40; i++) {
 				assertEquals("" + (40 - i), aa.strings.get(i));
 			}
-			aa.strings = new ArrayList<>(aa.strings.reversed());
+			Collections.reverse(aa.strings);
 			aa.save();
 
 			log.info("{}", aa.strings);
