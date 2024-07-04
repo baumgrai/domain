@@ -133,7 +133,7 @@ public abstract class CResource extends Common {
 		Enumeration<URL> resources = Thread.currentThread().getContextClassLoader().getResources(fileName);
 		List<File> resourceFiles = new ArrayList<>();
 		while (resources.hasMoreElements()) {
-			String resourceFileName = URLDecoder.decode(resources.nextElement().getPath(), "UTF_8");
+			String resourceFileName = URLDecoder.decode(resources.nextElement().getPath(), "UTF-8");
 			if (!resourceFileName.contains(".jar!")) {
 				resourceFiles.add(new File(resourceFileName));
 			}
