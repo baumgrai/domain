@@ -5,7 +5,6 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.net.URL;
 import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.Iterator;
@@ -134,7 +133,7 @@ public abstract class CResource extends Common {
 		Enumeration<URL> resources = Thread.currentThread().getContextClassLoader().getResources(fileName);
 		List<File> resourceFiles = new ArrayList<>();
 		while (resources.hasMoreElements()) {
-			String resourceFileName = URLDecoder.decode(resources.nextElement().getPath(), StandardCharsets.UTF_8);
+			String resourceFileName = URLDecoder.decode(resources.nextElement().getPath(), "UTF_8");
 			if (!resourceFileName.contains(".jar!")) {
 				resourceFiles.add(new File(resourceFileName));
 			}
