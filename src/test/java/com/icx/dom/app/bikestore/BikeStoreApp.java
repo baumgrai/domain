@@ -48,8 +48,9 @@ public class BikeStoreApp {
 	public static final File BIKE_PICTURE = new File("src/test/resources/bike.jpg");
 
 	// Delay time between client bike order requests. One client tries to order bikes of 3 different types. Acts also as delay time for start of client's ordering threads.
-	// Note: Values lower 100ms lead to problems with Oracle connections - at least in local test environment with Oracle 11g Express edition (11.2)
-	public static final long ORDER_DELAY_TIME_MS = 100;
+	// Note: Values lower 200ms lead to problems with Oracle connections - at least in local test environment with Oracle 11g Express edition (11.2)
+	// public static final long ORDER_DELAY_TIME_MS = 200; // Oracle
+	public static final long ORDER_DELAY_TIME_MS = 50; // Others
 
 	// Initially available bikes for any provided size
 	public static final int AVAILABLE_BIKES = 15;
@@ -91,7 +92,7 @@ public class BikeStoreApp {
 	public static void main(String[] args) throws Exception {
 
 		// -------------------------------------------------
-		SqlDb.DbType dbType = DbType.MYSQL;
+		SqlDb.DbType dbType = DbType.ORACLE;
 		// -------------------------------------------------
 
 		// Read JDBC and Domain properties. Note: you should not have multiple properties files with same name in your class path
