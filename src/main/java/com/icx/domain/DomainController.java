@@ -347,7 +347,7 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 		Class<? extends T> objectDomainClass = registry.getCastedDomainClass(obj);
 		if (objectMap.get(objectDomainClass).containsKey(id)) {
 			if (log.isDebugEnabled()) {
-				log.debug("DC: {} is an already registered object", obj);
+				log.info("DC: {}@{} is an already registered object", objectDomainClass, id);
 			}
 			return false;
 		}
@@ -398,6 +398,18 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 	}
 
 	/**
+	 * Check if an object of given domain class with given id is already registered.
+	 * 
+	 * @param domainClass
+	 * @param id
+	 * 
+	 * @return true if object is registered, false if it was deleted or if it was not loaded because it was out of data horizon on load time
+	 */
+	public boolean isRegistered(Class<? extends DomainObject> domainClass, long id) {
+		return objectMap.get(domainClass).containsKey(id);
+	}
+
+	/**
 	 * Check if object is registered.
 	 * 
 	 * @param obj
@@ -406,7 +418,7 @@ public abstract class DomainController<T extends DomainObject> extends Common {
 	 * @return true if object is registered, false if it was deleted or if it was not loaded because it was out of data horizon on load time
 	 */
 	public boolean isRegistered(DomainObject obj) {
-		return objectMap.get(obj.getClass()).containsKey(obj.getId());
+		return isRegistered(obj.getClass(), obj.getId());
 	}
 
 	// -------------------------------------------------------------------------
