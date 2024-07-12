@@ -18,7 +18,7 @@ At runtime **load and persist objects**:
 
 **Features:**
 - supports **class inheritance** - there is no restriction regarding inheritance of domain classes (e.g.: `Bike extends SqlDomainObject`, `RaceBike extends Bike`, `Bianchi extends RaceBike`) [^1]
-- represents **parent/child relations** of domain objects in database (`class Manufacturer {...}`, `class Bike { Manufacturer manufacturer; ...}`) and also of n:m relations (`class A {...}`, `class B {...}`, `class AB { A a; B b; }`)
+- represents **parent/child relations** between domain objects in database (`class Manufacturer {...}`, `class Bike { Manufacturer manufacturer; ...}`) and also of n:m relations (`class A {...}`, `class B {...}`, `class AB { A a; B b; }`)
 - allows **direct access to children** by managed *accumulation* fields (`class Manufacturer {... @Accumulation Set<Bike> bikes; }`)
 - supports **circular references** on class and object level (`class X { X next; }`, `class A { B b; }`, `class B { C c; }`, `class C { A a; }`)
 - protects **sensitive data**: you can encrypt data in database using `@Crypt` annotation and also suppress logging of sensitive data at any log level using `@Secret` annotation [^2]
