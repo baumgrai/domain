@@ -86,7 +86,7 @@ public class Deleter extends Common {
 				log.warn("SDC: Record for domain class '{}' of {} was not deleted (did not exist)", obj.universalId(), domainClass);
 			}
 			else if (log.isTraceEnabled()) {
-				log.info("SDC: {}Record for domain class '{}' of {} was deleted", CLog.tabs(stackSize), obj.universalId(), domainClass);
+				log.trace("SDC: {}Record for domain class '{}' of {} was deleted", CLog.tabs(stackSize), obj.universalId(), domainClass);
 			}
 		}
 	}
@@ -106,7 +106,9 @@ public class Deleter extends Common {
 
 		// Delete children
 		for (SqlDomainObject child : sdc.getDirectChildren(obj)) {
-			deleteRecursiveFromDatabase(child, objectsInProcessOfDeletion, stackSize + 1);
+			if (!objectsInProcessOfDeletion.contains(child)) {
+				deleteRecursiveFromDatabase(child, objectsInProcessOfDeletion, stackSize + 1);
+			}
 		}
 
 		// Delete object itself from database (if it was already stored)
