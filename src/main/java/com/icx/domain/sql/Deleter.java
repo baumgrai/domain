@@ -52,8 +52,8 @@ public class Deleter extends Common {
 					if (objectsEqual(objectToCheck.getFieldValue(refField), objectToDelete)) {
 
 						if (log.isDebugEnabled()) {
-							log.debug("SDC: {}Circular reference detected: {}.{} references {}! Reset reference before deleting object.", CLog.tabs(stackSize), objectToCheck.name(),
-									refField.getName(), objectToDelete.name());
+							log.debug("SDC: {}Circular reference detected: {}.{} references {}! Reset reference before deleting object.", CLog.tabs(stackSize), objectToCheck.universalId(),
+									refField.getName(), objectToDelete.universalId());
 						}
 
 						// Set object's field value to null
@@ -70,7 +70,7 @@ public class Deleter extends Common {
 	}
 
 	// DELETE object records from database
-	private void deleteFromDatabase(SqlDomainObject obj) throws SQLException, SqlDbException {
+	private void deleteFromDatabase(SqlDomainObject obj, int stackSize) throws SQLException, SqlDbException {
 
 		// Delete records belonging to this object: object records for domain class(es) and potentially existing entry records
 		for (Class<? extends SqlDomainObject> domainClass : CList.reverse(sdc.getRegistry().getDomainClassesFor(obj.getClass()))) {
@@ -81,7 +81,13 @@ public class Deleter extends Common {
 			}
 
 			// Delete object record for domain class
-			SqlDb.deleteFrom(cn, sdc.getSqlRegistry().getTableFor(domainClass).name, Const.ID_COL + "=" + obj.getId());
+			long count = SqlDb.deleteFrom(cn, sdc.getSqlRegistry().getTableFor(domainClass).name, Const.ID_COL + "=" + obj.getId());
+			if (count != 1) {
+				log.warn("SDC: Record for domain class '{}' of {} was not deleted (did not exist)", obj.universalId(), domainClass);
+			}
+			else if (log.isTraceEnabled()) {
+				log.info("SDC: {}Record for domain class '{}' of {} was deleted", CLog.tabs(stackSize), obj.universalId(), domainClass);
+			}
 		}
 	}
 
@@ -108,12 +114,16 @@ public class Deleter extends Common {
 		// Delete object itself from database (if it was already stored)
 		if (obj.isStored) {
 			checkForAndResetCircularReferences(obj, objectsToCheck, stackSize);
-			deleteFromDatabase(obj);
+
+			deleteFromDatabase(obj, stackSize);
 
 			objectsToCheck.remove(obj); // object was DELETED in database and does not need be checked for circular references anymore
 			if (log.isTraceEnabled()) {
-				log.trace("SDC: {}{} was deleted", CLog.tabs(stackSize), obj.name());
+				log.trace("SDC: {}{} was deleted", CLog.tabs(stackSize), obj.universalId());
 			}
+		}
+		else {
+			log.info("SDC: {}{} was not stored in database and therefore object record(s) cannot be deleted", CLog.tabs(stackSize), obj.universalId());
 		}
 	}
 }
