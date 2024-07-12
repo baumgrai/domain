@@ -353,14 +353,14 @@ public class Loader extends Common {
 					loadedRecordsMap.put(id, entry.getValue());
 					sdc.successfulExclusiveAccessCount++;
 				}
-				else {
+				else { // Thread access collision
 					if (log.isDebugEnabled()) {
 						log.debug("SDC: {}@{} is already in progress (by another thread of same controller instance)", objectDomainClass.getSimpleName(), id);
 					}
 					sdc.inUseBySameInstanceAccessCount++;
 				}
 			}
-			catch (SQLException sqlex) {
+			catch (SQLException sqlex) { // Instance access collision
 				log.info("SDC: {} record with id {} is probably already in progress by another instance ({})", objectDomainClass.getSimpleName(), id, sqlex.getMessage());
 				sdc.inUseByDifferentInstanceAccessCount++;
 			}
