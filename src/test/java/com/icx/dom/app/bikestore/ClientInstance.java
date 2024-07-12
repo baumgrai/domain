@@ -28,10 +28,10 @@ public class ClientInstance extends Common implements Runnable {
 	private Properties domainProps = null;
 
 	// World region
-	private Region region = null;
+	public Region region = null;
 
 	// Domain controller object (with overridden #generatUniqueId() method)
-	private BikeDomainController sdc = new BikeDomainController();
+	public BikeDomainController sdc = new BikeDomainController();
 
 	private int n; // may not be a local variable which is not accepted by Java Functional interface (not 'static' enough'
 
