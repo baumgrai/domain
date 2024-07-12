@@ -119,6 +119,7 @@ public class BikeStoreApp {
 
 		try {
 			// Create and start bike store instances for world regions
+			List<ClientInstance> clientInstances = new ArrayList<>();
 			Map<Region, Thread> instanceThreadMap = new HashMap<>();
 			Map<Region, Thread> orderThreadMap = new HashMap<>();
 			Map<Region, Thread> bikeDeliveryThreadMap = new HashMap<>();
@@ -126,8 +127,8 @@ public class BikeStoreApp {
 			for (Region region : Region.values()) {
 
 				// Start order processing and bike delivery thread for region
-				// Note: there are separate order and bike delivery threads for every region but they use the same domain controller and have access to all orders independently in which region they
-				// were generated - this is to force concurrent access collisions
+				// Note: there are separate order and bike delivery threads for every region but they use the same domain controller instance and have access to all orders independently in which
+				// region they were generated - this is to force concurrent access collisions
 				Thread orderProcessingThread = new Thread(new Order.ProcessOrder(sdc));
 				orderProcessingThread.setName("ORDER " + region.shortname());
 				orderProcessingThread.start();
@@ -138,8 +139,10 @@ public class BikeStoreApp {
 				bikeDeliveryThread.start();
 				bikeDeliveryThreadMap.put(region, bikeDeliveryThread);
 
-				// Start bike store client thread for region
-				Thread instanceThread = new Thread(new ClientInstance(dbProps, domainProps, region));
+				// Start bike store client thread for region (using separate domain controller instances)
+				ClientInstance clientInstance = new ClientInstance(dbProps, domainProps, region);
+				clientInstances.add(clientInstance);
+				Thread instanceThread = new Thread(clientInstance);
 				instanceThread.setName("INSTANCE " + region.shortname());
 				instanceThread.start();
 				instanceThreadMap.put(region, instanceThread);
@@ -187,7 +190,10 @@ public class BikeStoreApp {
 			log.info("# of total orders created: {}", sdc.count(Order.class, null));
 			log.info("# of invoices sent: {}", sdc.count(Order.class, o -> o.invoiceDate != null));
 			log.info("# of bikes delivered: {}", sdc.count(Order.class, o -> o.deliveryDate != null));
-			log.info("# of pending orders: {}", sdc.count(Order.class, o -> o.payDate != null && o.deliveryDate == null));
+			long pendingOrderCount = sdc.count(Order.class, o -> o.payDate != null && o.deliveryDate == null);
+			if (pendingOrderCount > 0) {
+				log.warn("# of pending orders: {}", pendingOrderCount);
+			}
 			log.info("# of orders canceled by inability to pay: {}", sdc.count(Order.class, o -> o.wasCanceled));
 			log.info("");
 			log.info("# of orders where order processing exceeded timeout: {}", Order.orderProcessingExceededCount);
@@ -196,8 +202,17 @@ public class BikeStoreApp {
 			log.info("Order processing time statistic (# of order processing operations in less than ? ms): {}", Order.orderProcessingDurationMap);
 			log.info("Bike delivery time statistic (# of bike delivery operations in less than ? ms): {}", Order.bikeDeliveryDurationMap);
 			log.info("");
-			log.info("Concurrent access denied because of use by another thread of same controller instance: {}", sdc.inUseBySameInstanceAccessCount);
-			log.info("Concurrent access denied because of use by another controller instance: {}", sdc.inUseByDifferentInstanceAccessCount);
+			log.info("Local concurrent access collisions for 'order' objects by order and bike-delivery threads: {}", sdc.inUseBySameInstanceAccessCount);
+			if (sdc.inUseByDifferentInstanceAccessCount > 0) {
+				log.warn("Access collisions for 'order' objects which were falsely categorized as globel and threrefore lead to resting 'in-progress' records: {}",
+						sdc.inUseByDifferentInstanceAccessCount);
+			}
+			int globalCollisionCount = 0;
+			for (ClientInstance clientInstance : clientInstances) {
+				log.info("Local concurrent access collisions for 'bike' objects of {} client controller instance: {}", clientInstance.region, clientInstance.sdc.inUseBySameInstanceAccessCount);
+				globalCollisionCount += clientInstance.sdc.inUseByDifferentInstanceAccessCount;
+			}
+			log.info("Global concurrent access collisions for 'bike' objects by different client controller instances: {}", globalCollisionCount);
 			log.info("Unsuccessful tries allocating bikes to order: {}", Client.unsuccessfulTriesAllocatingBikesToOrderCount);
 			log.info("Successful tries allocating bikes to order: {}", Client.successfulTriesAllocatingBikesToOrderCount);
 		}
