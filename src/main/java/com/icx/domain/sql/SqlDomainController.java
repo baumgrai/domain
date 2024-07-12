@@ -593,6 +593,9 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 		}
 
 		LoadResult loadResult = loadAssuringReferentialIntegrity(cn -> new Loader(this, cn).selectObjectRecord(obj));
+		if (loadResult.loadedObjects.isEmpty()) {
+			log.warn("SDC: {} could not be reloaded!", obj.universalId());
+		}
 
 		return loadResult.hasChanges;
 	}
@@ -745,6 +748,8 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 		if (log.isDebugEnabled()) {
 			log.debug("SDC: Release {} from exclusive use ({})", obj, update);
 		}
+
+		// Perform update action if specified
 		if (update != null) {
 			update.accept(obj);
 			save(obj);
