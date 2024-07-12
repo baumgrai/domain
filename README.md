@@ -11,7 +11,7 @@ It supports ***Oracle*, *MS/SQL-Server*** and ***MySQL* / *MariaDB***.
 2. Let `Java2Sql` tool generate SQL scripts for persistence database based on these domain classes and build persistence database using these scripts.
 3. Configure database connection in `db.properties` file
    
-(*) On inheritance base class must extend `SqlDomainObject`
+   (*) On inheritance base class must extend `SqlDomainObject`
 
 **Load and persist objects at runtime:**
 
