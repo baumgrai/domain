@@ -9,9 +9,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Queue;
 import java.util.ResourceBundle;
 import java.util.Set;
 import java.util.SortedMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.stream.Collectors;
 
 import org.slf4j.MDC;
@@ -25,10 +27,10 @@ import com.icx.dom.app.bikestore.domain.bike.Bike;
 import com.icx.dom.app.bikestore.domain.bike.CityBike;
 import com.icx.dom.app.bikestore.domain.bike.MTB;
 import com.icx.dom.app.bikestore.domain.bike.RaceBike;
-import com.icx.domain.sql.SqlDomainObject;
 import com.icx.domain.sql.Annotations.Accumulation;
 import com.icx.domain.sql.Annotations.SqlColumn;
 import com.icx.domain.sql.Annotations.SqlTable;
+import com.icx.domain.sql.SqlDomainObject;
 import com.icx.jdbc.SqlDbException;
 
 /**
@@ -215,7 +217,7 @@ public class Client extends SqlDomainObject {
 	static String language = "en";
 	public static ResourceBundle bundle = ResourceBundle.getBundle("messages", Locale.forLanguageTag(language));
 
-	protected static List<Client> clients = new ArrayList<>(); // You may use static members without any restrictions; they won't be saved in database
+	protected static Queue<Client> clients = new ConcurrentLinkedQueue<Client>(); // You may use static members without any restrictions; they won't be saved in database
 
 	// Members
 
@@ -314,15 +316,14 @@ public class Client extends SqlDomainObject {
 				log.info("'{}' orders bike '{}' in size '{}' - available bikes now: {}", client, bike, bikeSize, bike.availabilityMap.get(bikeSize));
 			}
 
-			// Release exclusively allocated bikes which will not be processed (as soon as possible)
+			// Release exclusively allocated bikes - keep ordered bike allocated to allow incrementing availability counter if order will later be canceled
 			bikes.remove(bike);
 			sdc().releaseObjects(bikes, Bike.InProgress.class);
 
 			if (bike != null) {
 
-				// Create order using constructor and register and save it explicitly - so ensuring that only a fully initialized order will be registered and can be found by order processing
-				// thread
-				// Note: Because of 'orderedBike is not 'static' enough create() ad createAndSave() using init function for setting bike of order would not compile
+				// Create order using constructor and register and save it explicitly - so ensuring that only a fully initialized order can be found by order processing thread
+				// Note: Because of 'bike' is not 'static' enough for Java, create() and createAndSave() using init function for setting bike of order would not compile
 				Order order = new Order(bike, client);
 				sdc().register(order);
 				sdc().save(order); // save() method of domain controller throws and logs (SQL) exception occurred - using both methods here is only for demonstration
@@ -353,7 +354,7 @@ public class Client extends SqlDomainObject {
 				return true;
 			}
 			else {
-				// Release bike which was tried to order incrementing availability counter again before
+				// Increment availability counter again for bike which was tried to order
 				sdc().releaseObject(order.bike, Bike.InProgress.class, b -> b.availabilityMap.put(bikeSize, b.availabilityMap.get(bikeSize) + 1));
 
 				// Cancel order
