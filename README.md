@@ -24,10 +24,10 @@ It supports ***Oracle*, *MS/SQL-Server*** and ***MySQL* / *MariaDB***.
 - allows **direct access to children** by managed *accumulation* fields (`class Manufacturer {... @Accumulation Set<Bike> bikes; }`)
 - supports **circular references** on class and object level (`class X { X next; }`, `class A { B b; }`, `class B { C c; }`, `class C { A a; }`)
 - **protects sensitive data**: encrypt data in database using `@Crypt` annotation and suppress logging of sensitive data at any log level using `@Secret` annotation
-- supports house keeping by **data horizon**: only objects, which are where created or changed after a configurable time horizon in the past, will initially be loaded into and and kept in local object store. Data running out of time will be removed from object store on `SqlDomainController#synchronize()` (this behavior is controlled by `@UseDataHorizon` class annotation and `dataHorizonPeriod` property)
-- supports **selective object loading**: only a part of the persisted objects will be loaded from database using `SqlDomainController#loadOnly()`[^2]
+- supports house keeping by **data horizon**: only objects, which were created or changed after a configurable time horizon in the past, will be loaded into and and kept in local object store. Data running out of time will be removed from object store on `SqlDomainController#synchronize()` (this behavior is controlled by `@UseDataHorizon` class annotation and `dataHorizonPeriod` property)
+- supports **selective object loading**: you can load only a part of the persisted objects from database using `SqlDomainController#loadOnly()`[^2]
 - ensures **referential integrity** - even if not all persisted objects are loaded into object store: parent is loaded if child is loaded
-- allows **concurrent access** to persistence database: persistence database can be accessed by multiple threads and/or multiple domain controller instances. Concurrent access can be synchronized using `SqlDomainController#allocateObjectsExclusively()`[^2][^3]
+- allows **concurrent access** to persistence database: one persistence database can be accessed by multiple threads and/or multiple domain controller instances. Concurrent access to objects can be synchronized using `SqlDomainController#allocateObjectsExclusively()`[^2][^3]
 
 [^1]: On inheritance the base class of the inheritance stack extends `SqlDomainObject`
 [^2]: Knowledge of SQL and *domain* specific Java -> SQL naming rules is needed (only) for building WHERE clauses if objects shall be loaded selectively from database or if objects shall be allocated exclusively. Java -> SQL naming rules are described in Javadoc.
