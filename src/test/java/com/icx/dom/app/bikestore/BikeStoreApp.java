@@ -204,7 +204,7 @@ public class BikeStoreApp {
 			log.info("");
 			log.info("Local concurrent access collisions for 'order' objects by order and bike-delivery threads: {}", sdc.inUseBySameInstanceAccessCount);
 			if (sdc.inUseByDifferentInstanceAccessCount > 0) {
-				log.warn("Access collisions for 'order' objects which were falsely categorized as globel and threrefore lead to resting 'in-progress' records: {}",
+				log.warn("Access collisions for 'order' objects which were falsely categorized as global and threrefore lead to resting 'in-progress' records: {}",
 						sdc.inUseByDifferentInstanceAccessCount);
 			}
 			int globalCollisionCount = 0;
