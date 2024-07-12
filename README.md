@@ -21,16 +21,17 @@ It supports ***Oracle*, *MS/SQL-Server*** and ***MySQL* / *MariaDB***.
 - represents **parent/child relations** of domain objects in database (`class Manufacturer {...}`, `class Bike { Manufacturer manufacturer; ...}`) and also of n:m relations (`class A {...}`, `class B {...}`, `class AB { A a; B b; }`)
 - allows **direct access to children** by managed *accumulation* fields (`class Manufacturer {... @Accumulation Set<Bike> bikes; }`)
 - supports **circular references** on class and object level (`class X { X next; }`, `class A { B b; }`, `class B { C c; }`, `class C { A a; }`)
-- **protects sensitive data**: you can encrypt data in database using `@Crypt` annotation and also suppress logging of sensitive data at any log level using `@Secret` annotation [^4]
+- **protects sensitive data**: you can encrypt data in database using `@Crypt` annotation and also suppress logging of sensitive data at any log level using `@Secret` annotation [^2]
 - supports house keeping by **data horizon**: only objects, which were created or changed after a configurable time horizon in the past, will be loaded, and objects running out of time will be removed from object store on `SqlDomainController#synchronize()` (this behavior is controlled by `@UseDataHorizon` class annotation and `dataHorizonPeriod` property)
-- supports **selective object loading**: you can load only a part of the persisted objects using `SqlDomainController#loadOnly()`[^2]
+- supports **selective object loading**: you can load only a part of the persisted objects using `SqlDomainController#loadOnly()`[^3]
 - ensures **referential integrity** - even if not all persisted objects are loaded: parent is loaded if child is loaded
-- allows **concurrent access** to persistence database: one persistence database can be accessed by multiple threads and/or multiple domain controller instances. Concurrent access to objects can be synchronized using `SqlDomainController#allocateObjectsExclusively()`[^2][^3]
+- allows **concurrent access** to persistence database: one persistence database can be accessed by multiple threads and/or multiple domain controller instances. Concurrent access to objects can be synchronized using `SqlDomainController#allocateObjectsExclusively()`[^3][^4][^5]
 
 [^1]: On inheritance the base class of the inheritance stack extends `SqlDomainObject`
-[^2]: Knowledge of SQL and *domain* specific Java -> SQL naming rules is needed (only) for building WHERE clauses if objects shall be loaded selectively from database or if objects shall be allocated exclusively. Java -> SQL naming rules are described in Javadoc.
-[^3]: If only one domain controller instance operates on your persistence database, you may load persisted objects from database once and save your (new or changed) objects whenever you want (program is master). If multiple domain controller instances operate parallely on one persistence database, objects must be saved immediately after creation or change and access to objects must be synchronized by allocating objects exclusively before reading and/or changing them (database is master).
-[^4]: On INFO log level no object data will be logged at all. 
+[^2]: On INFO log level no object data will be logged at all. 
+[^3]: Knowledge of SQL and *domain* specific Java -> SQL naming rules is needed (only) for building WHERE clauses if objects shall be loaded selectively from database or if objects shall be allocated exclusively. Java -> SQL naming rules are described in Javadoc.
+[^4]: If only one domain controller instance operates on your persistence database, you may load persisted objects from database once and save your (new or changed) objects whenever you want - program is master. If multiple domain controller instances operate parallely on one persistence database, objects must be saved immediately after creation or change, and access to objects must be synchronized by allocating objects exclusively before reading and/or changing them - database is master.
+[^5]: On using multiple domain controller instances connected to one persistence database exclusive access to objects is synchronized by so called *in-progress* records, which are associated to and unique for selected objects. This means concurrent access synchonization on database records uses UNIQUE constraint (of these in-progress records) and not ~~SELECT FOR UPDATE~~ clause (which will never be used within *domain* persistence layer at all).
 
 **Version Control:** 
 - If version information for \*new, *changed* and ~~removed~~ domain classes and fields are annotated, `Java2Sql` tool automatically generates incremental database update scripts in addition to full database generation scripts.
