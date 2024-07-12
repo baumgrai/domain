@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration status="WARN" monitorInterval="60">
 	<logger name="org.mariadb" level="OFF" />
-	<appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+	<appender name="STDOUT"
+		class="ch.qos.logback.core.ConsoleAppender">
 		<target>System.out</target>
 		<filter class="ch.qos.logback.classic.filter.LevelFilter">
 			<level>TRACE</level>
@@ -29,7 +30,8 @@
 			</pattern>
 		</encoder>
 	</appender>
-	<appender name="STDERR" class="ch.qos.logback.core.ConsoleAppender">
+	<appender name="STDERR"
+		class="ch.qos.logback.core.ConsoleAppender">
 		<target>System.err</target>
 		<filter class="ch.qos.logback.classic.filter.ThresholdFilter">
 			<level>WARN</level>
@@ -40,8 +42,25 @@
 			</pattern>
 		</encoder>
 	</appender>
+	<appender name="RollingFile"
+		class="ch.qos.logback.core.rolling.RollingFileAppender">
+		<file>logs/domain.log</file>
+		<rollingPolicy
+			class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+			<fileNamePattern>logs/domain.%d{yyyy-MM-dd}.%i.log
+			</fileNamePattern>
+			<maxFileSize>10MB</maxFileSize>
+			<maxHistory>30</maxHistory>
+		</rollingPolicy>
+		<encoder>
+			<pattern>
+				%d{dd.MM.yyyy} %d{HH:mm:ss.SSS} %.80t %C\(%L\) %p %M %m%n
+			</pattern>
+		</encoder>
+	</appender>
 	<root level="info">
 		<appender-ref ref="STDOUT" />
 		<appender-ref ref="STDERR" />
+		<appender-ref ref="RollingFile" />
 	</root>
 </configuration>
