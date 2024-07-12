@@ -171,18 +171,12 @@ public class Loader extends Common {
 
 					// Load entry records (do not include sync condition in this secondary WHERE clause to ensure correct data loading even if another thread allocated object exclusively)
 					List<SortedMap<String, Object>> loadedEntryRecords = new ArrayList<>();
-					if (limit > 0) {
 
-						// If # of loaded object records is limited SELECT only entry records for actually loaded object records
-						String whereClauseBase = (!isEmpty(whereClause) ? "(" + whereClause + ") AND " : "");
-						for (String idsList : Helpers.buildStringLists(loadedRecordMap.keySet(), 1000)) { // Oracle limitation max 1000 elements in lists
-							String idListWhereClause = whereClauseBase + objectTableName + ".ID IN (" + idsList + ")";
-							loadedEntryRecords.addAll(sdc.sqlDb.selectFrom(cn, sde.joinedTableExpression, sde.allColumnNames, idListWhereClause, sde.orderByClause, 0, null));
-						}
-					}
-					else {
-						// SELECT all entry records
-						loadedEntryRecords.addAll(sdc.sqlDb.selectFrom(cn, sde.joinedTableExpression, sde.allColumnNames, whereClause, sde.orderByClause, 0, null));
+					// SELECT only entry records for actually loaded object records
+					String whereClauseBase = (!isEmpty(whereClause) ? "(" + whereClause + ") AND " : "");
+					for (String idsList : Helpers.buildStringLists(loadedRecordMap.keySet(), 1000)) { // Oracle limitation max 1000 elements in lists
+						String idListWhereClause = whereClauseBase + objectTableName + ".ID IN (" + idsList + ")";
+						loadedEntryRecords.addAll(sdc.sqlDb.selectFrom(cn, sde.joinedTableExpression, sde.allColumnNames, idListWhereClause, sde.orderByClause, 0, null));
 					}
 
 					// Group entry records by objects where they belong to
@@ -306,23 +300,35 @@ public class Loader extends Common {
 	// Create object with given id - only used for exclusive selection methods
 	private <S extends SqlDomainObject> S createWithId(Class<S> domainObjectClass, long id) {
 
-		S obj = sdc.instantiate(domainObjectClass);
-		if (obj != null) {
-			if (!sdc.registerById(obj, id)) { // An object of this domain class already exists and is registered
+		synchronized (domainObjectClass) {
+
+			if (sdc.isRegistered(domainObjectClass, id)) { // An object of given domain class with given id already exists and is registered
+				if (log.isDebugEnabled()) {
+					log.debug("SDC: Thread collision on exclusive object selection for {}@{}", domainObjectClass, id);
+				}
 				return null;
 			}
-			if (log.isDebugEnabled()) {
-				log.debug("SDC: Created {} with given id", obj.name());
+
+			S obj = sdc.instantiate(domainObjectClass);
+			if (obj != null) {
+				if (!sdc.registerById(obj, id)) {
+					log.warn("SDC: Synchronization issue! {}@{}", domainObjectClass, id); // Should not happen because of surrounding 'synchronized' block
+					return null;
+				}
+				if (log.isDebugEnabled()) {
+					log.debug("SDC: Created {} with given id", obj.universalId());
+				}
 			}
+			return obj;
+
 		}
-		return obj;
 	}
 
 	// Select supplier used for synchronization if multiple instances access one database and have to process distinct objects (like orders)
 	Map<Class<? extends SqlDomainObject>, Map<Long, SortedMap<String, Object>>> selectExclusively(Class<? extends SqlDomainObject> objectDomainClass, Class<? extends SqlDomainObject> inProgressClass,
 			String whereClause, int maxCount) {
 
-		// Build WHERE clause
+		// Build sync WHERE clause - exclude records which currently are in progress (in-progress record exists during SELECT)
 		String objectTableName = sdc.getSqlRegistry().getTableFor(objectDomainClass).name;
 		String inProgressTableName = sdc.getSqlRegistry().getTableFor(inProgressClass).name;
 		String syncWhereClause = objectTableName + ".ID NOT IN (SELECT ID FROM " + inProgressTableName + ")";
@@ -333,14 +339,15 @@ public class Loader extends Common {
 			return Collections.emptyMap();
 		}
 
-		// Try to create and INSERT in-progress record with same id as records found (works only for one in-progress record per record found because of UNIQUE constraint for ID field) - provide only
-		// records where in-progress record could be inserted
+		// Find records which can be allocated exclusively now by trying to create an in-progress object and INSERT an in-progress record for any selected record. This can be done only once per record
+		// (means by exact one instance/thread at a time) because of the UNIQUE constraint of the ID field of the in-progress record. Provide only records where in-progress record could be inserted
 		Map<Long, SortedMap<String, Object>> loadedRecordsMap = new HashMap<>();
 		for (Entry<Long, SortedMap<String, Object>> entry : rawRecordsMap.entrySet()) {
 
+			SqlDomainObject inProgressObject = null;
 			long id = entry.getKey();
 			try {
-				SqlDomainObject inProgressObject = createWithId(inProgressClass, id);
+				inProgressObject = createWithId(inProgressClass, id);
 				if (inProgressObject != null) {
 					sdc.save(cn, inProgressObject);
 					loadedRecordsMap.put(id, entry.getValue());
@@ -354,7 +361,7 @@ public class Loader extends Common {
 				}
 			}
 			catch (SQLException sqlex) {
-				log.info("SDC: {} record with id {} is already in progress (by another instance)", objectDomainClass.getSimpleName(), id);
+				log.info("SDC: {} record with id {} is probably already in progress by another instance ({})", objectDomainClass.getSimpleName(), id, sqlex.getMessage());
 				sdc.inUseByDifferentInstanceAccessCount++;
 			}
 			catch (SqlDbException sqldbex) {
