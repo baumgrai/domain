@@ -1031,14 +1031,13 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 			return false;
 		}
 
-		List<SqlDomainObject> unregisteredObjects = new ArrayList<>(); // Collect objects unregistered during deletion process to allow re-registering on exception
 		try {
 			if (log.isDebugEnabled()) {
 				log.debug("SDC: Delete {}", obj.name());
 			}
 
 			// Delete object and children
-			new Deleter(this, cn).deleteRecursiveFromDatabase(obj, unregisteredObjects, null, 0);
+			new Deleter(this, cn).deleteRecursiveFromDatabase(obj, null, 0);
 
 			if (log.isDebugEnabled()) {
 				log.debug("SDC: Deleted {}", obj.name());
@@ -1058,11 +1057,6 @@ public class SqlDomainController extends DomainController<SqlDomainObject> {
 
 			// ROLL BACK complete delete transaction
 			SqlConnection.rollback(cn);
-
-			// Re-register already unregistered objects and re-generate object records
-			for (SqlDomainObject o : unregisteredObjects) {
-				reregister(o);
-			}
 
 			throw sqlex;
 		}

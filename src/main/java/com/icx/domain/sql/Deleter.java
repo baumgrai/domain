@@ -92,32 +92,30 @@ public class Deleter extends Common {
 	}
 
 	// Delete object and all of its children from database
-	void deleteRecursiveFromDatabase(SqlDomainObject obj, List<SqlDomainObject> unregisteredObjects, List<SqlDomainObject> objectsToCheck, int stackSize) throws SQLException, SqlDbException {
+	void deleteRecursiveFromDatabase(SqlDomainObject obj, List<SqlDomainObject> objectsInProcessOfDeletion, int stackSize) throws SQLException, SqlDbException {
 
-		if (objectsToCheck == null) {
-			objectsToCheck = new ArrayList<>();
+		if (objectsInProcessOfDeletion == null) {
+			objectsInProcessOfDeletion = new ArrayList<>();
 		}
 		if (log.isTraceEnabled()) {
 			log.trace("SDC: {}Delete {}", CLog.tabs(stackSize), obj.name());
 		}
 
-		// Unregister this object
-		sdc.unregister(obj); // to avoid that this object can be found while deletion process runs
-		unregisteredObjects.add(obj); // to allow re-registration on failure
-		objectsToCheck.add(obj); // objects which are in process of deletion (and which shall be checked for circular references)
+		// Add object to objects which are in process of deletion (and which shall be checked for circular references)
+		objectsInProcessOfDeletion.add(obj);
 
 		// Delete children
 		for (SqlDomainObject child : sdc.getDirectChildren(obj)) {
-			deleteRecursiveFromDatabase(child, unregisteredObjects, objectsToCheck, stackSize + 1);
+			deleteRecursiveFromDatabase(child, objectsInProcessOfDeletion, stackSize + 1);
 		}
 
 		// Delete object itself from database (if it was already stored)
 		if (obj.isStored) {
-			checkForAndResetCircularReferences(obj, objectsToCheck, stackSize);
+			checkForAndResetCircularReferences(obj, objectsInProcessOfDeletion, stackSize);
 
 			deleteFromDatabase(obj, stackSize);
 
-			objectsToCheck.remove(obj); // object was DELETED in database and does not need be checked for circular references anymore
+			objectsInProcessOfDeletion.remove(obj); // Object was DELETED in database and does not need be checked for circular references anymore
 			if (log.isTraceEnabled()) {
 				log.trace("SDC: {}{} was deleted", CLog.tabs(stackSize), obj.universalId());
 			}
@@ -125,5 +123,10 @@ public class Deleter extends Common {
 		else {
 			log.info("SDC: {}{} was not stored in database and therefore object record(s) cannot be deleted", CLog.tabs(stackSize), obj.universalId());
 		}
+
+		// Unregister this object - do this after deleting records in database to have correct, stack-like order of operations: register (on create) -> save -> delete -> unregister and to avoid false
+		// detection of instance access collisions on exclusive object allocation, which - at least with MySQL - may lead to remaining (non-deleted) in-progress records which would lock the associated
+		// objects for exclusive access infinitely (SqlDomainController#allocateObjectsExclusively(), Loader#selectExclusivel())
+		sdc.unregister(obj);
 	}
 }
