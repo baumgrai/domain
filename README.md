@@ -24,7 +24,7 @@ Use **Version Control** for application development:
 - represents **parent/child relations** between domain objects in database (`class Manufacturer {...}`, `class Bike { Manufacturer manufacturer; ...}`) and may also represent n:m relations using helper classes (`class A {...}`, `class B {...}`, `class AB { A a; B b; }`)
 - allows **direct access to children** by managed *accumulation* fields (`class Manufacturer {... @Accumulation Set<Bike> bikes; }`)
 - supports **circular references** on class and object level (`class X { X next; }`, `class A { B b; }`, `class B { C c; }`, `class C { A a; }`)
-- protects **sensitive data**: you can encrypt data in database using `@Crypt` annotation and also suppress logging of sensitive data at any log level using `@Secret` annotation [^2]
+- protects **sensitive data**: you can encrypt data in database using `@Crypt` annotation, and you also can suppress logging of sensitive data at any log level using `@Secret` annotation [^2]
 - supports house keeping by **data horizon**: only objects, which were created or changed after a configurable time horizon in the past, will be loaded, and objects running out of time will be removed from object store on `SqlDomainController#synchronize()` (this behavior is controlled by `@UseDataHorizon` class annotation and `dataHorizonPeriod` property)
 - supports **selective object loading**: you can load only a part of the persisted objects using `SqlDomainController#loadOnly()` [^3]
 - ensures **referential integrity** - even if not all persisted objects are loaded: parent is loaded if child is loaded
