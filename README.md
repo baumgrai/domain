@@ -4,7 +4,7 @@
 If you - for any reason - do not want to use Hibernate, Spring, etc. for your Java persistence needs, this software could be worth a look! It supports ***Oracle*, *MS/SQL-Server*** and ***MySQL* / *MariaDB***.
 
 Start with the **Generation of the persistence database**:
-1. Let all your Java classes to persist - called *domain classes* - extend `SqlDomainObject` class [^1]. 
+1. Let all your Java classes to persist - called *domain* classes - extend `SqlDomainObject` class [^1]. 
 2. Let `Java2Sql` tool generate SQL scripts based on these domain classes and build persistence database using these scripts.
 3. Configure database connection in `db.properties` file.
 
