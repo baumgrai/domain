@@ -16,7 +16,7 @@ At runtime **load and persist objects**:
 - Remove objects from object store and delete associated persistence records from database using `#delete()`.
 - Search for objects in object store using `DomainController#findAll(<predicate>)`, `DomainController#findAny(<predicate>)`, etc.
 
-Use **Version Control:** for application development: 
+Use **Version Control** for application development: 
 - Version information can be annotated to \*new, *changed* and ~~removed~~ domain classes and fields; `Java2Sql` tool then automatically generates incremental database update scripts in addition to full database generation scripts.
 
 **Features:**
