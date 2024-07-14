@@ -19,7 +19,7 @@ At runtime **load and persist objects**:
 Use **Version Control** for application development: 
 - Version information can be annotated to \*new, *changed* and ~~removed~~ domain classes and fields; `Java2Sql` tool then automatically generates incremental database update scripts in addition to full database generation scripts.
 
-**Features:**
+***domain*:**
 - supports **class inheritance** - there is no restriction regarding inheritance of domain classes (e.g.: `Bike extends SqlDomainObject`, `RaceBike extends Bike`, `Bianchi extends RaceBike`) [^1]
 - represents **parent/child relations** between domain objects in database (`class Manufacturer {...}`, `class Bike { Manufacturer manufacturer; ...}`) and may also represent n:m relations using helper classes (`class A {...}`, `class B {...}`, `class AB { A a; B b; }`)
 - allows **direct access to children** by managed *accumulation* fields (`class Manufacturer {... @Accumulation Set<Bike> bikes; }`)
