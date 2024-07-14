@@ -45,5 +45,5 @@ Use **Version Control** for application development:
 **Also good to know:**
 - *domain* runs in Java >= 8 environments and has a small footprint of about 10k LoC and 200kB jar
 - ***domain* depends only on logging (*slf4j* + *logback*) and specific database drivers** (no Spring, Guava, Apache, etc. is needed)
-- unit tests and demo applications 'BikeStore' and 'Survey' demonstrate usage and features  
+- unit tests and demo applications *BikeStore* and *Survey* demonstrate usage and features  
 - unit tests cover > 85% of code
