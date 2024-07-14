@@ -1,9 +1,7 @@
 # domain
 **Lightweight SQL Persistence Layer for Java**
 
-If you - for any reason - do not want to use Hibernate, Spring, etc. for your Java persistence needs, this software could be worth a look! 
-
-It supports ***Oracle*, *MS/SQL-Server*** and ***MySQL* / *MariaDB***.
+If you - for any reason - do not want to use Hibernate, Spring, etc. for your Java persistence needs, this software could be worth a look! It supports ***Oracle*, *MS/SQL-Server*** and ***MySQL* / *MariaDB***.
 
 Start with the **Generation of the persistence database**:
 1. Let all your Java classes to persist - called *domain classes* - extend `SqlDomainObject` class [^1]. 
