@@ -17,16 +17,16 @@ At runtime **load and persist objects**:
 Use **version control** for long-time application development: 
 - Version information can be annotated to \*new, *changed* and ~~removed~~ domain classes and fields; `Java2Sql` tool then automatically generates incremental database update scripts in addition to full database generation scripts.
 
-How can ***domain persitence layer*** assist you? It:
-- supports **class inheritance** - there is no restriction regarding inheritance of domain classes (e.g.: `Bike extends SqlDomainObject`, `RaceBike extends Bike`, `Bianchi extends RaceBike`) [^1]
-- represents **parent/child relations** between domain objects in database (`class Manufacturer {...}`, `class Bike { Manufacturer manufacturer; ...}`) and may also represent n:m relations using helper classes (`class A {...}`, `class B {...}`, `class AB { A a; B b; }`)
-- allows **direct access to children** by managed *accumulation* fields (`class Manufacturer {... @Accumulation Set<Bike> bikes; }`)
-- supports **circular references** on class and object level (`class X { X next; }`, `class A { B b; }`, `class B { C c; }`, `class C { A a; }`)
-- protects **sensitive data**: you can encrypt data in database using `@Crypt` annotation, and you also can suppress logging of sensitive data at any log level using `@Secret` annotation [^2]
-- supports house keeping by **data horizon**: only objects, which were created or changed after a configurable time horizon in the past, will be loaded, and objects running out of time will be removed from object store on `SqlDomainController#synchronize()` (this behavior is controlled by `@UseDataHorizon` class annotation and `dataHorizonPeriod` property)
-- supports **selective object loading**: you can load only a part of the persisted objects using `SqlDomainController#loadOnly()` [^3]
-- ensures **referential integrity** - even if not all persisted objects are loaded: parent is loaded if child is loaded
-- allows synchronization of **concurrent write access** to persistence database: one persistence database can be accessed by multiple domain controller instances and one controller instance can host multiple threads parallely accessing domain objects. Concurrent write access to domain objects can be synchronized using `SqlDomainController#allocateObjectsExclusively()` [^3][^4][^5]
+***domain persitence layer*** offers the following features:
+- it supports **class inheritance** - there is no restriction regarding inheritance of domain classes (e.g.: `Bike extends SqlDomainObject`, `RaceBike extends Bike`, `Bianchi extends RaceBike`) [^1]
+- it represents **parent/child relations** between domain objects in database (`class Manufacturer {...}`, `class Bike { Manufacturer manufacturer; ...}`) and may also represent n:m relations using helper classes (`class A {...}`, `class B {...}`, `class AB { A a; B b; }`)
+- it allows **direct access to children** by managed *accumulation* fields (`class Manufacturer {... @Accumulation Set<Bike> bikes; }`)
+- it supports **circular references** on class and object level (`class X { X next; }`, `class A { B b; }`, `class B { C c; }`, `class C { A a; }`)
+- it protects **sensitive data**: you can encrypt data in database using `@Crypt` annotation, and you also can suppress logging of sensitive data at any log level using `@Secret` annotation [^2]
+- it supports house keeping by **data horizon**: only objects, which were created or changed after a configurable time horizon in the past, will be loaded, and objects running out of time will be removed from object store on `SqlDomainController#synchronize()` (this behavior is controlled by `@UseDataHorizon` class annotation and `dataHorizonPeriod` property)
+- it supports **selective object loading**: you can load only a part of the persisted objects using `SqlDomainController#loadOnly()` [^3]
+- it ensures **referential integrity** - even if not all persisted objects are loaded: parent is loaded if child is loaded
+- it allows synchronization of **concurrent write access** to persistence database: one persistence database can be accessed by multiple domain controller instances and one controller instance can host multiple threads parallely accessing domain objects. Concurrent write access to domain objects can be synchronized using `SqlDomainController#allocateObjectsExclusively()` [^3][^4][^5]
 
 [^1]: On inheritance the base class of the inheritance stack extends `SqlDomainObject`
 [^2]: On INFO log level no object data will be logged at all. 
