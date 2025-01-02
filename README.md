@@ -36,7 +36,7 @@ Use **version control** for long-time application development:
 
 **How will objects be persisted?**
 - Every *domain* class is associated with one database table, and every object of this class corresponds to one persistence record having a unique, auto-generated id. On inheritance every inherited class has it's own table, so one domain object has multiple database records in this case.
-- Fields of types `Char`, `Short`, `Integer`, `Long`, `Double` (and primitives), `String`, `Enum`, `BigInteger`, `BigDecimal`, `LocalDate`, `LocalTime`, `LocalDateTime`, `Date`, `byte[]`, `char[]` and `File` correspond to columns of appropriate, database specific types.
+- Fields of types `Char`, `Short`, `Integer`, `Long`, `Double` (and primitives), `String`, `Enum`, `BigInteger`, `BigDecimal`, `LocalDate`, `LocalTime`, `LocalDateTime`, `Date`, `byte[]`, `char[]` and `File` correspond to columns of appropriate, database specific data types.
 - List, set, array and map fields correspond to separate *entry* tables, which persist collection elements or map entries and - for lists and arrays - their order.
 - For fields of any other type a string conversion provider must be defined. These fields then correspond to text columns.
 
